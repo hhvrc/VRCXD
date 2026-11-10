@@ -165,6 +165,7 @@ namespace VRCX
 
         /// <summary>
         /// Parses the log file starting from the current position and updates the log context.
+        /// Only complete lines are consumed, a line VRChat is still writing is read again on the next update.
         /// </summary>
         /// <param name="fileInfo">The file information of the log file to parse.</param>
         /// <param name="logContext">The log context to update.</param>
@@ -174,107 +175,133 @@ namespace VRCX
             try
             {
                 using var stream = new FileStream(fileInfo.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite, 65536, FileOptions.SequentialScan);
-                stream.Position = logContext.Position;
-                using var streamReader = new StreamReader(stream, Encoding.UTF8);
-                while (true)
+                if (logContext.Position == 0)
                 {
-                    line = streamReader.ReadLine();
-                    if (line == null)
+                    // skip the UTF-8 byte order mark, as StreamReader did
+                    var bom = new byte[3];
+                    if (stream.Read(bom, 0, 3) == 3 && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF)
+                        logContext.Position = 3;
+                }
+
+                stream.Position = logContext.Position;
+                var buffer = new byte[65536];
+                var pending = new MemoryStream(); // bytes of the line being read
+                var bufferPosition = logContext.Position; // file position of buffer[0]
+                int read;
+                while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    var start = 0;
+                    while (start < read)
                     {
-                        logContext.Position = stream.Position;
-                        break;
-                    }
-
-                    if (line.Length == 0)
-                    {
-                        continue;
-                    }
-
-                    // 2020.10.31 23:36:28 Log        -  [VRCFlowManagerVRC] Destination fetching: wrld_4432ea9b-729c-46e3-8eaf-846aa0a37fdd
-                    // 2021.02.03 10:18:58 Log        -  [ǄǄǅǅǅǄǄǅǅǄǅǅǅǅǄǄǄǅǅǄǄǅǅǅǅǄǅǅǅǅǄǄǄǄǄǅǄǅǄǄǄǅǅǄǅǅǅ] Destination fetching: wrld_4432ea9b-729c-46e3-8eaf-846aa0a37fdd
-
-                    if (ParseLogUdonException(logContext, line))
-                        continue;
-
-                    if (line.Length <= 36 ||
-                        line[31] != '-')
-                    {
-                        continue;
-                    }
-
-                    if (DateTime.TryParseExact(
-                            line.Substring(0, 19),
-                            "yyyy.MM.dd HH:mm:ss",
-                            CultureInfo.InvariantCulture,
-                            DateTimeStyles.None,
-                            out var lineDate
-                        ))
-                    {
-                        lineDate = lineDate.ToUniversalTime();
-                        // check if date is older than last database entry
-                        if (DateTime.Compare(lineDate, tillDate) <= 0)
+                        // a line ends at "\n", "\r" or "\r\n", like StreamReader.ReadLine (the empty line between "\r" and "\n" is skipped)
+                        var length = buffer.AsSpan(start, read - start).IndexOfAny((byte)'\r', (byte)'\n');
+                        if (length < 0)
                         {
-                            // logger.Warn("Invalid log time, too old: {0}", line);
-                            continue;
+                            pending.Write(buffer, start, read - start);
+                            break;
                         }
-                        // check if datetime is over an hour into the future (compensate for gamelog not handling daylight savings time correctly)
-                        if (DateTime.UtcNow.AddMinutes(61) < lineDate)
-                        {
-                            logger.Warn("Invalid log time, too new: {0}", line);
-                            continue;
-                        }
-                    }
-                    else
-                    {
-                        logger.Warn("Failed to parse log date: {0}", line);
-                        continue;
+
+                        pending.Write(buffer, start, length);
+                        line = Encoding.UTF8.GetString(pending.GetBuffer(), 0, (int)pending.Length);
+                        pending.SetLength(0);
+                        start += length + 1;
+
+                        if (line.Length > 0)
+                            ParseLine(logContext, line);
+
+                        logContext.Position = bufferPosition + start;
                     }
 
-                    logContext.LineDate = lineDate;
-
-                    // Parsers are tried in order, the first one that returns true handles the line.
-                    var offset = 34;
-                    if (line[offset] == '[')
-                    {
-                        _ = ParseLogOnPlayerJoinedOrLeft(logContext, line, offset) ||
-                            ParseLogLocation(logContext, line, offset) ||
-                            ParseLogLocationDestination(logContext, line, offset) ||
-                            ParseLogPortalSpawn(logContext, line, offset) ||
-                            ParseLogNotification(logContext, line, offset) ||
-                            ParseLogAPIRequest(logContext, line, offset) ||
-                            ParseLogAvatarChange(logContext, line, offset) ||
-                            ParseLogJoinBlocked(logContext, line, offset) ||
-                            ParseLogAvatarPedestalChange(logContext, line, offset) ||
-                            ParseLogVideoError(logContext, line, offset) ||
-                            ParseLogVideoChange(logContext, line, offset) ||
-                            ParseLogUsharpVideoPlay(logContext, line, offset) ||
-                            ParseLogUsharpVideoSync(logContext, line, offset) ||
-                            ParseLogWorldVRCX(logContext, line, offset) ||
-                            ParseLogWorldDataVRCX(logContext, line, offset) ||
-                            ParseLogOnAudioConfigurationChanged(logContext, line, offset) ||
-                            ParseLogScreenshot(logContext, line, offset) ||
-                            ParseLogResourceDownload(logContext, line, offset) ||
-                            ParseVoteKick(logContext, line, offset) ||
-                            ParseFailedToJoin(logContext, line, offset) ||
-                            ParseModerationManager(logContext, line, offset) ||
-                            ParseStickerSpawn(logContext, line, offset);
-                    }
-                    else
-                    {
-                        _ = ParseLogNowPlaying(logContext, line, offset) ||
-                            ParseLogShaderKeywordsLimit(logContext, line, offset) ||
-                            ParseLogSDK2VideoPlay(logContext, line, offset) ||
-                            ParseApplicationQuit(logContext, line, offset) ||
-                            ParseOpenVRInit(logContext, line, offset) ||
-                            ParseDesktopMode(logContext, line, offset) ||
-                            ParseOscFailedToStart(logContext, line, offset) ||
-                            ParseUntrustedUrl(logContext, line, offset);
-                    }
+                    bufferPosition += read;
                 }
             }
             catch (Exception ex)
             {
                 logger.Warn(ex, "Failed to parse log file: {0} {1} {2}", fileInfo.FullName, line, ex.Message);
+            }
+        }
+
+        private void ParseLine(LogContext logContext, string line)
+        {
+            // 2020.10.31 23:36:28 Log        -  [VRCFlowManagerVRC] Destination fetching: wrld_4432ea9b-729c-46e3-8eaf-846aa0a37fdd
+            // 2021.02.03 10:18:58 Log        -  [ǄǄǅǅǅǄǄǅǅǄǅǅǅǅǄǄǄǅǅǄǄǅǅǅǅǄǅǅǅǅǄǄǄǄǄǅǄǅǄǄǄǅǅǄǅǅǅ] Destination fetching: wrld_4432ea9b-729c-46e3-8eaf-846aa0a37fdd
+
+            if (ParseLogUdonException(logContext, line))
+                return;
+
+            if (line.Length <= 36 ||
+                line[31] != '-')
+            {
+                return;
+            }
+
+            if (DateTime.TryParseExact(
+                    line.Substring(0, 19),
+                    "yyyy.MM.dd HH:mm:ss",
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.None,
+                    out var lineDate
+                ))
+            {
+                lineDate = lineDate.ToUniversalTime();
+                // check if date is older than last database entry
+                if (DateTime.Compare(lineDate, tillDate) <= 0)
+                {
+                    // logger.Warn("Invalid log time, too old: {0}", line);
+                    return;
+                }
+                // check if datetime is over an hour into the future (compensate for gamelog not handling daylight savings time correctly)
+                if (DateTime.UtcNow.AddMinutes(61) < lineDate)
+                {
+                    logger.Warn("Invalid log time, too new: {0}", line);
+                    return;
+                }
+            }
+            else
+            {
+                logger.Warn("Failed to parse log date: {0}", line);
+                return;
+            }
+
+            logContext.LineDate = lineDate;
+
+            // Parsers are tried in order, the first one that returns true handles the line.
+            var offset = 34;
+            if (line[offset] == '[')
+            {
+                _ = ParseLogOnPlayerJoinedOrLeft(logContext, line, offset) ||
+                    ParseLogLocation(logContext, line, offset) ||
+                    ParseLogLocationDestination(logContext, line, offset) ||
+                    ParseLogPortalSpawn(logContext, line, offset) ||
+                    ParseLogNotification(logContext, line, offset) ||
+                    ParseLogAPIRequest(logContext, line, offset) ||
+                    ParseLogAvatarChange(logContext, line, offset) ||
+                    ParseLogJoinBlocked(logContext, line, offset) ||
+                    ParseLogAvatarPedestalChange(logContext, line, offset) ||
+                    ParseLogVideoError(logContext, line, offset) ||
+                    ParseLogVideoChange(logContext, line, offset) ||
+                    ParseLogUsharpVideoPlay(logContext, line, offset) ||
+                    ParseLogUsharpVideoSync(logContext, line, offset) ||
+                    ParseLogWorldVRCX(logContext, line, offset) ||
+                    ParseLogWorldDataVRCX(logContext, line, offset) ||
+                    ParseLogOnAudioConfigurationChanged(logContext, line, offset) ||
+                    ParseLogScreenshot(logContext, line, offset) ||
+                    ParseLogResourceDownload(logContext, line, offset) ||
+                    ParseVoteKick(logContext, line, offset) ||
+                    ParseFailedToJoin(logContext, line, offset) ||
+                    ParseModerationManager(logContext, line, offset) ||
+                    ParseStickerSpawn(logContext, line, offset);
+            }
+            else
+            {
+                _ = ParseLogNowPlaying(logContext, line, offset) ||
+                    ParseLogShaderKeywordsLimit(logContext, line, offset) ||
+                    ParseLogSDK2VideoPlay(logContext, line, offset) ||
+                    ParseApplicationQuit(logContext, line, offset) ||
+                    ParseOpenVRInit(logContext, line, offset) ||
+                    ParseDesktopMode(logContext, line, offset) ||
+                    ParseOscFailedToStart(logContext, line, offset) ||
+                    ParseUntrustedUrl(logContext, line, offset);
             }
         }
 
