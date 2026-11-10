@@ -7,8 +7,6 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace VRCX
 {
@@ -97,82 +95,14 @@ namespace VRCX
             return _vrcAppDataPath;
         }
 
-        public override string GetVRChatCacheLocation()
+        protected override string GetDefaultVRChatPhotosLocation()
         {
-            var defaultPath = Path.Join(GetVRChatAppDataLocation(), "Cache-WindowsPlayer");
-            try
-            {
-                var json = ReadConfigFile();
-                if (string.IsNullOrEmpty(json))
-                    return defaultPath;
-
-                var obj = JsonConvert.DeserializeObject<JObject>(json, JsonSerializerSettings);
-                if (obj["cache_directory"] == null)
-                    return defaultPath;
-
-                var cacheDir = (string)obj["cache_directory"];
-                if (string.IsNullOrEmpty(cacheDir))
-                    return defaultPath;
-
-                var cachePath = Path.Join(cacheDir, "Cache-WindowsPlayer");
-                if (!Directory.Exists(cacheDir))
-                    return defaultPath;
-
-                return cachePath;
-            }
-            catch (Exception e)
-            {
-                logger.Error($"Error reading VRChat config file for cache location: {e}");
-            }
-            return defaultPath;
+            return Path.Join(_vrcPrefixPath, "drive_c/users/steamuser/Pictures/VRChat");
         }
 
-        public override string GetVRChatPhotosLocation()
+        protected override string GetVRChatCrashDumpsLocation()
         {
-            var defaultPath = Path.Join(_vrcPrefixPath, "drive_c/users/steamuser/Pictures/VRChat");
-            try
-            {
-                var json = ReadConfigFile();
-                if (string.IsNullOrEmpty(json))
-                    return defaultPath;
-
-                var obj = JsonConvert.DeserializeObject<JObject>(json, JsonSerializerSettings);
-                if (obj["picture_output_folder"] == null)
-                    return defaultPath;
-
-                var photosDir = (string)obj["picture_output_folder"];
-                if (string.IsNullOrEmpty(photosDir) || !Directory.Exists(photosDir))
-                    return defaultPath;
-
-                return photosDir;
-            }
-            catch (Exception e)
-            {
-                logger.Error($"Error reading VRChat config file for photos location: {e}");
-            }
-            return defaultPath;
-        }
-
-        public override string GetUGCPhotoLocation(string path = "")
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                return GetVRChatPhotosLocation();
-            }
-
-            try
-            {
-                if (!Directory.Exists(path))
-                {
-                    Directory.CreateDirectory(path);
-                }
-                return path;
-            }
-            catch (Exception e)
-            {
-                logger.Error(e);
-                return GetVRChatPhotosLocation();
-            }
+            return _vrcCrashesPath;
         }
 
         private string GetSteamUserdataPathFromRegistry()
@@ -193,75 +123,6 @@ namespace VRCX
         {
             // program files steam userdata screenshots
             return Path.Join(_steamUserdataPath, "760/remote/438100/screenshots");
-        }
-
-        public override bool OpenVrcxAppDataFolder()
-        {
-            var path = Program.AppDataDirectory;
-            if (!Directory.Exists(path))
-                return false;
-
-            OpenFolderAndSelectItem(path, true);
-            return true;
-        }
-
-        public override bool OpenVrcAppDataFolder()
-        {
-            var path = _vrcAppDataPath;
-            if (!Directory.Exists(path))
-                return false;
-
-            OpenFolderAndSelectItem(path, true);
-            return true;
-        }
-
-        public override bool OpenVrcPhotosFolder()
-        {
-            var path = GetVRChatPhotosLocation();
-            if (!Directory.Exists(path))
-                return false;
-
-            OpenFolderAndSelectItem(path, true);
-            return true;
-        }
-
-        public override bool OpenUGCPhotosFolder(string ugcPath = "")
-        {
-            var path = GetUGCPhotoLocation(ugcPath);
-            if (!Directory.Exists(path))
-                return false;
-
-            OpenFolderAndSelectItem(path, true);
-            return true;
-        }
-
-        public override bool OpenVrcScreenshotsFolder()
-        {
-            var path = GetVRChatScreenshotsLocation();
-            if (!Directory.Exists(path))
-                return false;
-
-            OpenFolderAndSelectItem(path, true);
-            return true;
-        }
-
-        public override bool OpenCrashVrcCrashDumps()
-        {
-            var path = _vrcCrashesPath;
-            if (!Directory.Exists(path))
-                return false;
-
-            OpenFolderAndSelectItem(path, true);
-            return true;
-        }
-
-        public override void OpenShortcutFolder()
-        {
-            var path = AutoAppLaunchManager.Instance.AppShortcutDirectory;
-            if (!Directory.Exists(path))
-                return;
-
-            OpenFolderAndSelectItem(path, true);
         }
 
         public override void OpenFolderAndSelectItem(string path, bool isFolder = false)

@@ -29,17 +29,7 @@ namespace VRCX
 
         // Folders
         public abstract string GetVRChatAppDataLocation();
-        public abstract string GetVRChatPhotosLocation();
-        public abstract string GetUGCPhotoLocation(string path = "");
         public abstract string GetVRChatScreenshotsLocation();
-        public abstract string GetVRChatCacheLocation();
-        public abstract bool OpenVrcxAppDataFolder();
-        public abstract bool OpenVrcAppDataFolder();
-        public abstract bool OpenVrcPhotosFolder();
-        public abstract bool OpenUGCPhotosFolder(string ugcPath = "");
-        public abstract bool OpenVrcScreenshotsFolder();
-        public abstract bool OpenCrashVrcCrashDumps();
-        public abstract void OpenShortcutFolder();
         public abstract void OpenFolderAndSelectItem(string path, bool isFolder = false);
         public abstract Task<string> OpenFolderSelectorDialog(string defaultPath = "");
 
