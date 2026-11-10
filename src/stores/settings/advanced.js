@@ -12,6 +12,7 @@ import { useUpdateLoopStore } from '../updateLoop';
 import { useVRCXUpdaterStore } from '../vrcxUpdater';
 import { useVrcxStore } from '../vrcx';
 import { watchState } from '../../services/watchState';
+import { definePersistedSettings } from './persistedSettings';
 
 import configRepository from '../../services/config';
 import webApiService from '../../services/webapi';
@@ -29,34 +30,67 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
         folderSelectorDialogVisible: false
     });
 
-    const enablePrimaryPassword = ref(false);
+    const settings = definePersistedSettings({
+        enablePrimaryPassword: ['enablePrimaryPassword', 'bool', false, { setter: false }],
+        relaunchVRChatAfterCrash: ['VRCX_relaunchVRChatAfterCrash', 'bool', false],
+        vrcQuitFix: ['VRCX_vrcQuitFix', 'bool', true],
+        autoSweepVRChatCache: ['VRCX_autoSweepVRChatCache', 'bool', false],
+        selfInviteOverride: ['VRCX_selfInviteOverride', 'bool', false],
+        saveInstancePrints: ['VRCX_saveInstancePrints', 'bool', false],
+        cropInstancePrints: ['VRCX_cropInstancePrints', 'bool', false, { setter: false }],
+        saveInstanceStickers: ['VRCX_saveInstanceStickers', 'bool', false],
+        avatarRemoteDatabase: ['VRCX_avatarRemoteDatabase', 'bool', true, { setter: false }],
+        enableAppLauncher: ['VRCX_enableAppLauncher', 'bool', true, { setter: false }],
+        enableAppLauncherAutoClose: ['VRCX_enableAppLauncherAutoClose', 'bool', true, { setter: false }],
+        enableAppLauncherRunProcessOnce: ['VRCX_enableAppLauncherRunProcessOnce', 'bool', true, { setter: false }],
+        screenshotHelper: ['VRCX_screenshotHelper', 'bool', true],
+        screenshotHelperModifyFilename: ['VRCX_screenshotHelperModifyFilename', 'bool', false],
+        screenshotHelperCopyToClipboard: ['VRCX_screenshotHelperCopyToClipboard', 'bool', false],
+        youTubeApi: ['VRCX_youtubeAPI', 'bool', false],
+        youTubeApiKey: ['VRCX_youtubeAPIKey', 'string', ''],
+        translationApi: ['VRCX_translationAPI', 'bool', false],
+        translationApiKey: ['VRCX_translationAPIKey', 'string', ''],
+        // 'google' | 'openai'
+        translationApiType: ['VRCX_translationAPIType', 'string', 'google', { setter: false }],
+        translationApiEndpoint: [
+            'VRCX_translationAPIEndpoint',
+            'string',
+            '',
+            { initial: 'https://api.openai.com/v1/chat/completions' }
+        ],
+        translationApiModel: ['VRCX_translationAPIModel', 'string', '', { initial: 'gpt-4o-mini' }],
+        translationApiPrompt: ['VRCX_translationAPIPrompt', 'string', ''],
+        progressPie: ['VRCX_progressPie', 'bool', false],
+        progressPieFilter: ['VRCX_progressPieFilter', 'bool', true],
+        showConfirmationOnSwitchAvatar: ['VRCX_showConfirmationOnSwitchAvatar', 'bool', false],
+        gameLogDisabled: ['VRCX_gameLogDisabled', 'bool', false],
+        avatarAutoCleanup: ['VRCX_avatarAutoCleanup', 'string', 'Off'],
+        ugcFolderPath: ['VRCX_userGeneratedContentPath', 'string', '', { setter: false }],
+        autoDeleteOldPrints: ['VRCX_autoDeleteOldPrints', 'bool', false],
+        notificationOpacity: ['VRCX_notificationOpacity', 'float', 100, { setter: false }],
+        saveInstanceEmoji: ['VRCX_saveInstanceEmoji', 'bool', false],
+        vrcRegistryAutoBackup: ['VRCX_vrcRegistryAutoBackup', 'bool', true],
+        vrcRegistryAskRestore: ['VRCX_vrcRegistryAskRestore', 'bool', true]
+    });
+    const {
+        enablePrimaryPassword,
+        cropInstancePrints,
+        avatarRemoteDatabase,
+        enableAppLauncher,
+        enableAppLauncherAutoClose,
+        enableAppLauncherRunProcessOnce,
+        youTubeApiKey,
+        translationApi,
+        translationApiKey,
+        translationApiType,
+        translationApiEndpoint,
+        translationApiModel,
+        translationApiPrompt,
+        ugcFolderPath,
+        notificationOpacity
+    } = settings.refs;
+
     const bioLanguage = ref('en');
-    const relaunchVRChatAfterCrash = ref(false);
-    const vrcQuitFix = ref(true);
-    const autoSweepVRChatCache = ref(false);
-    const selfInviteOverride = ref(false);
-    const saveInstancePrints = ref(false);
-    const cropInstancePrints = ref(false);
-    const saveInstanceStickers = ref(false);
-    const avatarRemoteDatabase = ref(true);
-    const enableAppLauncher = ref(true);
-    const enableAppLauncherAutoClose = ref(true);
-    const enableAppLauncherRunProcessOnce = ref(true);
-    const screenshotHelper = ref(true);
-    const screenshotHelperModifyFilename = ref(false);
-    const screenshotHelperCopyToClipboard = ref(false);
-    const youTubeApi = ref(false);
-    const youTubeApiKey = ref('');
-    const translationApi = ref(false);
-    const translationApiKey = ref('');
-    const translationApiType = ref('google'); // 'google' | 'openai'
-    const translationApiEndpoint = ref('https://api.openai.com/v1/chat/completions');
-    const translationApiModel = ref('gpt-4o-mini');
-    const translationApiPrompt = ref('');
-    const progressPie = ref(false);
-    const progressPieFilter = ref(true);
-    const showConfirmationOnSwitchAvatar = ref(false);
-    const gameLogDisabled = ref(false);
     const sqliteTableSizes = ref({
         gps: 0,
         status: 0,
@@ -72,16 +106,9 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
         event: 0,
         external: 0
     });
-    const avatarAutoCleanup = ref('Off');
     const purgeInProgress = ref(false);
-    const ugcFolderPath = ref('');
-    const autoDeleteOldPrints = ref(false);
-    const notificationOpacity = ref(100);
     const currentUserInventory = reactive(new Map());
     const isVRChatConfigDialogVisible = ref(false);
-    const saveInstanceEmoji = ref(false);
-    const vrcRegistryAutoBackup = ref(true);
-    const vrcRegistryAskRestore = ref(true);
     const sentryErrorReporting = ref(false);
 
     watch(
@@ -94,79 +121,9 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
     );
 
     async function initAdvancedSettings() {
-        const [
-            enablePrimaryPasswordConfig,
-            bioLanguageConfig,
-            relaunchVRChatAfterCrashConfig,
-            vrcQuitFixConfig,
-            autoSweepVRChatCacheConfig,
-            selfInviteOverrideConfig,
-            saveInstancePrintsConfig,
-            cropInstancePrintsConfig,
-            saveInstanceStickersConfig,
-            avatarRemoteDatabaseConfig,
-            enableAppLauncherConfig,
-            enableAppLauncherAutoCloseConfig,
-            enableAppLauncherRunProcessOnceConfig,
-            screenshotHelperConfig,
-            screenshotHelperModifyFilenameConfig,
-            screenshotHelperCopyToClipboardConfig,
-            youTubeApiConfig,
-            youTubeApiKeyConfig,
-            translationApiConfig,
-            translationApiKeyConfig,
-            translationApiTypeConfig,
-            translationApiEndpointConfig,
-            translationApiModelConfig,
-            translationApiPromptConfig,
-            progressPieConfig,
-            progressPieFilterConfig,
-            showConfirmationOnSwitchAvatarConfig,
-            gameLogDisabledConfig,
-            avatarAutoCleanupConfig,
-            ugcFolderPathConfig,
-            autoDeleteOldPrintsConfig,
-            notificationOpacityConfig,
-            saveInstanceEmojiConfig,
-            vrcRegistryAutoBackupConfig,
-            vrcRegistryAskRestoreConfig,
-            sentryErrorReportingConfig
-        ] = await Promise.all([
-            configRepository.getBool('enablePrimaryPassword', false),
+        const [, bioLanguageConfig, sentryErrorReportingConfig] = await Promise.all([
+            settings.load(),
             configRepository.getString('VRCX_bioLanguage'),
-            configRepository.getBool('VRCX_relaunchVRChatAfterCrash', false),
-            configRepository.getBool('VRCX_vrcQuitFix', true),
-            configRepository.getBool('VRCX_autoSweepVRChatCache', false),
-            configRepository.getBool('VRCX_selfInviteOverride', false),
-            configRepository.getBool('VRCX_saveInstancePrints', false),
-            configRepository.getBool('VRCX_cropInstancePrints', false),
-            configRepository.getBool('VRCX_saveInstanceStickers', false),
-            configRepository.getBool('VRCX_avatarRemoteDatabase', true),
-            configRepository.getBool('VRCX_enableAppLauncher', true),
-            configRepository.getBool('VRCX_enableAppLauncherAutoClose', true),
-            configRepository.getBool('VRCX_enableAppLauncherRunProcessOnce', true),
-            configRepository.getBool('VRCX_screenshotHelper', true),
-            configRepository.getBool('VRCX_screenshotHelperModifyFilename', false),
-            configRepository.getBool('VRCX_screenshotHelperCopyToClipboard', false),
-            configRepository.getBool('VRCX_youtubeAPI', false),
-            configRepository.getString('VRCX_youtubeAPIKey', ''),
-            configRepository.getBool('VRCX_translationAPI', false),
-            configRepository.getString('VRCX_translationAPIKey', ''),
-            configRepository.getString('VRCX_translationAPIType', 'google'),
-            configRepository.getString('VRCX_translationAPIEndpoint', ''),
-            configRepository.getString('VRCX_translationAPIModel', ''),
-            configRepository.getString('VRCX_translationAPIPrompt', ''),
-            configRepository.getBool('VRCX_progressPie', false),
-            configRepository.getBool('VRCX_progressPieFilter', true),
-            configRepository.getBool('VRCX_showConfirmationOnSwitchAvatar', false),
-            configRepository.getBool('VRCX_gameLogDisabled', false),
-            configRepository.getString('VRCX_avatarAutoCleanup', 'Off'),
-            configRepository.getString('VRCX_userGeneratedContentPath', ''),
-            configRepository.getBool('VRCX_autoDeleteOldPrints', false),
-            configRepository.getFloat('VRCX_notificationOpacity', 100),
-            configRepository.getBool('VRCX_saveInstanceEmoji', false),
-            configRepository.getBool('VRCX_vrcRegistryAutoBackup', true),
-            configRepository.getBool('VRCX_vrcRegistryAskRestore', true),
             configRepository.getString('VRCX_SentryEnabled', '')
         ]);
 
@@ -176,40 +133,6 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
             bioLanguage.value = bioLanguageConfig;
         }
 
-        enablePrimaryPassword.value = enablePrimaryPasswordConfig;
-        relaunchVRChatAfterCrash.value = relaunchVRChatAfterCrashConfig;
-        vrcQuitFix.value = vrcQuitFixConfig;
-        autoSweepVRChatCache.value = autoSweepVRChatCacheConfig;
-        selfInviteOverride.value = selfInviteOverrideConfig;
-        saveInstancePrints.value = saveInstancePrintsConfig;
-        cropInstancePrints.value = cropInstancePrintsConfig;
-        saveInstanceStickers.value = saveInstanceStickersConfig;
-        avatarRemoteDatabase.value = avatarRemoteDatabaseConfig;
-        enableAppLauncher.value = enableAppLauncherConfig;
-        enableAppLauncherAutoClose.value = enableAppLauncherAutoCloseConfig;
-        enableAppLauncherRunProcessOnce.value = enableAppLauncherRunProcessOnceConfig;
-        screenshotHelper.value = screenshotHelperConfig;
-        screenshotHelperModifyFilename.value = screenshotHelperModifyFilenameConfig;
-        screenshotHelperCopyToClipboard.value = screenshotHelperCopyToClipboardConfig;
-        youTubeApi.value = youTubeApiConfig;
-        youTubeApiKey.value = youTubeApiKeyConfig;
-        translationApi.value = translationApiConfig;
-        translationApiKey.value = translationApiKeyConfig;
-        translationApiType.value = translationApiTypeConfig;
-        translationApiEndpoint.value = translationApiEndpointConfig;
-        translationApiModel.value = translationApiModelConfig;
-        translationApiPrompt.value = translationApiPromptConfig;
-        progressPie.value = progressPieConfig;
-        progressPieFilter.value = progressPieFilterConfig;
-        showConfirmationOnSwitchAvatar.value = showConfirmationOnSwitchAvatarConfig;
-        gameLogDisabled.value = gameLogDisabledConfig;
-        avatarAutoCleanup.value = avatarAutoCleanupConfig;
-        ugcFolderPath.value = ugcFolderPathConfig;
-        autoDeleteOldPrints.value = autoDeleteOldPrintsConfig;
-        notificationOpacity.value = notificationOpacityConfig;
-        saveInstanceEmoji.value = saveInstanceEmojiConfig;
-        vrcRegistryAutoBackup.value = vrcRegistryAutoBackupConfig;
-        vrcRegistryAskRestore.value = vrcRegistryAskRestoreConfig;
         sentryErrorReporting.value = sentryErrorReportingConfig === 'true';
 
         handleSetAppLauncherSettings();
@@ -236,34 +159,10 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
     function setEnablePrimaryPassword(value) {
         enablePrimaryPassword.value = value;
     }
-    function setRelaunchVRChatAfterCrash() {
-        relaunchVRChatAfterCrash.value = !relaunchVRChatAfterCrash.value;
-        configRepository.setBool('VRCX_relaunchVRChatAfterCrash', relaunchVRChatAfterCrash.value);
-    }
-    function setVrcQuitFix() {
-        vrcQuitFix.value = !vrcQuitFix.value;
-        configRepository.setBool('VRCX_vrcQuitFix', vrcQuitFix.value);
-    }
-    function setAutoSweepVRChatCache() {
-        autoSweepVRChatCache.value = !autoSweepVRChatCache.value;
-        configRepository.setBool('VRCX_autoSweepVRChatCache', autoSweepVRChatCache.value);
-    }
-    function setSelfInviteOverride() {
-        selfInviteOverride.value = !selfInviteOverride.value;
-        configRepository.setBool('VRCX_selfInviteOverride', selfInviteOverride.value);
-    }
-    function setSaveInstancePrints() {
-        saveInstancePrints.value = !saveInstancePrints.value;
-        configRepository.setBool('VRCX_saveInstancePrints', saveInstancePrints.value);
-    }
     function setCropInstancePrints() {
         cropInstancePrints.value = !cropInstancePrints.value;
         configRepository.setBool('VRCX_cropInstancePrints', cropInstancePrints.value);
         cropPrintsChanged();
-    }
-    function setSaveInstanceStickers() {
-        saveInstanceStickers.value = !saveInstanceStickers.value;
-        configRepository.setBool('VRCX_saveInstanceStickers', saveInstanceStickers.value);
     }
     /**
      * @param {boolean} value
@@ -287,52 +186,9 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
         await configRepository.setBool('VRCX_enableAppLauncherRunProcessOnce', enableAppLauncherRunProcessOnce.value);
         handleSetAppLauncherSettings();
     }
-    async function setScreenshotHelper() {
-        screenshotHelper.value = !screenshotHelper.value;
-        await configRepository.setBool('VRCX_screenshotHelper', screenshotHelper.value);
-    }
-    async function setScreenshotHelperModifyFilename() {
-        screenshotHelperModifyFilename.value = !screenshotHelperModifyFilename.value;
-        await configRepository.setBool('VRCX_screenshotHelperModifyFilename', screenshotHelperModifyFilename.value);
-    }
-    async function setScreenshotHelperCopyToClipboard() {
-        screenshotHelperCopyToClipboard.value = !screenshotHelperCopyToClipboard.value;
-        await configRepository.setBool('VRCX_screenshotHelperCopyToClipboard', screenshotHelperCopyToClipboard.value);
-    }
-    async function setYouTubeApi() {
-        youTubeApi.value = !youTubeApi.value;
-        await configRepository.setBool('VRCX_youtubeAPI', youTubeApi.value);
-    }
-    async function setTranslationApi() {
-        translationApi.value = !translationApi.value;
-        await configRepository.setBool('VRCX_translationAPI', translationApi.value);
-    }
-    /**
-     * @param {string} value
-     */
-    async function setYouTubeApiKey(value) {
-        youTubeApiKey.value = value;
-        await configRepository.setString('VRCX_youtubeAPIKey', youTubeApiKey.value);
-    }
-    async function setTranslationApiKey(value) {
-        translationApiKey.value = value;
-        await configRepository.setString('VRCX_translationAPIKey', translationApiKey.value);
-    }
     async function setTranslationApiType(value) {
         translationApiType.value = value || 'google';
         await configRepository.setString('VRCX_translationAPIType', translationApiType.value);
-    }
-    async function setTranslationApiEndpoint(value) {
-        translationApiEndpoint.value = value;
-        await configRepository.setString('VRCX_translationAPIEndpoint', translationApiEndpoint.value);
-    }
-    async function setTranslationApiModel(value) {
-        translationApiModel.value = value;
-        await configRepository.setString('VRCX_translationAPIModel', translationApiModel.value);
-    }
-    async function setTranslationApiPrompt(value) {
-        translationApiPrompt.value = value;
-        await configRepository.setString('VRCX_translationAPIPrompt', translationApiPrompt.value);
     }
 
     async function fetchAvailableModels(overrides = {}) {
@@ -418,27 +274,6 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
         bioLanguage.value = language;
         configRepository.setString('VRCX_bioLanguage', language);
     }
-    async function setProgressPie() {
-        progressPie.value = !progressPie.value;
-        await configRepository.setBool('VRCX_progressPie', progressPie.value);
-    }
-    async function setProgressPieFilter() {
-        progressPieFilter.value = !progressPieFilter.value;
-        await configRepository.setBool('VRCX_progressPieFilter', progressPieFilter.value);
-    }
-    async function setShowConfirmationOnSwitchAvatar() {
-        showConfirmationOnSwitchAvatar.value = !showConfirmationOnSwitchAvatar.value;
-        await configRepository.setBool('VRCX_showConfirmationOnSwitchAvatar', showConfirmationOnSwitchAvatar.value);
-    }
-    async function setGameLogDisabled() {
-        gameLogDisabled.value = !gameLogDisabled.value;
-        await configRepository.setBool('VRCX_gameLogDisabled', gameLogDisabled.value);
-    }
-
-    async function setAvatarAutoCleanup(value) {
-        avatarAutoCleanup.value = value;
-        await configRepository.setString('VRCX_avatarAutoCleanup', value);
-    }
 
     /**
      * @param {number | null} days - Number of days to keep. Null means delete all.
@@ -510,11 +345,6 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
         }
     }
 
-    async function setSaveInstanceEmoji() {
-        saveInstanceEmoji.value = !saveInstanceEmoji.value;
-        await configRepository.setBool('VRCX_saveInstanceEmoji', saveInstanceEmoji.value);
-    }
-
     async function setUGCFolderPath(path) {
         if (typeof path !== 'string') {
             path = '';
@@ -523,24 +353,9 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
         await configRepository.setString('VRCX_userGeneratedContentPath', path);
     }
 
-    async function setAutoDeleteOldPrints() {
-        autoDeleteOldPrints.value = !autoDeleteOldPrints.value;
-        await configRepository.setBool('VRCX_autoDeleteOldPrints', autoDeleteOldPrints.value);
-    }
-
     async function setNotificationOpacity(value) {
         notificationOpacity.value = value;
         await configRepository.setInt('VRCX_notificationOpacity', value);
-    }
-
-    async function setVrcRegistryAutoBackup() {
-        vrcRegistryAutoBackup.value = !vrcRegistryAutoBackup.value;
-        await configRepository.setBool('VRCX_vrcRegistryAutoBackup', vrcRegistryAutoBackup.value);
-    }
-
-    async function setVrcRegistryAskRestore() {
-        vrcRegistryAskRestore.value = !vrcRegistryAskRestore.value;
-        await configRepository.setBool('VRCX_vrcRegistryAskRestore', vrcRegistryAskRestore.value);
     }
 
     async function checkSentryConsent() {
@@ -923,83 +738,29 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
 
     return {
         state,
+        ...settings.refs,
 
         bioLanguage,
-        enablePrimaryPassword,
-        relaunchVRChatAfterCrash,
-        vrcQuitFix,
-        autoSweepVRChatCache,
-        selfInviteOverride,
-        saveInstancePrints,
-        cropInstancePrints,
-        saveInstanceStickers,
-        avatarRemoteDatabase,
-        enableAppLauncher,
-        enableAppLauncherAutoClose,
-        enableAppLauncherRunProcessOnce,
-        screenshotHelper,
-        screenshotHelperModifyFilename,
-        screenshotHelperCopyToClipboard,
-        youTubeApi,
-        translationApi,
-        youTubeApiKey,
-        translationApiKey,
-        translationApiType,
-        translationApiEndpoint,
-        translationApiModel,
-        translationApiPrompt,
-        progressPie,
-        progressPieFilter,
-        showConfirmationOnSwitchAvatar,
-        gameLogDisabled,
         sqliteTableSizes,
-        avatarAutoCleanup,
         purgeInProgress,
-        ugcFolderPath,
         currentUserInventory,
-        autoDeleteOldPrints,
-        notificationOpacity,
         isVRChatConfigDialogVisible,
-        saveInstanceEmoji,
-        vrcRegistryAutoBackup,
-        vrcRegistryAskRestore,
         sentryErrorReporting,
 
+        ...settings.setters,
         setEnablePrimaryPassword,
         setEnablePrimaryPasswordConfigRepository,
         setBioLanguage,
-        setRelaunchVRChatAfterCrash,
-        setVrcQuitFix,
-        setAutoSweepVRChatCache,
-        setSelfInviteOverride,
-        setSaveInstancePrints,
         setCropInstancePrints,
-        setSaveInstanceStickers,
         setAvatarRemoteDatabase,
         setEnableAppLauncher,
         setEnableAppLauncherAutoClose,
         setEnableAppLauncherRunProcessOnce,
-        setScreenshotHelper,
-        setScreenshotHelperModifyFilename,
-        setScreenshotHelperCopyToClipboard,
-        setYouTubeApi,
-        setTranslationApi,
-        setYouTubeApiKey,
-        setTranslationApiKey,
         setTranslationApiType,
-        setTranslationApiEndpoint,
-        setTranslationApiModel,
-        setTranslationApiPrompt,
-        setProgressPie,
-        setProgressPieFilter,
-        setShowConfirmationOnSwitchAvatar,
-        setGameLogDisabled,
-        setAvatarAutoCleanup,
         purgeAvatarFeedData,
         runAvatarAutoCleanup,
         setUGCFolderPath,
         cropPrintsChanged,
-        setAutoDeleteOldPrints,
         setNotificationOpacity,
         getSqliteTableSizes,
         handleSetAppLauncherSettings,
@@ -1012,9 +773,6 @@ export const useAdvancedSettingsStore = defineStore('AdvancedSettings', () => {
         folderSelectorDialog,
         showVRChatConfig,
         promptAutoClearVRCXCacheFrequency,
-        setSaveInstanceEmoji,
-        setVrcRegistryAutoBackup,
-        setVrcRegistryAskRestore,
         setSentryErrorReporting,
         checkSentryConsent,
         askDeleteAllScreenshotMetadata
