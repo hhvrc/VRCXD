@@ -1,0 +1,86 @@
+name: Legacy VRCX CI
+
+# Lint, format and .NET checks for the original Electron/Cef VRCX app (repo-root src/, Dotnet/).
+# That app is being ported to Server/, client/ and desktop/ and its sources moved to legacy/,
+# so this is manual-only and expected to degrade as files move. The new projects have their
+# own workflows next to this one.
+
+on:
+  # pull_request:
+  #   branches:
+  #     - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint_js:
+    name: Lint JS (Oxlint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: oxc-project/oxlint-action@b78c21302e4bc637e83927135c35a6684de1053e # v3.1.0
+        with:
+          config: oxlint.config.mts
+        continue-on-error: true
+
+  format_js:
+    name: Format JS (Oxfmt)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 11.15.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run format:check
+
+  format_c_sharp:
+    name: Format C# (dotnet format)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run Dotnet format
+        run: |
+          dotnet format whitespace --no-restore --verify-no-changes
+          dotnet format style --no-restore --verify-no-changes
+
+  test_build_dotnet_windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.x'
+      - name: Set version
+        run: |
+          echo "1900.0.0" > Version
+          cat Version
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/Dotnet/VRCX-Cef.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+      - name: Build Cef .NET Application
+        run: dotnet build Dotnet/VRCX-Cef.csproj -p:Configuration=Release -p:WarningLevel=0 -p:Platform=x64 -t:"Clean;Build" -maxcpucount --runtime win-x64 --self-contained

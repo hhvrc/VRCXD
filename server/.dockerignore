@@ -1,0 +1,5 @@
+# Local build output must not reach the image: a host obj/project.assets.json copied over the
+# in-image restore points at host paths and breaks the build (NETSDK1064).
+**/bin/
+**/obj/
+TestResults/

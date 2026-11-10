@@ -1,0 +1,139 @@
+# A runnable VRCXD server stack: Postgres + Redis + the one server process (API, pipeline listener,
+# recurring jobs) + the web client, served by Caddy, which also proxies the API. Browsers and the
+# desktop app both talk to the web container. Configuration comes from the .env file next to this file:
+#   PG_PASS=...            database password (required)
+#   VRCX_TOKEN=...         the API token every client presents (required, 16+ chars)
+#   VRCX_TAG=latest        image tag to run
+#   VRCX_PORT=5280         host port for HTTP
+#   VRCX_HTTPS_PORT=5443   host port for HTTPS (only used when VRCX_SITE is a domain)
+#   VRCX_SITE=:80          a domain here makes Caddy fetch a certificate and serve HTTPS
+#   VRCX_BIND=0.0.0.0      host address it is published on. Without HTTPS the token travels in the
+#                          clear and can act as your VRChat account: set this to the NAS's LAN
+#                          address and never forward the port unless VRCX_SITE is a domain.
+#   BACKUP_DIR=./backups   where the nightly database dumps go; put it on a different disk
+#   BACKUP_KEEP_DAYS=7     how many days of dumps are kept
+# The server reads the VRCX__* schema; every knob maps onto it below.
+services:
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    container_name: vrcx-postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d $${POSTGRES_DB} -U $${POSTGRES_USER}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASS:?database password required}
+      POSTGRES_USER: ${PG_USER:-vrcx}
+      POSTGRES_DB: ${PG_DB:-vrcx}
+    volumes:
+      # PG18+ mounts the parent dir (data lives in ./postgres-data/18/docker).
+      - ./postgres-data:/var/lib/postgresql
+
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    container_name: vrcx-redis
+    # Append-only file, so a restart keeps presence without waiting for a rebuild from Postgres.
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      start_period: 5s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    volumes:
+      - ./redis-data:/data
+
+  api:
+    image: ghcr.io/hhvrc/pgvrcx-api:${VRCX_TAG:-latest}
+    build:
+      context: .
+      dockerfile: docker/API.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      VRCX__DB__CONN: Host=db;Port=5432;Database=${PG_DB:-vrcx};Username=${PG_USER:-vrcx};Password=${PG_PASS}
+      VRCX__REDIS__CONN: redis:6379
+      VRCX__IMAGES__DIR: /data/images
+      VRCX__AUTH__TOKEN: ${VRCX_TOKEN:?api token required}
+      VRCX__KEYS__DIR: /data/keys
+      VRCX__ERRORREPORTING__DSN: ${ERROR_REPORTING_DSN:-}
+    volumes:
+      # VRChat's images, on disk. Safe to delete: they are fetched again when needed.
+      - ./image-cache:/data/images
+      # The keys the stored VRChat session cookies are encrypted with. Kept out of the database and
+      # out of its backups; losing them only means logging in to VRChat again.
+      - ./keys:/data/keys
+    # Not published: everything reaches it through the web container.
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/1/health"]
+      start_period: 60s
+      interval: 15s
+      retries: 5
+      timeout: 10s
+
+  web:
+    image: ghcr.io/hhvrc/pgvrcx-web:${VRCX_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: client/Dockerfile
+    restart: unless-stopped
+    container_name: vrcx-web
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      VRCX_SITE: ${VRCX_SITE:-:80}
+    ports:
+      - "${VRCX_BIND:-0.0.0.0}:${VRCX_PORT:-5280}:80"
+      - "${VRCX_BIND:-0.0.0.0}:${VRCX_HTTPS_PORT:-5443}:443"
+    volumes:
+      # Caddy's certificates and its state.
+      - ./caddy-data:/data
+      - ./caddy-config:/config
+
+  # A dump of the database every night, keeping BACKUP_KEEP_DAYS days. The database is the only copy
+  # of everything collected and the API migrates it at start-up; restore with
+  #   pg_restore -d vrcx --clean --if-exists <dump>
+  backup:
+    image: postgres:18
+    restart: unless-stopped
+    container_name: vrcx-backup
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: ${PG_USER:-vrcx}
+      PGPASSWORD: ${PG_PASS}
+      PGDATABASE: ${PG_DB:-vrcx}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-7}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          name=/backups/vrcx-$$(date -u +%Y%m%d-%H%M%S).dump
+          if pg_dump -Fc -f "$$name.partial" && mv "$$name.partial" "$$name"; then
+            echo "backup written: $$name"
+            find /backups -name 'vrcx-*.dump' -mtime +$$KEEP_DAYS -delete
+          else
+            # The database may be restarting (it does once after first-time setup): try again soon.
+            echo "backup FAILED, retrying in 5 minutes" >&2
+            rm -f "$$name.partial"
+            sleep 300
+            continue
+          fi
+          sleep 86400
+        done

@@ -1,0 +1,436 @@
+syntax = "proto3";
+
+// The one websocket contract: /1/ws carries binary protobuf frames, one message per frame,
+// ClientMessage in and ServerMessage out. Both envelopes are a oneof and grow by adding cases
+// (never renumber, never reuse a number); the hellos carry a protocol version so either side
+// can tell what the other speaks. Game-log batches and server events are the first two kinds
+// of traffic, not the only ones. Request/response-shaped calls stay REST.
+package vrcx.live;
+
+option csharp_namespace = "VRCX.Common.Live";
+
+import "google/protobuf/timestamp.proto";
+
+// ---------------------------------------------------------------------------
+// Client -> server
+
+message ClientMessage {
+    oneof message {
+        ClientHello hello = 1;
+        GameLogBatch game_log = 2;
+        Ping ping = 3;
+        ActionResult action_result = 4;
+        GameState game_state = 5;
+        IpcPacket ipc = 6;
+    }
+}
+
+// A packet another program wrote to the VRCX named pipe on this PC (the original's Dotnet/IPC and
+// ipcEvent), parsed by the desktop app. docs/desktop-ipc.md maps the pipe's JSON to these cases;
+// packets with no case here (the Photon stream, LaunchCommand) are not relayed.
+message IpcPacket {
+    // When the desktop app read it; unset means now.
+    google.protobuf.Timestamp received_at = 1;
+    oneof packet {
+        // VrcxMessage, MsgType CustomTag. An empty tag removes the user's tag.
+        IpcCustomTag custom_tag = 10;
+        // VrcxMessage, MsgType ClearCustomTags.
+        LogNoData clear_custom_tags = 11;
+        // VrcxMessage, MsgType Noty: its Data becomes a game log Event.
+        LogText noty = 12;
+        // VrcxMessage, MsgType External: a game log External row.
+        IpcExternal external = 13;
+        // Ping: a Photon logger is connected, so Noty packets are its own and dropped.
+        LogNoData ping = 14;
+        // MsgPing: an external notifier and its version (above 21 it sends its own notifications).
+        IpcMsgPing msg_ping = 15;
+    }
+}
+
+message IpcCustomTag {
+    string user_id = 1;
+    string tag = 2;
+    // A CSS colour, as sent (TagColour).
+    string tag_colour = 3;
+}
+
+message IpcExternal {
+    string user_id = 1;
+    string display_name = 2;
+    string message = 3;
+    // Unset means true: whether it is also a notification.
+    optional bool notify = 4;
+}
+
+message IpcMsgPing {
+    int32 version = 1;
+}
+
+// What became of a ClientAction that carried a request_id.
+message ActionResult {
+    string request_id = 1;
+    ActionStatus status = 2;
+    string error = 3;
+}
+
+enum ActionStatus {
+    ACTION_STATUS_UNSPECIFIED = 0;
+    ACTION_STATUS_OK = 1;
+    ACTION_STATUS_FAILED = 2;
+    // A launch was refused because VRChat is already running and a second copy was not asked for.
+    ACTION_STATUS_GAME_RUNNING = 3;
+}
+
+// Whether VRChat is running on this PC. Sent after the hello and whenever it changes.
+message GameState {
+    bool running = 1;
+}
+
+message ClientHello {
+    // The highest protocol version the client understands (see PROTOCOL_VERSION below).
+    uint32 protocol_version = 4;
+    // Stable per-installation id (the desktop app's config), so the server keeps each
+    // client's game-log state (current instance, who is in it) apart across reconnects.
+    string client_id = 1;
+    // "vrcx-desktop/2.0.0", "vrcx-web/2.0.0" - for logs only.
+    string client_name = 2;
+    // When false the server does not stream ServerEvents to this connection (a desktop app
+    // that only ships logs). Default true.
+    bool mute_events = 3;
+}
+
+message Ping {}
+
+// Current protocol version, for both hellos.
+enum ProtocolVersion {
+    PROTOCOL_VERSION_UNSPECIFIED = 0;
+    PROTOCOL_VERSION_1 = 1;
+}
+
+// In log order. The desktop app sends at most 1000 per batch.
+message GameLogBatch {
+    repeated LogEntry entries = 1;
+}
+
+// One parsed VRChat log line (desktop/src/log_parser.cpp). Carries no derived state: the
+// server owns the VRChat API data and the session state needed to interpret these.
+message LogEntry {
+    google.protobuf.Timestamp created_at = 1;
+    string file_name = 2;
+    oneof entry {
+        LogLocation location = 10;
+        LogLocationDestination location_destination = 11;
+        LogPlayer player_joined = 12;
+        LogPlayer player_left = 13;
+        LogNoData portal_spawn = 14;
+        LogText event = 15;
+        LogText vrcx = 16;
+        LogVideoPlay video_play = 17;
+        LogText video_sync = 18;
+        LogText notification = 19;
+        LogText api_request = 20;
+        LogAvatarChange avatar_change = 21;
+        LogText udon_exception = 22;
+        LogNoData vrc_quit = 23;
+        LogNoData openvr_init = 24;
+        LogNoData desktop_mode = 25;
+        LogText screenshot = 26;
+        LogText resource_load_string = 27;
+        LogText resource_load_image = 28;
+        LogStickerSpawn sticker_spawn = 29;
+        // The VRChat account signed in to the game on this PC.
+        LogPlayer user_authenticated = 30;
+    }
+}
+
+message LogNoData {}
+
+message LogText {
+    string text = 1;
+}
+
+message LogLocation {
+    string location = 1;
+    string world_name = 2;
+}
+
+message LogLocationDestination {
+    string location = 1;
+}
+
+message LogPlayer {
+    string display_name = 1;
+    string user_id = 2;
+}
+
+message LogVideoPlay {
+    string video_url = 1;
+    string display_name = 2;
+}
+
+message LogAvatarChange {
+    string display_name = 1;
+    string avatar_name = 2;
+}
+
+message LogStickerSpawn {
+    string user_id = 1;
+    string display_name = 2;
+    string inventory_id = 3;
+}
+
+// ---------------------------------------------------------------------------
+// Server -> client
+
+message ServerMessage {
+    oneof message {
+        ServerHello hello = 1;
+        GameLogAck game_log_ack = 2;
+        ServerEvent event = 3;
+        ClientAction action = 4;
+        Pong pong = 5;
+        GameLogResume game_log_resume = 6;
+    }
+}
+
+// Answer to a ClientHello with a client_id: how far this client's log was ingested, so it
+// only sends lines after last_entry_at (unset = send everything).
+message GameLogResume {
+    google.protobuf.Timestamp last_entry_at = 1;
+    string account_id = 2;
+    string current_instance_location = 3;
+}
+
+message ServerHello {
+    // The protocol version the server speaks. Bumped when a case changes meaning, not when one is added.
+    uint32 protocol_version = 3;
+    string server_version = 1;
+    // Accounts with a live VRChat session right now.
+    repeated string account_ids = 2;
+}
+
+message Pong {}
+
+message GameLogAck {
+    int32 accepted = 1;
+}
+
+// A local action the server asks the gaming PC to perform - decided server-side,
+// since it needs session state and settings the server owns.
+message ClientAction {
+    oneof action {
+        ProcessScreenshot process_screenshot = 1;
+        QuitVrchat quit_vrchat = 2;
+        LaunchVrchat launch_vrchat = 3;
+        OpenInstanceInGame open_instance = 4;
+        SendIpc send_ipc = 6;
+    }
+    // Set when the server wants an ActionResult back.
+    string request_id = 5;
+}
+
+message ProcessScreenshot {
+    string path = 1;
+    string metadata_json = 2;
+    bool append_world_id = 3;
+    string world_id = 4;
+    bool copy_to_clipboard = 5;
+}
+
+message QuitVrchat {}
+
+// Starts VRChat on this PC. How to start it (custom path, launch arguments) is this PC's own
+// setting, never sent by the server, so a server can only ever start the game.
+message LaunchVrchat {
+    string launch_url = 1;
+    bool desktop_mode = 2;
+    bool allow_second_instance = 3;
+}
+
+// Writes one packet to every program connected to this PC's VRCX named pipe (the original's
+// SendIpc and IPCAnnounceStart). Sent without a request_id: nobody answers.
+message SendIpc {
+    // The packet's Type: VrcxMessage or VRCXLaunch.
+    string type = 1;
+    string msg_type = 2;
+    string data = 3;
+}
+
+// Hands an instance to the VRChat already running on this PC.
+message OpenInstanceInGame {
+    string launch_url = 1;
+}
+
+// Something changed in the database that a UI showing live state wants to know about.
+// Each one is published after the rows are committed, so a REST read right after sees it.
+message ServerEvent {
+    google.protobuf.Timestamp at = 1;
+    oneof event {
+        PresenceChanged presence = 10;
+        UserChanged user = 11;
+        FriendshipChanged friendship = 12;
+        NotificationReceived notification = 13;
+        InstanceVisitChanged visit = 14;
+        AccountSessionChanged account = 15;
+        DesktopChanged desktop = 16;
+        ContentChanged content = 17;
+        GameLogStored game_log = 18;
+        InstanceQueueChanged instance_queue = 19;
+        CreditsChanged credits = 20;
+        YouTubeBotError youtube_bot_error = 21;
+        AccountContentRefreshed content_refresh = 22;
+        NowPlayingPosition now_playing_position = 23;
+        CustomTagChanged custom_tag = 24;
+    }
+}
+
+// Another program on the account's PC set or removed a user's custom tag over the named pipe, or
+// cleared them all (the original's customUserTags). The user dialog shows the tag in its colour.
+message CustomTagChanged {
+    string account_id = 1;
+    // Empty when cleared is set.
+    string user_id = 2;
+    // Empty when the tag was removed.
+    string tag = 3;
+    string colour = 4;
+    bool cleared = 5;
+}
+
+// A dance or cinema world logged the video already playing again with a new position (a seek, a
+// resume): the status bar's Now Playing moves to it, as the original's setNowPlaying does. Not stored.
+message NowPlayingPosition {
+    string account_id = 1;
+    string video_url = 2;
+    double video_pos = 3;
+    double video_length = 4;
+    google.protobuf.Timestamp logged_at = 5;
+}
+
+// VRChat's content-refresh pipeline event: the account's icons, gallery, emoji, prints or inventory
+// changed, so an open gallery reloads that tab (the original's websocket content-refresh).
+message AccountContentRefreshed {
+    string account_id = 1;
+    string content_type = 2;
+    string action_type = 3;
+}
+
+// The game just logged YouTube's "Sign in to confirm" video error (the original's
+// checkYoutubeBotError): the page offers VRCVideoCacher, which works around it.
+message YouTubeBotError {
+    string account_id = 1;
+    string message = 2;
+}
+
+// VRChat's economy-update: the account's VRC Credits balance, shown on its own profile.
+message CreditsChanged {
+    string account_id = 1;
+    optional int64 balance = 2;
+}
+
+// The account's place in an instance's join queue changed (VRChat's instance-queue-joined and
+// -position), or it left the queue (-left, -ready, or moving elsewhere). The original's queue toasts.
+message InstanceQueueChanged {
+    string account_id = 1;
+    string location = 2;
+    int32 position = 3;
+    int32 queue_size = 4;
+    string world_name = 5;
+    string group_name = 6;
+    // Out of the queue; removed_by_move when it was dropped because the account went to another instance.
+    bool left = 7;
+    bool removed_by_move = 8;
+}
+
+// A desktop app's game log stored rows other than stays (videos, events, portal and sticker spawns,
+// resource loads); stays already come as InstanceVisitChanged. Game log views reload.
+message GameLogStored {
+    string account_id = 1;
+    string instance_location = 2;
+    // video, event, portal, sticker, resource
+    repeated string kinds = 3;
+}
+
+// A world, group or avatar row was created or updated, from any path: the pipeline, a sync, a
+// page's refresh or a scheduled refresh. Pages showing it reload.
+message ContentChanged {
+    // world, group, avatar
+    string kind = 1;
+    string id = 2;
+    string name = 3;
+}
+
+// A desktop app connected or disconnected, or VRChat started or stopped on its PC.
+message DesktopChanged {
+    string client_id = 1;
+    bool connected = 2;
+    bool game_running = 3;
+    // VRChat last started in desktop mode on this PC (its log's desktop-mode line, cleared by openvr-init).
+    bool game_no_vr = 4;
+}
+
+// A user came online / went active / went offline / moved instance.
+message PresenceChanged {
+    string user_id = 1;
+    string display_name = 2;
+    // online, active, offline, location - the presence_kind.
+    string kind = 3;
+    // online, active, offline - the user's state after this.
+    string state = 4;
+    string location = 5;
+    string previous_location = 6;
+    string traveling_to_location = 7;
+    // Set when location is a real instance (the instances row key).
+    string instance_location = 8;
+    string platform = 9;
+}
+
+// Profile data changed (one or more of the user_* change tables got a row).
+message UserChanged {
+    string user_id = 1;
+    string display_name = 2;
+    // display_name, trust, status, bio, avatar
+    repeated string changed = 3;
+}
+
+message FriendshipChanged {
+    string owner_user_id = 1;
+    string friend_user_id = 2;
+    string display_name = 3;
+    // true = friendship opened, false = ended.
+    bool is_friend = 4;
+    int32 friend_number = 5;
+}
+
+message NotificationReceived {
+    string owner_user_id = 1;
+    string notification_id = 2;
+    int32 version = 3;
+    string type = 4;
+    string sender_user_id = 5;
+    string sender_display_name = 6;
+    string title = 7;
+    string message = 8;
+}
+
+// Someone joined or left an instance (from the pipeline, the game log, or an API fetch).
+message InstanceVisitChanged {
+    string user_id = 1;
+    string display_name = 2;
+    string instance_location = 3;
+    string world_id = 4;
+    bool joined = 5;
+    // pipeline, game_log, api
+    string source = 6;
+}
+
+// An account logged in, was resumed, or lost its session.
+message AccountSessionChanged {
+    string account_id = 1;
+    string display_name = 2;
+    bool session_valid = 3;
+    // The server logging in again with saved credentials after the session expired: "attempting"
+    // (after auto_login_delay seconds), "success", "failed", or "invalid" (VRChat refused the saved
+    // password, so it was removed). Empty for any other change.
+    string auto_login = 4;
+    uint32 auto_login_delay = 5;
+}

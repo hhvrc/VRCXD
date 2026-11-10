@@ -1,0 +1,11 @@
+bin/
+obj/
+TestResults/
+.env
+postgres-data/
+redis-data/
+image-cache/
+keys/
+backups/
+caddy-data/
+caddy-config/

@@ -1,0 +1,607 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'remixicon/fonts/remixicon.css';
+@import './styles/fonts.css';
+@import './styles/themes/blue.css';
+@import './styles/themes/green.css';
+@import './styles/themes/orange.css';
+@import './styles/themes/red.css';
+@import './styles/themes/rose.css';
+@import './styles/themes/violet.css';
+@import './styles/themes/yellow.css';
+@import './styles/themes/midnight.css';
+
+/*
+ * Design tokens ported verbatim from the existing Vue app's
+ * src/styles/globals.css (shadcn-vue, "new-york" style, "zinc" base) so
+ * the SvelteKit rewrite matches pixel-for-pixel. Keep these two files in
+ * sync if the Vue app's tokens change before the rewrite is complete.
+ */
+
+@custom-variant dark (&:is(.dark *));
+
+/* The shadcn-svelte components style state through boolean data attributes
+   (data-open, data-checked, data-horizontal, ...); bits-ui 2.x expresses the
+   same state as data-state / data-orientation values. Map one onto the
+   other so both spellings work. */
+@custom-variant data-open (&:is([data-state="open"], [data-open]));
+@custom-variant data-closed (&:is([data-state="closed"], [data-closed]));
+@custom-variant data-checked (&:is([data-state="checked"], [data-checked]));
+@custom-variant data-unchecked (&:is([data-state="unchecked"], [data-unchecked]));
+@custom-variant data-active (&:is([data-state="active"], [data-active]));
+@custom-variant data-horizontal (&:is([data-orientation="horizontal"], [data-horizontal]));
+@custom-variant data-vertical (&:is([data-orientation="vertical"], [data-vertical]));
+
+:root {
+	/* Native scrollbars, inputs and date pickers follow the theme (upstream PR 606). */
+	color-scheme: light;
+	--platform-pc: #0078d4;
+	--platform-quest: #3ddc84;
+	--platform-ios: #8e8e93;
+	--background: oklch(1 0 0);
+	--foreground: oklch(0.145 0 0);
+	--card: oklch(1 0 0);
+	--profile-card: oklch(0.95 0 0 / 80%);
+	--card-foreground: oklch(0.145 0 0);
+	--popover: oklch(1 0 0);
+	--popover-foreground: oklch(0.145 0 0);
+	--primary: oklch(0.205 0 0);
+	--primary-foreground: oklch(0.985 0 0);
+	--secondary: oklch(0.97 0 0);
+	--secondary-foreground: oklch(0.205 0 0);
+	--muted: oklch(0.97 0 0);
+	--muted-foreground: oklch(0.556 0 0);
+	--accent: oklch(0.97 0 0);
+	--accent-foreground: oklch(0.205 0 0);
+	--destructive: oklch(0.577 0.245 27.325);
+	--border: oklch(0.922 0 0);
+	--input: oklch(0.922 0 0);
+	--ring: oklch(0.708 0 0);
+	--radius: 0.375rem;
+	--sidebar: oklch(0.985 0 0);
+	--sidebar-foreground: oklch(0.145 0 0);
+	--sidebar-primary: oklch(0.205 0 0);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.97 0 0);
+	--sidebar-accent-foreground: oklch(0.205 0 0);
+	--sidebar-border: oklch(0.922 0 0);
+	--sidebar-ring: oklch(0.708 0 0);
+
+	/* VRChat status colors (official) */
+	--status-online: #2ed319;
+	--status-joinme: #00b8ff;
+	--status-busy: #c80928;
+	--status-askme: #e97c03;
+	--status-offline: #737f8d;
+	--status-offline-alt: #808080;
+	--status-active: #f4e05e;
+}
+
+.dark {
+	color-scheme: dark;
+	--background: oklch(0.205 0 0);
+	--foreground: oklch(0.985 0 0);
+	--card: oklch(0.205 0 0);
+	--profile-card: oklch(0.235 0 0 / 80%);
+	--card-foreground: oklch(0.985 0 0);
+	--popover: oklch(0.205 0 0);
+	--popover-foreground: oklch(0.985 0 0);
+	--primary: oklch(0.922 0 0);
+	--primary-foreground: oklch(0.205 0 0);
+	--secondary: oklch(0.269 0 0);
+	--secondary-foreground: oklch(0.985 0 0);
+	--muted: oklch(0.269 0 0);
+	--muted-foreground: oklch(0.708 0 0);
+	--accent: oklch(0.269 0 0);
+	--accent-foreground: oklch(0.985 0 0);
+	--destructive: oklch(0.704 0.191 22.216);
+	--border: oklch(1 0 0 / 10%);
+	--input: oklch(1 0 0 / 15%);
+	--ring: oklch(0.556 0 0);
+	--sidebar: oklch(0.205 0 0);
+	--sidebar-foreground: oklch(0.985 0 0);
+	--sidebar-primary: oklch(0.488 0.243 264.376);
+	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-accent: oklch(0.269 0 0);
+	--sidebar-accent-foreground: oklch(0.985 0 0);
+	--sidebar-border: oklch(1 0 0 / 10%);
+	--sidebar-ring: oklch(0.556 0 0);
+}
+
+/* The original's small sizes, used across lists, tables and the pop-ups. No line height of their
+   own, as the raw text-[11px] values they replace had none. */
+/* The original's dimmed avatar thumbnails, back to full colour while their card or table row is
+   hovered (My Avatars grid and table). */
+.dim-thumbnail {
+	filter: saturate(0.8) contrast(0.8);
+	transition: filter 0.2s ease;
+}
+:is(.avatar-card, tr):hover .dim-thumbnail {
+	filter: saturate(1) contrast(1);
+}
+
+@theme {
+	--text-3xs: 10px;
+	--text-2xs: 11px;
+	--text-compact: 13px;
+}
+
+@theme inline {
+	--color-platform-pc: var(--platform-pc);
+	--color-platform-quest: var(--platform-quest);
+	--color-platform-ios: var(--platform-ios);
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-card-foreground: var(--card-foreground);
+	--color-popover: var(--popover);
+	--color-popover-foreground: var(--popover-foreground);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	--color-secondary: var(--secondary);
+	--color-secondary-foreground: var(--secondary-foreground);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-accent: var(--accent);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-destructive: var(--destructive);
+	--color-border: var(--border);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--radius-sm: calc(var(--radius) - 4px);
+	--radius-md: calc(var(--radius) - 2px);
+	--radius-lg: var(--radius);
+	--radius-xl: calc(var(--radius) + 2px);
+	--color-sidebar: var(--sidebar);
+	--color-sidebar-foreground: var(--sidebar-foreground);
+	--color-sidebar-primary: var(--sidebar-primary);
+	--color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+	--color-sidebar-accent: var(--sidebar-accent);
+	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+	--color-sidebar-border: var(--sidebar-border);
+	--color-sidebar-ring: var(--sidebar-ring);
+
+	/* VRChat status colors */
+	--color-status-online: var(--status-online);
+	--color-status-joinme: var(--status-joinme);
+	--color-status-busy: var(--status-busy);
+	--color-status-askme: var(--status-askme);
+	--color-status-offline: var(--status-offline);
+	--color-status-active: var(--status-active);
+}
+
+@layer base {
+	* {
+		@apply border-border outline-ring/50;
+		scrollbar-width: thin;
+		scrollbar-color: var(--border) transparent;
+	}
+
+	body {
+		@apply bg-background text-foreground;
+		font-family: var(--font-western), var(--font-symbol), var(--font-primary-cjk), var(--font-fallback-cjk);
+		margin: 0;
+	}
+}
+
+/* Region flag sprite, from the original's flags.css (sprite at static/images/flags.png). */
+:root {
+    --offx: 20px; /* flag size */
+    --offy: 14.5px;
+}
+.flags {
+    background: url('/images/flags.png') no-repeat;
+    background-size: calc(var(--offx) * 6);
+    width: var(--offx);
+    height: calc(var(--offx) / 72 * 52);
+    flex-shrink: 0;
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -4);
+    filter: grayscale(0.05);
+}
+span[class='flags'] {
+    background-position: calc(var(--offx) * 1) 0;
+}
+.flags.us {
+    background-position: 0 0;
+}
+.flags.usw {
+    background-position: 0 0;
+}
+.flags.kr {
+    background-position: calc(var(--offx) * -1) 0;
+}
+.flags.ru {
+    background-position: calc(var(--offx) * -2) 0;
+}
+.flags.es {
+    background-position: calc(var(--offx) * -3) 0;
+}
+.flags.pt {
+    background-position: calc(var(--offx) * -4) 0;
+}
+.flags.cn {
+    background-position: calc(var(--offx) * -5) 0;
+}
+.flags.de {
+    background-position: 0 calc(var(--offy) * -1);
+}
+.flags.jp {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -1);
+}
+.flags.fr {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -1);
+}
+.flags.se {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -1);
+}
+.flags.nl {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -1);
+}
+.flags.pl {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -1);
+}
+.flags.dk {
+    background-position: 0 calc(var(--offy) * -2);
+}
+.flags.no {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -2);
+}
+.flags.it {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -2);
+}
+.flags.th {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -2);
+}
+.flags.fi {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -2);
+}
+.flags.hu {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -2);
+}
+.flags.cz {
+    background-position: 0 calc(var(--offy) * -3);
+}
+.flags.tr {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -3);
+}
+.flags.ae {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -3);
+}
+.flags.ro {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -3);
+}
+.flags.vn {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -3);
+}
+.flags.ua {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -3);
+}
+.flags.gb {
+    background-position: 0 calc(var(--offy) * -4);
+}
+.flags.use {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -4);
+}
+.flags.eu {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -4);
+}
+.flags.tw {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -4);
+}
+.flags.mt {
+    background-position: 0 calc(var(--offy) * -5);
+}
+.flags.id {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -5);
+}
+.flags.hr {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -5);
+}
+.flags.he {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -5);
+}
+.flags.af {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -5);
+}
+.flags.be {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -5);
+}
+.flags.bg {
+    background-position: 0 calc(var(--offy) * -6);
+}
+.flags.cy {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -6);
+}
+.flags.el {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -6);
+}
+.flags.et {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -6);
+}
+.flags.ph {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -6);
+}
+.flags.gd {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -6);
+}
+.flags.ga {
+    background-position: 0 calc(var(--offy) * -7);
+}
+.flags.hi {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -7);
+}
+.flags.hy {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -7);
+}
+.flags.is {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -7);
+}
+.flags.lv {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -7);
+}
+.flags.lt {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -7);
+}
+.flags.lb {
+    background-position: 0 calc(var(--offy) * -8);
+}
+.flags.mk {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -8);
+}
+.flags.sk {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -8);
+}
+.flags.sl {
+    background-position: calc(var(--offx) * -3) calc(var(--offy) * -8);
+}
+.flags.nz {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -8);
+}
+.flags.au {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -8);
+}
+.flags.eo {
+    background-position: 0 calc(var(--offy) * -9);
+}
+.flags.tok {
+    background-position: calc(var(--offx) * -1) calc(var(--offy) * -9);
+}
+.flags.my {
+    background-position: calc(var(--offx) * -2) calc(var(--offy) * -9);
+}
+.flags.blank {
+    background-position: calc(var(--offx) * -4) calc(var(--offy) * -4);
+}
+.flags.unknown {
+    background-position: calc(var(--offx) * -5) calc(var(--offy) * -4);
+}
+
+/* Inline status dots (the original's i.x-user-status). */
+i.x-user-status {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	background: var(--status-offline);
+	border-radius: 50%;
+}
+i.x-user-status.active { background: transparent; border: 2px solid var(--status-online); }
+i.x-user-status.online { background: var(--status-online); }
+i.x-user-status.joinme { background: var(--status-joinme); }
+i.x-user-status.askme { background: var(--status-askme); }
+i.x-user-status.busy { background: var(--status-busy); }
+
+/* Word-diff colouring for bio changes (the original's Feed.vue styles). */
+.x-text-removed {
+	text-decoration: line-through;
+	color: #ff0000;
+	background-color: rgba(255, 0, 0, 0.2);
+	padding: 2px 2px;
+	border-radius: 4px;
+}
+.x-text-added {
+	color: rgb(35, 188, 35);
+	background-color: rgba(76, 255, 80, 0.2);
+	padding: 2px 2px;
+	border-radius: 4px;
+}
+
+/* Inline status dot indicators (used in dialogs and sidebar) */
+i.x-user-status,
+i.x-status-icon {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    background: var(--status-offline-alt);
+    border-radius: 50%;
+}
+
+/* Suppress the ::after pseudo-element on inline <i> status dots.
+   The ::after is for avatar containers (.status-icon divs), not for <i> dots
+   which display status via their own background property. */
+i.x-user-status::after,
+i.x-status-icon::after {
+    display: none;
+}
+
+i.x-user-status.active {
+    background: transparent;
+    border: 2px solid var(--status-online);
+}
+
+i.x-user-status.active-joinme {
+    background: transparent;
+    border: 2px solid var(--status-joinme);
+}
+
+i.x-user-status.active-askme {
+    background: transparent;
+    border: 2px solid var(--status-askme);
+}
+
+i.x-user-status.active-busy {
+    background: transparent;
+    border: 2px solid var(--status-busy);
+}
+
+i.x-user-status.online {
+    background: var(--status-online);
+}
+
+i.x-user-status.joinme {
+    background: var(--status-joinme);
+}
+
+i.x-user-status.askme {
+    background: var(--status-askme);
+}
+
+i.x-user-status.busy {
+    background: var(--status-busy);
+}
+
+i.x-status-icon.green {
+    background: var(--status-online);
+}
+i.x-status-icon.blue {
+    background: var(--status-joinme);
+}
+i.x-status-icon.orange {
+    background: var(--status-askme);
+}
+i.x-status-icon.red {
+    background: var(--status-busy);
+}
+
+/* Avatar status dots and cutouts (the original styles/status-icon.css). */
+.status-icon::after {
+    position: absolute;
+    right: 0.75px;
+    bottom: 0.75px;
+    width: 9px;
+    height: 9px;
+    content: '';
+    background: var(--status-offline);
+    border-radius: 50%;
+    box-shadow: 0 0 0 2px var(--background);
+}
+
+.status-icon.active::after {
+    background: transparent;
+    border: 2px solid var(--status-online);
+    box-shadow:
+        0 0 0 1.5px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-online) 40%, transparent);
+}
+
+.status-icon.active-joinme::after {
+    background: transparent;
+    border: 2px solid var(--status-joinme);
+    box-shadow:
+        0 0 0 1.5px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-joinme) 40%, transparent);
+}
+
+.status-icon.active-askme::after {
+    background: transparent;
+    border: 2px solid var(--status-askme);
+    box-shadow:
+        0 0 0 1.5px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-askme) 40%, transparent);
+}
+
+.status-icon.active-busy::after {
+    background: transparent;
+    border: 2px solid var(--status-busy);
+    box-shadow:
+        0 0 0 1.5px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-busy) 40%, transparent);
+}
+
+.status-icon.online::after {
+    background: var(--status-online);
+    box-shadow:
+        0 0 0 2px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-online) 50%, transparent);
+}
+
+.status-icon.joinme::after {
+    background: var(--status-joinme);
+    box-shadow:
+        0 0 0 2px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-joinme) 50%, transparent);
+}
+
+.status-icon.askme::after {
+    background: var(--status-askme);
+    box-shadow:
+        0 0 0 2px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-askme) 50%, transparent);
+}
+
+.status-icon.busy::after {
+    background: var(--status-busy);
+    box-shadow:
+        0 0 0 2px var(--background),
+        0 0 4px color-mix(in oklch, var(--status-busy) 50%, transparent);
+}
+
+.accessible-status-indicators .status-icon::after {
+    box-shadow: none;
+}
+
+.accessible-status-indicators .status-icon.joinme::after {
+    mask-image: url(/images/masks/joinme.svg);
+}
+
+.accessible-status-indicators .status-icon.askme::after {
+    mask-image: url(/images/masks/askme.svg);
+}
+
+.accessible-status-indicators .status-icon.busy::after {
+    mask-image: url(/images/masks/busy.svg);
+}
+
+.accessible-status-indicators i.x-user-status.joinme {
+    mask-image: url(/images/masks/joinme.svg);
+}
+
+.accessible-status-indicators i.x-user-status.askme {
+    mask-image: url(/images/masks/askme.svg);
+}
+
+.accessible-status-indicators i.x-user-status.busy {
+    mask-image: url(/images/masks/busy.svg);
+}
+
+.status-icon.offline::after {
+    background: var(--status-offline);
+    box-shadow: 0 0 0 1px var(--background);
+}
+
+.offline img {
+    filter: grayscale(1);
+}
+
+.friend-row:hover .active img,
+.friend-row:hover .offline img {
+    filter: none;
+}
+
+/* Avatar mask cutout for status dot */
+.status-icon img {
+    mask-image: url(/images/masks/usercutout.svg);
+}
+
+.status-icon.mobile img {
+    mask-image: url(/images/masks/usercutoutmobile.svg);
+}
+
+.status-icon.mobile::after {
+    right: -2px;
+    bottom: -0.5px;
+    width: 14px;
+    height: 14px;
+    border-radius: 0;
+    mask-image: url(/images/masks/phone.svg) !important;
+}
+

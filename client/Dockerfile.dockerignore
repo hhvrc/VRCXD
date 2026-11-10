@@ -1,0 +1,10 @@
+# The build context is the repository root; only the client and the shared protos are needed.
+*
+!client/
+!Server/Common/Protos/
+client/node_modules/
+client/build/
+client/.svelte-kit/
+client/src/lib/gen/
+client/test-results/
+client/e2e/

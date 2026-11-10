@@ -1,0 +1,11 @@
+<Solution>
+  <Project Path="Vrchat/Vrchat.csproj" Type="Classic C#" />
+  <Project Path="Common/Common.csproj" Type="Classic C#" />
+  <Project Path="Common.Tests/Common.Tests.csproj" Type="Classic C#" />
+  <Project Path="API/API.csproj" Type="Classic C#" />
+  <Project Path="API.IntegrationTests/API.IntegrationTests.csproj" Type="Classic C#" />
+  <Project Path="MigrationHelper/MigrationHelper.csproj" Type="Classic C#" />
+  <Project Path="LegacyImport/LegacyImport.csproj" Type="Classic C#" />
+  <Project Path="Testing/Testing.csproj" Type="Classic C#" />
+  <Project Path="Testing.E2EHost/Testing.E2EHost.csproj" Type="Classic C#" />
+</Solution>

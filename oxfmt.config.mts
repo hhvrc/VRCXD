@@ -19,7 +19,7 @@ export default defineConfig({
         lineWrappingStyle: 'balance',
         commentLineStrategy: 'keep'
     },
-    ignorePatterns: ['build/**'],
+    ignorePatterns: ['build/**', 'client/**', 'desktop/**'],
     overrides: [
         {
             files: ['*.vue'],

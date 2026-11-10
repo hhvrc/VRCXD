@@ -1,0 +1,39 @@
+<Project>
+  <PropertyGroup>
+    <Company>VRCX</Company>
+    <Product>$(Company).$(MSBuildProjectName)</Product>
+    <Version>2.0.0</Version>
+    <Authors>hhvrc</Authors>
+    <Description>VRCX server: owns the VRChat API session, the Postgres model and the business logic, so the clients only render.</Description>
+    <RepositoryUrl>https://github.com/hhvrc/vrcxd</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <AssemblyName>$(Product)</AssemblyName>
+    <RootNamespace>$(Product.Replace(" ", "_"))</RootNamespace>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Runtime-native async: async methods suspend/resume via the runtime instead of
+         compiler-generated state machines, giving cleaner stack traces and lower overhead. -->
+    <Features>$(Features);runtime-async=on</Features>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Missing XML comment -->
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Asp.Versioning.OpenApi 10.2.x constrains Microsoft.OpenApi below 3.0, Microsoft.AspNetCore.OpenApi 11 needs 3.x.
+         Works in practice (same situation as OpenShock/API); kept visible as a warning. -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1608;NU1603;NU1605</WarningsNotAsErrors>
+  </PropertyGroup>
+</Project>

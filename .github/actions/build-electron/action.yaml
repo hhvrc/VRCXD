@@ -18,7 +18,7 @@ runs:
   using: 'composite'
   steps:
     - name: Setup dotnet 10
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
       with:
         dotnet-version: '10.0.x'
     - name: Set version
@@ -26,7 +26,7 @@ runs:
       run: |
         echo "${{ inputs.vrcx-version }}" > Version
         cat Version
-    - uses: actions/cache@v5
+    - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: ~/.nuget/packages
         key: ${{ runner.os }}-nuget-${{ hashFiles('**/Dotnet/VRCX-Electron.csproj') }}
@@ -36,7 +36,7 @@ runs:
       shell: pwsh
       run: dotnet build 'Dotnet/VRCX-Electron.csproj' -p:Configuration=Release -p:WarningLevel=0 -p:Platform=${{ inputs.platform }} -t:"Clean;Build" -maxcpucount --runtime ${{ inputs.runtime-identifier }}
     - name: Upload Electron dotnet ${{ inputs.runtime-identifier }} artifacts
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: Electron-Release_${{ inputs.runtime-identifier }}
         path: build/Electron

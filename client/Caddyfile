@@ -1,0 +1,24 @@
+# VRCX_SITE is what Caddy serves:
+#   :80 (default)          plain HTTP on any name; use it behind your own proxy or on a trusted LAN
+#   vrcx.example.com       a public domain pointing here: Caddy gets and renews a certificate
+#                          itself (ports 80 and 443 must reach this container from the internet)
+{$VRCX_SITE::80} {
+	encode zstd gzip
+
+	# The server: REST, the live websocket, image proxy, and the operator pages.
+	@api path /1/* /hangfire /hangfire/* /scalar/* /openapi/* /metrics
+	handle @api {
+		reverse_proxy api:80
+	}
+
+	handle {
+		root * /srv
+		# Hashed build assets never change; everything else is checked each time.
+		@immutable path /_app/immutable/*
+		header @immutable Cache-Control "public, max-age=31536000, immutable"
+		header -Server
+		# Prerendered pages are name.html; dashboards render client-side from 200.html.
+		try_files {path} {path}.html {path}/index.html /200.html
+		file_server
+	}
+}

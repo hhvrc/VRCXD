@@ -41,6 +41,7 @@
         "start-electron": "electron . --hot-reload"
     },
     "dependencies": {
+        "@dnd-kit/abstract": "0.5.1",
         "hazardous": "^0.3.0",
         "node-api-dotnet": "^0.9.31"
     },
@@ -67,6 +68,7 @@
         "@vitest/coverage-v8": "^5.0.5",
         "@vue/test-utils": "^2.5.1",
         "@vueuse/core": "^15.0.0",
+        "browserslist": "4.28.7",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cross-env": "^10.1.0",
@@ -74,6 +76,7 @@
         "echarts": "^6.1.0",
         "electron": "^45.0.0",
         "electron-builder": "^26.18.0",
+        "embla-carousel": "8.6.0",
         "embla-carousel-vue": "^8.6.0",
         "globals": "^17.13.0",
         "graphology": "^0.26.0",
@@ -92,6 +95,7 @@
         "qrcode": "1.5.4",
         "reka-ui": "^2.11.0",
         "remixicon": "^4.9.1",
+        "rolldown": "1.1.5",
         "sigma": "^4.0.3",
         "tailwind-merge": "^3.7.0",
         "tailwindcss": "^4.3.3",

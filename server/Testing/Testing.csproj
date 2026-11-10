@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The integration test harness (see README.md): shared Postgres/Redis containers, the real API
+    host wired to a fake VRChat, the fake pipeline, a fake desktop app shipping game logs, a live
+    event client and a controllable clock. Test-framework agnostic: failures are exceptions, so
+    the TUnit projects and the Playwright host (Testing.E2EHost) both use it.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\API\API.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+  </ItemGroup>
+</Project>

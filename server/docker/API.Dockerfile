@@ -1,0 +1,20 @@
+# syntax = devthefuture/dockerfile-x
+
+FROM ./docker/Base.Dockerfile#build-common AS build-api
+
+COPY --link API/*.csproj API/
+RUN dotnet restore API/API.csproj
+
+COPY --link API/. API/
+
+RUN dotnet publish --no-restore -c Release API/API.csproj -o /app
+
+# final is the final runtime stage for running the app
+FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-rc.3-alpine3.24 AS final-api
+WORKDIR /app
+
+COPY --link --from=build-api /app .
+COPY docker/appsettings.API.json /app/appsettings.Container.json
+
+EXPOSE 80
+ENTRYPOINT ["dotnet", "VRCX.API.dll"]

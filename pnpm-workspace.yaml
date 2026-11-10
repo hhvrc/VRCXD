@@ -1,0 +1,8 @@
+# Postinstall scripts for these are legitimate first-party build/download steps (e.g. electron
+# fetching its own binary), not third-party code needing scrutiny.
+allowBuilds:
+  '@sentry/cli': true
+  core-js: true
+  electron: true
+  electron-winstaller: true
+  vue-demi: true

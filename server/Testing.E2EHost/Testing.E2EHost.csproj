@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    The server the client's Playwright tests run against: one VrcxScenario on a real port, with a
+    seeded fake VRChat account, plus a small control API the tests use to push pipeline frames.
+    Needs Docker (the scenario's Postgres and Redis containers). Never talks to VRChat.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>VRCX.Testing.E2EHost</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Testing\Testing.csproj" />
+  </ItemGroup>
+</Project>

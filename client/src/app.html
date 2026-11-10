@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<!-- The app has its own dark theme. Dark Reader flattens see-through colours, which breaks the frosted glass behind dialogs. -->
+		<meta name="darkreader-lock" />
+		<script>
+			// The theme (lib/appearance.svelte.ts) set before first paint so nothing flashes white:
+			// VRCX_ThemeMode (System follows the OS) and the VRCX_themeColor colour.
+			(function () {
+				function read(key, fallback) {
+					try {
+						var raw = localStorage.getItem(key);
+						return raw === null ? fallback : JSON.parse(raw);
+					} catch (e) {
+						return fallback;
+					}
+				}
+				var mode = read('VRCX_ThemeMode', 'system');
+				if (mode !== 'light' && mode !== 'dark' && mode !== 'midnight') {
+					mode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+				}
+				var root = document.documentElement;
+				root.classList.toggle('dark', mode !== 'light');
+				root.setAttribute('data-theme', mode);
+				root.setAttribute('data-theme-color', String(read('VRCX_themeColor', 'default')));
+				var zoom = Number(read('VRCX_zoomLevel', 100)) / 100;
+				if (zoom > 0 && zoom !== 1) {
+					root.style.setProperty('zoom', String(zoom));
+					root.style.setProperty('--app-zoom', String(zoom));
+				}
+			})();
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>

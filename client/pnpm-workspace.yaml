@@ -1,0 +1,10 @@
+# This file's mere presence marks client/ as its own pnpm workspace root, independent of the
+# repo root's own pnpm project (which otherwise silently absorbs this directory - installs and
+# builds run from inside client/ would resolve against the wrong lockfile/node_modules and
+# appear to succeed while doing nothing, exactly as happened while setting this up).
+packages: []
+# @bufbuild/buf's postinstall just downloads its own prebuilt binary (needed for the
+# generate/build/check scripts' "buf generate" step) - a legitimate, first-party install
+# script, not a random dependency's.
+allowBuilds:
+  '@bufbuild/buf': true
