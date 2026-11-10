@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Timers;
 using NLog;
 
@@ -84,6 +85,12 @@ namespace VRCX
                 ProcessStarted?.Invoke(monitoredProcess);
                 logger.Info($"Monitored process {monitoredProcess.ProcessName} (PID: {process.Id}) started.");
             }
+
+            // Dispose every enumerated Process except the ones now held by a MonitoredProcess.
+            if (processes != null)
+                foreach (var process in processes)
+                    if (!monitoredProcesses.Values.Any(m => m.Process == process))
+                        process.Dispose();
         }
 
         /// <summary>
