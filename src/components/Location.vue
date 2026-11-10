@@ -67,7 +67,7 @@
 </template>
 
 <script setup>
-    import { computed, onBeforeUnmount, ref, watch } from 'vue';
+    import { computed, reactive, ref, watch } from 'vue';
     import { AlertTriangle, Lock } from 'lucide-vue-next';
     import { storeToRefs } from 'pinia';
     import { useI18n } from 'vue-i18n';
@@ -148,18 +148,94 @@
         }
     });
 
-    const text = ref('');
-    const region = ref('');
-    const strict = ref(false);
-    const ageGate = ref(false);
-    const isTraveling = ref(false);
-    const parsedLocation = ref({ isRealInstance: false, worldId: '', tag: '', shortName: '' });
-    const groupName = ref('');
-    const closedAt = ref('');
-    const instanceName = ref('');
-    const instanceRef = ref(null);
+    const isTraveling = computed(() => typeof props.traveling !== 'undefined' && props.location === 'traveling');
+    const instanceId = computed(() => (isTraveling.value ? props.traveling : props.location));
+    const parsedLocation = computed(() => parseLocation(instanceId.value));
 
-    const isAgeRestricted = computed(() => !isAgeGatedInstancesVisible.value && ageGate.value);
+    // Names fetched for worlds and groups that are not cached, keyed by id. A late result for an
+    // id the component no longer shows is stored but never read, so it cannot overwrite a newer one.
+    const fetchedNames = reactive(new Map());
+
+    // The instance store writes cachedInstances without triggering reactivity, then sets
+    // lastInstanceApplied to the id it changed, so re-read the cache when that id is ours.
+    const instanceRevision = ref(0);
+    watch(lastInstanceApplied, (id) => {
+        if (id === instanceId.value) {
+            instanceRevision.value++;
+        }
+    });
+    const cachedInstance = computed(() => {
+        instanceRevision.value;
+        const L = parsedLocation.value;
+        const cachedRef = L.isRealInstance ? cachedInstances.get(L.tag) : undefined;
+        return { displayName: cachedRef?.displayName || '', closedAt: cachedRef?.closedAt || '' };
+    });
+
+    const worldNameToFetch = computed(() => {
+        const { worldId } = parsedLocation.value;
+        return worldId && typeof cachedWorlds.get(worldId) === 'undefined' ? worldId : '';
+    });
+    const groupIdToFetch = computed(() => {
+        const L = parsedLocation.value;
+        return L.isRealInstance && !props.excludeGroupName && !props.grouphint && L.groupId ? L.groupId : '';
+    });
+    watch(
+        worldNameToFetch,
+        (worldId) => {
+            if (worldId) {
+                fetchName(worldId, getWorldName(worldId));
+            }
+        },
+        { immediate: true }
+    );
+    watch(
+        groupIdToFetch,
+        (groupId) => {
+            if (groupId) {
+                fetchName(groupId, getGroupName(instanceId.value));
+            }
+        },
+        { immediate: true }
+    );
+
+    /**
+     * @param {string} id
+     * @param {Promise<string>} request
+     */
+    function fetchName(id, request) {
+        request.then((name) => {
+            if (name) {
+                fetchedNames.set(id, name);
+            }
+        });
+    }
+
+    const text = computed(() => {
+        const L = parsedLocation.value;
+        const cachedRef = L.worldId ? cachedWorlds.get(L.worldId) : undefined;
+        return getLocationText(L, {
+            hint: props.hint,
+            worldName: typeof cachedRef !== 'undefined' ? cachedRef.name : fetchedNames.get(L.worldId),
+            accessTypeLabel: translateAccessType(L.accessTypeName, t, accessTypeLocaleKeyMap),
+            t
+        });
+    });
+    const region = computed(() => (parsedLocation.value.isRealInstance ? resolveRegion(parsedLocation.value) : ''));
+    const strict = computed(() => parsedLocation.value.strict);
+    const instanceName = computed(() => cachedInstance.value.displayName || parsedLocation.value.instanceName);
+    const closedAt = computed(() => cachedInstance.value.closedAt);
+    const groupName = computed(() => {
+        const L = parsedLocation.value;
+        if (!L.isRealInstance || props.excludeGroupName) {
+            return '';
+        }
+        if (props.grouphint) {
+            return props.grouphint;
+        }
+        return L.groupId ? fetchedNames.get(L.groupId) || L.groupId : '';
+    });
+
+    const isAgeRestricted = computed(() => !isAgeGatedInstancesVisible.value && parsedLocation.value.ageGate);
     const isLocationLink = computed(() => props.link && props.location !== 'private' && props.location !== 'offline');
     const locationClasses = computed(() => [
         'x-location',
@@ -172,178 +248,26 @@
         () => props.disableTooltip || !instanceName.value || showInstanceIdInLocation.value
     );
 
-    let isDisposed = false;
-    onBeforeUnmount(() => {
-        isDisposed = true;
-    });
-
-    watch(() => [props.location, props.traveling, props.hint, props.grouphint, props.excludeGroupName], parse, {
-        immediate: true
-    });
-
-    watch(
-        () => lastInstanceApplied.value,
-        (instanceId) => {
-            if (instanceId === currentInstanceId()) {
-                parse();
-            }
-        }
-    );
-
-    function currentInstanceId() {
-        if (typeof props.traveling !== 'undefined' && props.location === 'traveling') {
-            return props.traveling;
-        }
-        return props.location;
-    }
-
-    function resetState() {
-        text.value = '';
-        region.value = '';
-        strict.value = false;
-        ageGate.value = false;
-        isTraveling.value = false;
-        groupName.value = '';
-        closedAt.value = '';
-        instanceName.value = '';
-    }
-
-    function parse() {
-        if (isDisposed) {
-            return;
-        }
-        resetState();
-
-        let instanceId = props.location;
-        if (typeof props.traveling !== 'undefined' && props.location === 'traveling') {
-            instanceId = props.traveling;
-            isTraveling.value = true;
-        }
-        const L = parseLocation(instanceId);
-        parsedLocation.value = L;
-        setText(L);
-        instanceName.value = L.instanceName;
-        closedAt.value = '';
-        if (!L.isRealInstance) {
-            return;
-        }
-
-        applyInstanceRef(L);
-        updateGroupName(L, instanceId);
-        updateRegion(L);
-        strict.value = L.strict;
-        ageGate.value = L.ageGate;
-    }
-
-    /**
-     * @param L
-     */
-    function applyInstanceRef(L) {
-        const cachedInstanceRef = cachedInstances.get(L.tag);
-        if (typeof cachedInstanceRef === 'undefined') {
-            return;
-        }
-        instanceRef.value = cachedInstanceRef;
-        if (cachedInstanceRef.displayName) {
-            setText(L);
-            instanceName.value = cachedInstanceRef.displayName;
-        }
-        if (cachedInstanceRef.closedAt) {
-            closedAt.value = cachedInstanceRef.closedAt;
-        }
-    }
-
-    /**
-     * @param L
-     * @param instanceId
-     */
-    function updateGroupName(L, instanceId) {
-        if (props.excludeGroupName) {
-            return;
-        }
-        if (props.grouphint) {
-            groupName.value = props.grouphint;
-            return;
-        }
-        if (!L.groupId) {
-            return;
-        }
-        groupName.value = L.groupId;
-        getGroupName(instanceId).then((name) => {
-            if (!isDisposed && name && currentInstanceId() === L.tag) {
-                groupName.value = name;
-            }
-        });
-    }
-
-    /**
-     * @param L
-     */
-    function updateRegion(L) {
-        region.value = resolveRegion(L);
-    }
-
-    /**
-     * @param accessTypeName
-     */
-    function getAccessTypeLabel(accessTypeName) {
-        return translateAccessType(accessTypeName, t, accessTypeLocaleKeyMap);
-    }
-
-    /**
-     * @param L
-     */
-    function setText(L) {
-        const accessTypeLabel = getAccessTypeLabel(L.accessTypeName);
-        const cachedRef = L.worldId ? cachedWorlds.get(L.worldId) : undefined;
-        const worldName = typeof cachedRef !== 'undefined' ? cachedRef.name : undefined;
-
-        text.value = getLocationText(L, {
-            hint: props.hint,
-            worldName,
-            accessTypeLabel,
-            t
-        });
-
-        if (L.worldId && typeof cachedRef === 'undefined') {
-            getWorldName(L.worldId).then((name) => {
-                if (!isDisposed && name && currentInstanceId() === L.tag) {
-                    text.value = getLocationText(L, {
-                        hint: props.hint,
-                        worldName: name,
-                        accessTypeLabel: getAccessTypeLabel(L.accessTypeName),
-                        t
-                    });
-                }
-            });
-        }
-    }
-
     function handleShowWorldDialog() {
         if (props.link) {
-            let instanceId = currentInstanceId();
-            if (!instanceId && props.hint.length === 8) {
+            if (!instanceId.value && props.hint.length === 8) {
                 verifyShortName('', props.hint);
                 return;
             }
             if (props.isOpenPreviousInstanceInfoDialog) {
-                showPreviousInstancesInfoDialog(instanceId);
+                showPreviousInstancesInfoDialog(instanceId.value);
             } else {
-                showWorldDialog(instanceId);
+                showWorldDialog(instanceId.value);
             }
         }
     }
 
     function handleShowGroupDialog() {
-        let location = currentInstanceId();
-        if (!location) {
+        const { groupId } = parsedLocation.value;
+        if (!groupId) {
             return;
         }
-        const L = parseLocation(location);
-        if (!L.groupId) {
-            return;
-        }
-        showGroupDialog(L.groupId);
+        showGroupDialog(groupId);
     }
 
     function handleShareLocation() {
@@ -365,8 +289,7 @@
     }
 
     function handleShowPreviousInstances() {
-        const instanceId = currentInstanceId();
-        if (!instanceId) return;
-        showPreviousInstancesInfoDialog(instanceId);
+        if (!instanceId.value) return;
+        showPreviousInstancesInfoDialog(instanceId.value);
     }
 </script>
