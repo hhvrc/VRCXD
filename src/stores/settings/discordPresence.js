@@ -1,4 +1,4 @@
-import { reactive, ref } from 'vue';
+import { reactive } from 'vue';
 import { defineStore } from 'pinia';
 import { useI18n } from 'vue-i18n';
 
@@ -17,8 +17,7 @@ import { useLocationStore } from '../location';
 import { useUpdateLoopStore } from '../updateLoop';
 import { useUserStore } from '../user';
 import { useInstanceStore } from '../instance';
-
-import configRepository from '../../services/config';
+import { definePersistedSettings } from './persistedSettings';
 
 export const useDiscordPresenceSettingsStore = defineStore('DiscordPresenceSettings', () => {
     const locationStore = useLocationStore();
@@ -47,88 +46,30 @@ export const useDiscordPresenceSettingsStore = defineStore('DiscordPresenceSetti
         }
     });
 
-    const discordActive = ref(false);
-    const discordInstance = ref(true);
-    const discordHideInvite = ref(true);
-    const discordJoinButton = ref(false);
-    const discordHideImage = ref(false);
-    const discordShowPlatform = ref(true);
-    const discordWorldIntegration = ref(true);
-    const discordWorldNameAsDiscordStatus = ref(false);
-    const discordMediaImage = ref(false);
+    const settings = definePersistedSettings({
+        discordActive: ['discordActive', 'bool', false],
+        discordInstance: ['discordInstance', 'bool', true],
+        discordHideInvite: ['discordHideInvite', 'bool', true],
+        discordJoinButton: ['discordJoinButton', 'bool', false],
+        discordHideImage: ['discordHideImage', 'bool', false],
+        discordShowPlatform: ['discordShowPlatform', 'bool', true],
+        discordWorldIntegration: ['discordWorldIntegration', 'bool', true],
+        discordWorldNameAsDiscordStatus: ['discordWorldNameAsDiscordStatus', 'bool', false],
+        discordMediaImage: ['discordMediaImage', 'bool', false]
+    });
+    const {
+        discordActive,
+        discordInstance,
+        discordHideInvite,
+        discordJoinButton,
+        discordHideImage,
+        discordShowPlatform,
+        discordWorldIntegration,
+        discordWorldNameAsDiscordStatus,
+        discordMediaImage
+    } = settings.refs;
 
-    function setDiscordActive() {
-        discordActive.value = !discordActive.value;
-        configRepository.setBool('discordActive', discordActive.value);
-    }
-    function setDiscordInstance() {
-        discordInstance.value = !discordInstance.value;
-        configRepository.setBool('discordInstance', discordInstance.value);
-    }
-    function setDiscordHideInvite() {
-        discordHideInvite.value = !discordHideInvite.value;
-        configRepository.setBool('discordHideInvite', discordHideInvite.value);
-    }
-    function setDiscordJoinButton() {
-        discordJoinButton.value = !discordJoinButton.value;
-        configRepository.setBool('discordJoinButton', discordJoinButton.value);
-    }
-    function setDiscordHideImage() {
-        discordHideImage.value = !discordHideImage.value;
-        configRepository.setBool('discordHideImage', discordHideImage.value);
-    }
-    function setDiscordShowPlatform() {
-        discordShowPlatform.value = !discordShowPlatform.value;
-        configRepository.setBool('discordShowPlatform', discordShowPlatform.value);
-    }
-    function setDiscordWorldIntegration() {
-        discordWorldIntegration.value = !discordWorldIntegration.value;
-        configRepository.setBool('discordWorldIntegration', discordWorldIntegration.value);
-    }
-    function setDiscordWorldNameAsDiscordStatus() {
-        discordWorldNameAsDiscordStatus.value = !discordWorldNameAsDiscordStatus.value;
-        configRepository.setBool('discordWorldNameAsDiscordStatus', discordWorldNameAsDiscordStatus.value);
-    }
-    function setDiscordMediaImage() {
-        discordMediaImage.value = !discordMediaImage.value;
-        configRepository.setBool('discordMediaImage', discordMediaImage.value);
-    }
-
-    async function initDiscordPresenceSettings() {
-        const [
-            discordActiveConfig,
-            discordInstanceConfig,
-            discordHideInviteConfig,
-            discordJoinButtonConfig,
-            discordHideImageConfig,
-            discordShowPlatformConfig,
-            discordWorldIntegrationConfig,
-            discordWorldNameAsDiscordStatusConfig,
-            discordMediaImageConfig
-        ] = await Promise.all([
-            configRepository.getBool('discordActive', false),
-            configRepository.getBool('discordInstance', true),
-            configRepository.getBool('discordHideInvite', true),
-            configRepository.getBool('discordJoinButton', false),
-            configRepository.getBool('discordHideImage', false),
-            configRepository.getBool('discordShowPlatform', true),
-            configRepository.getBool('discordWorldIntegration', true),
-            configRepository.getBool('discordWorldNameAsDiscordStatus', false),
-            configRepository.getBool('discordMediaImage', false)
-        ]);
-
-        discordActive.value = discordActiveConfig;
-        discordInstance.value = discordInstanceConfig;
-        discordHideInvite.value = discordHideInviteConfig;
-        discordJoinButton.value = discordJoinButtonConfig;
-        discordHideImage.value = discordHideImageConfig;
-        discordShowPlatform.value = discordShowPlatformConfig;
-        discordWorldIntegration.value = discordWorldIntegrationConfig;
-        discordWorldNameAsDiscordStatus.value = discordWorldNameAsDiscordStatusConfig;
-        discordMediaImage.value = discordMediaImageConfig;
-    }
-
-    initDiscordPresenceSettings();
+    settings.load();
 
     async function updateDiscord() {
         let currentLocation = locationStore.lastLocation.location;
@@ -392,25 +333,9 @@ export const useDiscordPresenceSettingsStore = defineStore('DiscordPresenceSetti
     return {
         state,
 
-        discordActive,
-        discordInstance,
-        discordHideInvite,
-        discordJoinButton,
-        discordHideImage,
-        discordShowPlatform,
-        discordWorldIntegration,
-        discordWorldNameAsDiscordStatus,
-        discordMediaImage,
+        ...settings.refs,
 
-        setDiscordActive,
-        setDiscordInstance,
-        setDiscordHideInvite,
-        setDiscordJoinButton,
-        setDiscordHideImage,
-        setDiscordShowPlatform,
-        setDiscordWorldIntegration,
-        setDiscordMediaImage,
-        setDiscordWorldNameAsDiscordStatus,
+        ...settings.setters,
         updateDiscord,
         saveDiscordOption
     };
