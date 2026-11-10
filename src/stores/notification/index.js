@@ -37,6 +37,7 @@ import { database, dbVars } from '../../services/database';
 import { getNotificationCategory, getNotificationTs } from '../../shared/utils/notificationCategory';
 import { AppDebug } from '../../services/appConfig';
 import { createOverlayDispatch } from './overlayDispatch';
+import { NOTY_FILTER_RULES, passesNotyFilter } from './notyFilter';
 import { useAdvancedSettingsStore } from '../settings/advanced';
 import { useFavoriteStore } from '../favorite';
 import { useFriendStore } from '../friend';
@@ -792,13 +793,16 @@ export const useNotificationStore = defineStore('Notification', () => {
     function queueNotificationNoty(noty) {
         noty.isFriend = friendStore.friends.has(noty.senderUserId);
         noty.isFavorite = friendStore.localFavoriteFriends.has(noty.senderUserId);
+        playNotyIfFiltered(noty, NOTY_FILTER_RULES.notification);
+    }
+
+    /**
+     * @param {object} noty
+     * @param {object} rules One of NOTY_FILTER_RULES
+     */
+    function playNotyIfFiltered(noty, rules) {
         const notyFilter = notificationsSettingsStore.sharedFeedFilters.noty;
-        if (
-            notyFilter[noty.type] &&
-            (notyFilter[noty.type] === 'On' ||
-                notyFilter[noty.type] === 'Friends' ||
-                (notyFilter[noty.type] === 'VIP' && noty.isFavorite))
-        ) {
+        if (passesNotyFilter(notyFilter[noty.type], noty, rules)) {
             playNoty(noty);
         }
     }
@@ -1036,16 +1040,7 @@ export const useNotificationStore = defineStore('Notification', () => {
                 noty.isFavorite = friendStore.localFavoriteFriends.has(ref.id);
             }
         }
-        const notyFilter = notificationsSettingsStore.sharedFeedFilters.noty;
-        if (
-            notyFilter[noty.type] &&
-            (notyFilter[noty.type] === 'On' ||
-                notyFilter[noty.type] === 'Everyone' ||
-                (notyFilter[noty.type] === 'Friends' && noty.isFriend) ||
-                (notyFilter[noty.type] === 'VIP' && noty.isFavorite))
-        ) {
-            playNoty(noty);
-        }
+        playNotyIfFiltered(noty, NOTY_FILTER_RULES.gameLog);
     }
 
     /**
@@ -1062,15 +1057,7 @@ export const useNotificationStore = defineStore('Notification', () => {
         }
         noty.isFriend = friendStore.friends.has(noty.userId);
         noty.isFavorite = friendStore.localFavoriteFriends.has(noty.userId);
-        const notyFilter = notificationsSettingsStore.sharedFeedFilters.noty;
-        if (
-            notyFilter[noty.type] &&
-            (notyFilter[noty.type] === 'Everyone' ||
-                (notyFilter[noty.type] === 'Friends' && noty.isFriend) ||
-                (notyFilter[noty.type] === 'VIP' && noty.isFavorite))
-        ) {
-            playNoty(noty);
-        }
+        playNotyIfFiltered(noty, NOTY_FILTER_RULES.feed);
     }
 
     /**
@@ -1082,15 +1069,7 @@ export const useNotificationStore = defineStore('Notification', () => {
         }
         noty.isFriend = friendStore.friends.has(noty.userId);
         noty.isFavorite = friendStore.localFavoriteFriends.has(noty.userId);
-        const notyFilter = notificationsSettingsStore.sharedFeedFilters.noty;
-        if (
-            notyFilter[noty.type] &&
-            (notyFilter[noty.type] === 'On' ||
-                notyFilter[noty.type] === 'Friends' ||
-                (notyFilter[noty.type] === 'VIP' && noty.isFavorite))
-        ) {
-            playNoty(noty);
-        }
+        playNotyIfFiltered(noty, NOTY_FILTER_RULES.friendLog);
     }
 
     /**
@@ -1103,10 +1082,7 @@ export const useNotificationStore = defineStore('Notification', () => {
             noty.isFriend = friendStore.friends.has(noty.userId);
             noty.isFavorite = friendStore.localFavoriteFriends.has(noty.userId);
         }
-        const notyFilter = notificationsSettingsStore.sharedFeedFilters.noty;
-        if (notyFilter[noty.type] && notyFilter[noty.type] === 'On') {
-            playNoty(noty);
-        }
+        playNotyIfFiltered(noty, NOTY_FILTER_RULES.moderation);
     }
 
     async function initNotifications() {
