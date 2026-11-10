@@ -237,6 +237,9 @@ namespace VRCX
 
             if (TryParseLineDate(line, out var lineDate))
             {
+                // also used by the timestamp-less lines that follow this one
+                logContext.LineDate = lineDate;
+
                 // check if date is older than last database entry
                 if (DateTime.Compare(lineDate, tillDate) <= 0)
                 {
@@ -255,8 +258,6 @@ namespace VRCX
                 logger.Warn("Failed to parse log date: {0}", line);
                 return;
             }
-
-            logContext.LineDate = lineDate;
 
             // Parsers are tried in order, the first one that returns true handles the line.
             var offset = 34;
@@ -811,24 +812,18 @@ namespace VRCX
             if (lineOffset < 0)
                 return false;
 
-            // checked before the line date is parsed, continuation lines have no timestamp of their own
-            var lineDate = DateTime.UtcNow;
+            // Checked before the line date is parsed. Continuation lines have no timestamp of their own,
+            // they take the time of the line before (or now, when there was none).
             if (TryParseLineDate(line, out var date))
-            {
-                // already handled on an earlier run
-                if (DateTime.Compare(date, tillDate) <= 0)
-                    return true;
-                lineDate = date;
-            }
+                logContext.LineDate = date;
+            else if (logContext.LineDate == default)
+                logContext.LineDate = DateTime.UtcNow;
 
-            AppendLog(new[]
-            {
-                logContext.FileName,
-                ToISO8601(lineDate),
-                "udon-exception",
-                line.Substring(lineOffset)
-            });
+            // already handled on an earlier run
+            if (DateTime.Compare(logContext.LineDate, tillDate) <= 0)
+                return true;
 
+            Emit(logContext, "udon-exception", line.Substring(lineOffset));
             return true;
         }
 
@@ -1048,7 +1043,7 @@ namespace VRCX
         private class LogContext
         {
             public string FileName;
-            public DateTime LineDate; // UTC time of the line currently being parsed
+            public DateTime LineDate; // UTC time of the line being parsed, or of the last line that had one
             public bool AudioDeviceChanged;
             public string LastAudioDevice;
             public readonly HashSet<string> VideoPlaybackErrors = new(50);
