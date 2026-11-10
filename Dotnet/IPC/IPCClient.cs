@@ -21,7 +21,7 @@ namespace VRCX
         private readonly byte[] _recvBuffer = new byte[1024 * 8];
         private readonly Newtonsoft.Json.JsonSerializer serializer = new Newtonsoft.Json.JsonSerializer();
         private readonly SemaphoreSlim _sendLock = new SemaphoreSlim(1, 1);
-        private string _currentPacket;
+        private readonly IPCPacketFramer _framer = new IPCPacketFramer();
 
         public IPCClient(NamedPipeServerStream ipcServer)
         {
@@ -35,33 +35,34 @@ namespace VRCX
         {
             while (true)
             {
+                int bytesRead;
                 try
                 {
-                    var bytesRead = await _ipcServer.ReadAsync(_recvBuffer, 0, _recvBuffer.Length);
-
-                    if (bytesRead <= 0)
-                    {
-                        IPCServer.Clients.TryRemove(this, out _);
-                        _ipcServer.Close();
-                        return;
-                    }
-
-                    _currentPacket += Encoding.UTF8.GetString(_recvBuffer, 0, bytesRead);
-
-                    if (_currentPacket[_currentPacket.Length - 1] == (char)0x00)
-                    {
-                        foreach (var packet in _currentPacket.Split((char)0x00))
-                        {
-                            if (!string.IsNullOrEmpty(packet))
-                                OnPacket(packet);
-                        }
-
-                        _currentPacket = string.Empty;
-                    }
+                    bytesRead = await _ipcServer.ReadAsync(_recvBuffer, 0, _recvBuffer.Length);
                 }
                 catch (Exception e)
                 {
                     Console.WriteLine(e);
+                    bytesRead = 0;
+                }
+
+                if (bytesRead <= 0)
+                {
+                    IPCServer.Clients.TryRemove(this, out _);
+                    _ipcServer.Close();
+                    return;
+                }
+
+                foreach (var packet in _framer.Push(_recvBuffer, 0, bytesRead))
+                {
+                    try
+                    {
+                        OnPacket(packet);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e);
+                    }
                 }
             }
         }
