@@ -79,6 +79,9 @@ namespace VRCX
             tillDate = DateTime.Parse(date, CultureInfo.InvariantCulture, DateTimeStyles.None).ToUniversalTime();
             threadActive = true;
             logger.Info("SetDateTill: {0}", tillDate.ToLocalTime());
+
+            // re-read the logs from the new date (the frontend calls this on every load, then reads the backlog with Get())
+            Reset();
         }
 
         private void ThreadLoop()
@@ -323,8 +326,11 @@ namespace VRCX
                         MainForm.Instance.Browser.ExecuteScriptAsync("window?.$bridge?.addGameLogEvent", logLine);
 #endif
                 }
-
-                m_LogList.Add(item);
+                else
+                {
+                    // entries from the first run are collected for Get(), later ones are only pushed
+                    m_LogList.Add(item);
+                }
             }
             finally
             {
