@@ -1,17 +1,17 @@
 name: Server
 
-# Builds and tests the server (Server/) and, on master, publishes its image to GHCR for the
-# NAS to pull. See Server/README.md.
+# Builds and tests the server (server/) and, on master, publishes its image to GHCR for the
+# NAS to pull. See server/README.md.
 
 on:
   push:
     branches: [master]
     paths:
-      - 'Server/**'
+      - 'server/**'
       - '.github/workflows/server.yml'
   pull_request:
     paths:
-      - 'Server/**'
+      - 'server/**'
       - '.github/workflows/server.yml'
   workflow_dispatch:
 
@@ -27,12 +27,12 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Server
+        working-directory: server
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
-          global-json-file: Server/global.json
+          global-json-file: server/global.json
       - run: dotnet tool restore
       - name: Build
         run: dotnet build VRCXBackend.slnx -c Release
@@ -67,8 +67,8 @@ jobs:
             type=sha
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: Server
-          file: Server/docker/API.Dockerfile
+          context: server
+          file: server/docker/API.Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

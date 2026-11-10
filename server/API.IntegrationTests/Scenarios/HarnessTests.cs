@@ -7,7 +7,7 @@ using VRCX.Common.Services.Ingestion;
 
 namespace VRCX.API.IntegrationTests.Scenarios;
 
-// The harness itself: each piece does what Server/Testing/README.md says. Scenarios are isolated,
+// The harness itself: each piece does what server/Testing/README.md says. Scenarios are isolated,
 // so these (and every test built on VrcxScenario) run in parallel.
 public sealed class HarnessTests
 {

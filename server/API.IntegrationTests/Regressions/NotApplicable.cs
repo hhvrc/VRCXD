@@ -2,7 +2,7 @@ namespace VRCX.API.IntegrationTests.Regressions;
 
 /// <summary>
 /// Closed upstream issues and PRs that have no server-port test, and why. Every closed item
-/// ends up either with an [Issue(n)]/[Pr(n)] test or here (Server/Testing/upstream-coverage.py
+/// ends up either with an [Issue(n)]/[Pr(n)] test or here (server/Testing/upstream-coverage.py
 /// lists the ones that have neither). Keep the reason short and say which part owns it.
 /// </summary>
 public static class NotApplicable

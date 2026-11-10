@@ -18,9 +18,9 @@ CLAUDE.md
 coverage/
 
 # VRCX.Server: real connection strings/tokens go here, never committed
-Server/VRCX.Server/appsettings.Development.json
-Server/VRCX.Server/appsettings.*.local.json
-Server/.env
+server/VRCX.Server/appsettings.Development.json
+server/VRCX.Server/appsettings.*.local.json
+server/.env
 bin/
 
 # client: SvelteKit build cache + generated gRPC-Web clients

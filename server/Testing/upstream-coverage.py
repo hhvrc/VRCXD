@@ -1,11 +1,11 @@
 """Which closed vrcx-team/VRCX issues and PRs have a regression test, a not-applicable entry, or neither.
 
 Usage (Python 3.11+, no packages):
-    python -I Server/Testing/upstream-coverage.py <path to the vrcx-github export> [--todo N] [--grep WORD]
+    python -I server/Testing/upstream-coverage.py <path to the vrcx-github export> [--todo N] [--grep WORD]
 
 The export (all_closed.json, issues/{n}.json, pulls/{n}.json) stays outside the repo; pass its
-path. Tests are found by their [Issue(n)] / [Pr(n)] attributes under Server/*Tests*/, and the
-not-applicable ledger is Server/API.IntegrationTests/Regressions/NotApplicable.cs.
+path. Tests are found by their [Issue(n)] / [Pr(n)] attributes under server/*Tests*/, and the
+not-applicable ledger is server/API.IntegrationTests/Regressions/NotApplicable.cs.
 --todo N prints the N oldest untriaged items; --grep WORD keeps only those whose title or body
 mentions WORD (case-insensitive), for example --grep friend.
 """

@@ -18,13 +18,13 @@ with VRCXD here, not to VRCX.
 
 If you want the desktop app that runs on your PC, use VRCX itself. VRCXD is for running the
 tracking all the time on a separate machine. A database from VRCX can be imported once
-(`Server/LegacyImport/README.md`).
+(`server/LegacyImport/README.md`).
 
 ## The parts
 
 | Part | Where | What it does |
 | --- | --- | --- |
-| Server | `Server/` | ASP.NET Core with Postgres and Redis. Holds the VRChat sessions, listens to VRChat's pipeline websocket, syncs friends, favorites, groups and notifications on a schedule, stores the history and serves the REST API and a live websocket. |
+| Server | `server/` | ASP.NET Core with Postgres and Redis. Holds the VRChat sessions, listens to VRChat's pipeline websocket, syncs friends, favorites, groups and notifications on a schedule, stores the history and serves the REST API and a live websocket. |
 | Web client | `client/` | SvelteKit, built to a static site and served by Caddy next to the API. The UI: friends, feed, friend log, game log, notifications, favorites, charts, tools and settings. |
 | Desktop app | `desktop/` | A small Qt tray app for the gaming PC. Reads VRChat's log and ships it to the server, runs the actions that need the PC (launching VRChat, joining an instance, writing screenshot metadata) and shows a status overlay in VR. |
 
@@ -33,13 +33,13 @@ the parts that are done.
 
 ## Getting started
 
-- Run the server stack with Docker Compose: `Server/README.md`, section Deploy. It starts
+- Run the server stack with Docker Compose: `server/README.md`, section Deploy. It starts
   Postgres, Redis, the API, the web client and a nightly database backup.
 - Open the web address, enter the API token and log in to VRChat.
 - On the gaming PC, point the desktop app at the same address and token: `desktop/README.md`.
 
-For development: `Server/README.md` (build, tests, configuration), `client/README.md` and
-`Server/Testing/README.md` (the integration test harness).
+For development: `server/README.md` (build, tests, configuration), `client/README.md` and
+`server/Testing/README.md` (the integration test harness).
 
 ## Is this against VRChat's TOS?
 

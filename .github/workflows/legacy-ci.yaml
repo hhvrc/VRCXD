@@ -1,7 +1,7 @@
 name: Legacy VRCX CI
 
 # Lint, format and .NET checks for the original Electron/Cef VRCX app (repo-root src/, Dotnet/).
-# That app is being ported to Server/, client/ and desktop/ and its sources moved to legacy/,
+# That app is being ported to server/, client/ and desktop/ and its sources moved to legacy/,
 # so this is manual-only and expected to degrade as files move. The new projects have their
 # own workflows next to this one.
 

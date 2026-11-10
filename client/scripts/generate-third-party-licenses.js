@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const clientDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const frontendLicensePath = path.join(clientDir, '.svelte-kit', 'output', 'client', '.vite', 'license.md');
 const outputDir = path.join(clientDir, 'build', 'licenses');
-const serverDir = path.join(clientDir, '..', 'Server');
+const serverDir = path.join(clientDir, '..', 'server');
 const nugetCacheDir = process.env.NUGET_PACKAGES || path.join(os.homedir(), '.nuget', 'packages');
 // What the server ships: not its tests, test hosts or the migration helper.
 const shippedProjects = ['API', 'Common', 'Vrchat', 'LegacyImport'];

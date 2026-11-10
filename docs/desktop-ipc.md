@@ -3,7 +3,7 @@
 The original VRCX ran a named pipe (`Dotnet/IPC/IPCServer.cs`, `IPCClient.cs`, `IPCPacket.cs`) that
 other programs on the PC use: VRCX's Photon logger mod, external notifiers, tools that tag users.
 The desktop app owns that pipe now. It parses each packet and relays it to the server over the live
-socket (`Server/Common/Protos/vrcx_live.proto`); the server applies it. The server can also ask the
+socket (`server/Common/Protos/vrcx_live.proto`); the server applies it. The server can also ask the
 app to write a packet to the pipe. This page is what the desktop side needs to build it.
 
 ## The pipe
@@ -75,6 +75,6 @@ fails, as the original did.
 
 ## Testing
 
-`Server/Testing/Desktop/FakeDesktop.cs` sends these cases (`SendIpcAsync`, builders in `Ipc`) and
-reads the written packets (`NextIpcAsync`); `Server/API.IntegrationTests/Tests/IpcTests.cs` covers
+`server/Testing/Desktop/FakeDesktop.cs` sends these cases (`SendIpcAsync`, builders in `Ipc`) and
+reads the written packets (`NextIpcAsync`); `server/API.IntegrationTests/Tests/IpcTests.cs` covers
 the server side. The pipe itself (name, framing, JSON mapping) is the desktop app's to test.

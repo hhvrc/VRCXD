@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 
-// What Server/Testing.E2EHost seeds and listens on (see its Program.cs and playwright.config.ts).
+// What server/Testing.E2EHost seeds and listens on (see its Program.cs and playwright.config.ts).
 export const API_TOKEN = 'vrcx-scenario-api-token';
 export const ACCOUNT_ID = 'usr_e2e_me';
 export const CONTROL_URL = 'http://127.0.0.1:5298';

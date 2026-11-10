@@ -42,19 +42,19 @@ Other things a scenario can do: `app.Api` (an authenticated `HttpClient` for `/1
 over the same database, Redis and fake VRChat), `ScenarioOptions.ConfigureServices` to replace
 a service, and `ScenarioOptions.KestrelPort` for a real socket.
 
-`Server/API.IntegrationTests/IsolatedHost.cs` adapts a scenario to TUnit's `ClassDataSource`
+`server/API.IntegrationTests/IsolatedHost.cs` adapts a scenario to TUnit's `ClassDataSource`
 for the older test classes; new tests just `await using` a scenario.
 
 ## Running
 
 ```sh
-cd Server
+cd server
 dotnet test VRCXBackend.slnx                      # everything (Docker must be running)
 dotnet test --project API.IntegrationTests -- --treenode-filter "/*/*/*/*[Category=Regression]"
 dotnet test --project API.IntegrationTests -- --treenode-filter "/*/*/*/*[Upstream=vrcx-team/VRCX#1228]"
 ```
 
-The browser tests in `client/e2e` run the built client against `Server/Testing.E2EHost`, which
+The browser tests in `client/e2e` run the built client against `server/Testing.E2EHost`, which
 is one scenario on port 5299 with a seeded account (`usr_e2e_me`, friends Alice, Bob, Carol)
 and a control API on 5298 (`POST /friends/{id}/online`, `/friends/{id}/offline`,
 `/notifications/friend-request?from=&name=`, `/pipeline` with a raw frame):
@@ -72,12 +72,12 @@ The closed issues and PRs of vrcx-team/VRCX are exported outside the repo (on th
 `pulls/{n}.diff`). Read them by absolute path. Never copy them, or quote long parts of them,
 into the repo.
 
-1. **Pick one.** `python -I Server/Testing/upstream-coverage.py <export path> --todo 20 --grep friend`
+1. **Pick one.** `python -I server/Testing/upstream-coverage.py <export path> --todo 20 --grep friend`
    lists items with neither a test nor a not-applicable entry.
 2. **Read it.** The issue body and comments say what users saw. For a PR, the `.diff` says
    what the fix changed, which is usually the clearest statement of the expected behaviour.
-   Then find where the port does the same thing (`Server/Common/Services/...` for ingestion
-   and stores, `Server/API/Controller/...` for endpoints, `client/src` for UI).
+   Then find where the port does the same thing (`server/Common/Services/...` for ingestion
+   and stores, `server/API/Controller/...` for endpoints, `client/src` for UI).
 3. **Decide whether it applies.** It does not when the behaviour lives entirely in:
    - the desktop app (`desktop/`: game log parsing, launching VRChat, OSC, Discord presence,
      screenshots on disk). Log-line parsing regressions belong in the desktop app's own tests;
@@ -86,9 +86,9 @@ into the repo.
    - pure UI with no server behaviour (a Playwright test in `client/e2e` if worth it);
    - a question, a duplicate, or a feature the port deliberately dropped.
 
-   Record it in `Server/API.IntegrationTests/Regressions/NotApplicable.cs` with a short reason
+   Record it in `server/API.IntegrationTests/Regressions/NotApplicable.cs` with a short reason
    using one of the prefixes there. `LedgerTests` checks the ledger stays consistent.
-4. **Write the test** in `Server/API.IntegrationTests/Regressions/`, in the file for its area
+4. **Write the test** in `server/API.IntegrationTests/Regressions/`, in the file for its area
    (`FriendRegressions.cs`, `NotificationRegressions.cs`, `GameLogRegressions.cs`, or a new
    `<Area>Regressions.cs` with `[Category("Regression")]` on the class).
    - Name: `Issue_1234_<what must hold>` or `Pr_1234_<what must hold>`, in words, for example
@@ -105,7 +105,7 @@ into the repo.
    `[Skip("Bug: <one line>, see <file>")]` and report it. Do not change production code from a
    regression test change. If it fails because the fake does not model something, extend the
    fake (`FakeVrchatApi` or the fixtures); model VRChat's real response shape, taken from
-   `Server/Vrchat/Models` and the original's code, not what makes the test pass.
+   `server/Vrchat/Models` and the original's code, not what makes the test pass.
 
 ### Time
 

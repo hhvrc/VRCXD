@@ -19,7 +19,7 @@ listener per account, and the Hangfire recurring jobs that pull from VRChat. The
 separate cron/worker host.
 
 ```
-Server/
+server/
   Vrchat/               typed VRChat REST + pipeline-websocket client (no persistence)
   Common/               VrcxDb (context, models, Postgres enums, migrations), options,
                         authentication, errors, services (sessions, ingestion, sync),
@@ -148,7 +148,7 @@ with stable `type` strings (`Login.InvalidCredentials`, `User.NotFound`, …). O
 export VRCX__DB__CONN="Host=localhost;Database=vrcx;Username=vrcx;Password=vrcx"
 export VRCX__AUTH__TOKEN="something-at-least-16-chars"
 export VRCX__REDIS__CONN="localhost:6379"             # any Redis; presence is rebuilt from Postgres if it is empty
-dotnet run --project Server/API                        # http://localhost:5280
+dotnet run --project server/API                        # http://localhost:5280
 
 # prod: see Deploy below
 ```
@@ -193,13 +193,13 @@ To import the original VRCX's database once the server has started, see `LegacyI
 ## Develop
 
 ```sh
-dotnet build Server/VRCXBackend.slnx
-cd Server && dotnet test VRCXBackend.slnx             # needs Docker; run from Server so its global.json applies
-cd Server && dotnet ef migrations add <Name> --project Common --startup-project MigrationHelper \
+dotnet build server/VRCXBackend.slnx
+cd server && dotnet test VRCXBackend.slnx             # needs Docker; run from Server so its global.json applies
+cd server && dotnet ef migrations add <Name> --project Common --startup-project MigrationHelper \
     --context MigrationVrcxContext -o Migrations      # after changing the model
 ```
 
-`dotnet ef` 11 is pinned in `Server/.config/dotnet-tools.json` (`dotnet tool restore`).
+`dotnet ef` 11 is pinned in `server/.config/dotnet-tools.json` (`dotnet tool restore`).
 Debug builds treat warnings as errors.
 
 ## Not here yet

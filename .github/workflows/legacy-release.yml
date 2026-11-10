@@ -1,7 +1,7 @@
 name: Legacy VRCX release
 
 # Release build of the original Electron/Cef VRCX app (installer, AppImages, dmgs). That app is
-# being ported to Server/, client/ and desktop/ and its sources moved to legacy/, so this is
+# being ported to server/, client/ and desktop/ and its sources moved to legacy/, so this is
 # manual-only and not maintained; it still expects npm and a package-lock.json, which the repo
 # no longer has (the root project uses pnpm).
 

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // Browser smoke tests: the built client (vite preview) against the real API host with a fake
-// VRChat (Server/Testing.E2EHost, which needs Docker for its Postgres and Redis containers).
+// VRChat (server/Testing.E2EHost, which needs Docker for its Postgres and Redis containers).
 // Nothing here reaches VRChat. `pnpm run test:e2e` starts both servers; a running pair on these
 // ports is reused outside CI.
 const apiPort = 5299;
@@ -25,7 +25,7 @@ export default defineConfig({
 	projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 	webServer: [
 		{
-			command: `dotnet run --project ../Server/Testing.E2EHost -- ${apiPort} ${controlPort}`,
+			command: `dotnet run --project ../server/Testing.E2EHost -- ${apiPort} ${controlPort}`,
 			url: `${controlUrl}/health`,
 			timeout: 300_000,
 			reuseExistingServer: !process.env.CI,

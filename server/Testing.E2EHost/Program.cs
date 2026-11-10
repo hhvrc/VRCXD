@@ -9,7 +9,7 @@ using VRCX.Testing.FakeVrchat;
 
 // The server the client's Playwright tests run against (client/e2e). One VrcxScenario on a real
 // port with a seeded fake account, plus a control API on a second port for pushing pipeline
-// frames. Usage: dotnet run --project Server/Testing.E2EHost -- [apiPort] [controlPort]
+// frames. Usage: dotnet run --project server/Testing.E2EHost -- [apiPort] [controlPort]
 // (defaults 5299 and 5298). Prints "VRCX_E2E_READY <url>" once the account is logged in.
 var apiPort = args.Length > 0 ? int.Parse(args[0]) : 5299;
 var controlPort = args.Length > 1 ? int.Parse(args[1]) : 5298;

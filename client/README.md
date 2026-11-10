@@ -13,7 +13,7 @@ gaming PC runs the Qt app in `../desktop` instead, which only ships game logs.
 - **Live**: `src/lib/api/live.svelte.ts` keeps one websocket to `/1/ws` (binary protobuf frames,
   `ServerMessage` in) open for every page that asks for it, and applies the `ServerEvent`s to
   a shared store: presence per user, who is in which instance, and the raw event list. The
-  TypeScript types come from `../Server/Common/Protos/vrcx_live.proto` via `buf.gen.yaml`
+  TypeScript types come from `../server/Common/Protos/vrcx_live.proto` via `buf.gen.yaml`
   (protobuf-es; `pnpm run generate`, run automatically before dev/build/check).
 - **Design system**: Tailwind v4 + `shadcn-svelte`, matching the Vue app's own stack
   (`src/app.css` ports its design tokens, `src/lib/components/ui/` holds the primitives).

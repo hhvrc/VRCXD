@@ -11,7 +11,7 @@ through the API. The server has to have started once against that database, so i
 are applied. The tool checks this and stops if they are not.
 
 ```
-cd Server
+cd server
 dotnet run --project LegacyImport -- --dry-run
 dotnet run --project LegacyImport -- --connection "Host=...;Database=vrcx;Username=...;Password=..."
 ```

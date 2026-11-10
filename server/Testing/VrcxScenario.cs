@@ -33,7 +33,7 @@ public sealed record ScenarioOptions
 /// API (<see cref="Vrchat"/>), the pipeline (<see cref="Pipeline"/>), desktop apps shipping game
 /// logs (<see cref="ConnectDesktopAsync"/>), browsers listening to live events
 /// (<see cref="ConnectLiveAsync"/>) and the clock (<see cref="Time"/>). Scenarios share nothing,
-/// so tests using them can run in parallel. See Server/Testing/README.md.
+/// so tests using them can run in parallel. See server/Testing/README.md.
 /// </summary>
 /// <example>
 /// <code>
