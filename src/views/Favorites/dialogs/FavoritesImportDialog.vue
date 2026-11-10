@@ -145,7 +145,6 @@
         }
     });
 
-    const emit = defineEmits(['update:importDialogInput']);
     const { t } = useI18n();
 
     const favoriteStore = useFavoriteStore();
@@ -318,8 +317,8 @@
                 resetImport();
                 if (importDialogInput.value[props.kind]) {
                     importDialog.value.input = importDialogInput.value[props.kind];
+                    importDialogInput.value[props.kind] = '';
                     processImportList();
-                    emit('update:importDialogInput', '');
                 }
             }
         }

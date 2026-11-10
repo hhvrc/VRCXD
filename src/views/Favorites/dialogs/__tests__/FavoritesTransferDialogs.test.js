@@ -306,6 +306,18 @@ describe('FavoritesImportDialog', () => {
         expect(wrapper.findAll('tr[data-row]')).toHaveLength(0);
     });
 
+    it('consumes the pending input so reopening does not import it again', async () => {
+        const { wrapper, store } = await openImport('avatar', id('avatar', '01'));
+        expect(callsOf('getAvatar')).toHaveLength(1);
+        expect(store.importDialogInput.avatar).toBe('');
+        store.importDialogVisible.avatar = false;
+        await flushPromises();
+        store.importDialogVisible.avatar = true;
+        await flushPromises();
+        expect(callsOf('getAvatar')).toHaveLength(1);
+        expect(wrapper.findAll('tr[data-row]')).toHaveLength(0);
+    });
+
     it('keeps the per-kind select placeholders', async () => {
         const placeholders = async (kind) => {
             const { wrapper } = await openImport(kind, '');
