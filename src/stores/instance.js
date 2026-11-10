@@ -654,8 +654,10 @@ export const useInstanceStore = defineStore('Instance', () => {
         }
     }
 
+    const debouncedApplyWorldDialogInstances = debounce(applyWorldDialogInstancesDebounced, 100);
+
     function applyWorldDialogInstances() {
-        debounce(applyWorldDialogInstancesDebounced, 100)();
+        debouncedApplyWorldDialogInstances();
     }
 
     function applyWorldDialogInstancesDebounced() {
