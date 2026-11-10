@@ -282,83 +282,65 @@ export function useGroupModerationData(deps) {
         }
     }
 
-    // ── Bans ─────────────────────────────────────────────────────
+    // ── Bans / Invites / Join Requests / Blocked ─────────────────
+
+    /**
+     * Fetch every page of a group member list, 100 per page and at most
+     * 50 pages (5000 entries), applying each entry with applyGroupMember.
+     * Stops early on a short page or when the dialog is closed.
+     *
+     * @param {Function} requestFn - A groupRequest method taking { groupId, n, offset, ...extraParams }
+     * @param {string} groupId
+     * @param {object} extraParams
+     * @param {string} errorMessage - Toast shown when a request fails
+     * @returns {Promise<Array | undefined>} Undefined when a request failed or the dialog switched to another group
+     */
+    async function fetchAllPages(requestFn, groupId, extraParams, errorMessage) {
+        const n = 100;
+        const count = 50; // 5000 max
+        isGroupMembersLoading.value = true;
+        const fetched = [];
+        try {
+            for (let i = 0; i < count; i++) {
+                const args = await requestFn({ groupId, n, offset: i * n, ...extraParams });
+                if (groupMemberModeration.value.id !== args.params.groupId) {
+                    return undefined;
+                }
+                for (const json of args.json) {
+                    fetched.push(applyGroupMember(json));
+                }
+                if (args.json.length < n || !groupMemberModeration.value.visible) {
+                    break;
+                }
+            }
+            return fetched;
+        } catch {
+            toast.error(errorMessage);
+            return undefined;
+        } finally {
+            isGroupMembersLoading.value = false;
+        }
+    }
 
     /**
      * @param groupId
      */
     async function getAllGroupBans(groupId) {
         tables.bans.data = [];
-        const params = { groupId, n: 100, offset: 0 };
-        const count = 50; // 5000 max
-        isGroupMembersLoading.value = true;
-        const fetchedBans = [];
-        try {
-            for (let i = 0; i < count; i++) {
-                const args = await groupRequest.getGroupBans(params);
-                if (args && args.json) {
-                    if (groupMemberModeration.value.id !== args.params.groupId) {
-                        return;
-                    }
-                    args.json.forEach((json) => {
-                        const ref = applyGroupMember(json);
-                        fetchedBans.push(ref);
-                    });
-                    if (args.json.length < params.n) {
-                        break;
-                    }
-                    params.offset += params.n;
-                } else {
-                    break;
-                }
-                if (!groupMemberModeration.value.visible) {
-                    break;
-                }
-            }
-            tables.bans.data = fetchedBans;
-        } catch {
-            toast.error('Failed to get group bans');
-        } finally {
-            isGroupMembersLoading.value = false;
+        const data = await fetchAllPages(groupRequest.getGroupBans, groupId, {}, 'Failed to get group bans');
+        if (data) {
+            tables.bans.data = data;
         }
     }
-
-    // ── Invites / Join Requests / Blocked ────────────────────────
 
     /**
      * @param groupId
      */
     async function getAllGroupInvites(groupId) {
         tables.invites.data = [];
-        const params = { groupId, n: 100, offset: 0 };
-        const count = 50; // 5000 max
-        isGroupMembersLoading.value = true;
-        let newData = [];
-        try {
-            for (let i = 0; i < count; i++) {
-                const args = await groupRequest.getGroupInvites(params);
-                if (args) {
-                    if (groupMemberModeration.value.id !== args.params.groupId) {
-                        return;
-                    }
-                    for (const json of args.json) {
-                        const ref = applyGroupMember(json);
-                        newData.push(ref);
-                    }
-                }
-                params.offset += params.n;
-                if (args.json.length < params.n) {
-                    break;
-                }
-                if (!groupMemberModeration.value.visible) {
-                    break;
-                }
-            }
-            tables.invites.data = newData;
-        } catch {
-            toast.error('Failed to get group invites');
-        } finally {
-            isGroupMembersLoading.value = false;
+        const data = await fetchAllPages(groupRequest.getGroupInvites, groupId, {}, 'Failed to get group invites');
+        if (data) {
+            tables.invites.data = data;
         }
     }
 
@@ -367,33 +349,14 @@ export function useGroupModerationData(deps) {
      */
     async function getAllGroupJoinRequests(groupId) {
         tables.joinRequests.data = [];
-        const params = { groupId, n: 100, offset: 0, blocked: false };
-        const count = 50; // 5000 max
-        isGroupMembersLoading.value = true;
-        let newData = [];
-        try {
-            for (let i = 0; i < count; i++) {
-                const args = await groupRequest.getGroupJoinRequests(params);
-                if (groupMemberModeration.value.id !== args.params.groupId) {
-                    return;
-                }
-                for (const json of args.json) {
-                    const ref = applyGroupMember(json);
-                    newData.push(ref);
-                }
-                params.offset += params.n;
-                if (args.json.length < params.n) {
-                    break;
-                }
-                if (!groupMemberModeration.value.visible) {
-                    break;
-                }
-            }
-            tables.joinRequests.data = newData;
-        } catch {
-            toast.error('Failed to get group join requests');
-        } finally {
-            isGroupMembersLoading.value = false;
+        const data = await fetchAllPages(
+            groupRequest.getGroupJoinRequests,
+            groupId,
+            { blocked: false },
+            'Failed to get group join requests'
+        );
+        if (data) {
+            tables.joinRequests.data = data;
         }
     }
 
@@ -402,33 +365,14 @@ export function useGroupModerationData(deps) {
      */
     async function getAllGroupBlockedRequests(groupId) {
         tables.blocked.data = [];
-        const params = { groupId, n: 100, offset: 0, blocked: true };
-        const count = 50; // 5000
-        isGroupMembersLoading.value = true;
-        let newData = [];
-        try {
-            for (let i = 0; i < count; i++) {
-                const args = await groupRequest.getGroupJoinRequests(params);
-                if (groupMemberModeration.value.id !== args.params.groupId) {
-                    return;
-                }
-                for (const json of args.json) {
-                    const ref = applyGroupMember(json);
-                    newData.push(ref);
-                }
-                params.offset += params.n;
-                if (args.json.length < params.n) {
-                    break;
-                }
-                if (!groupMemberModeration.value.visible) {
-                    break;
-                }
-            }
-            tables.blocked.data = newData;
-        } catch {
-            toast.error('Failed to get group join requests');
-        } finally {
-            isGroupMembersLoading.value = false;
+        const data = await fetchAllPages(
+            groupRequest.getGroupJoinRequests,
+            groupId,
+            { blocked: true },
+            'Failed to get group join requests'
+        );
+        if (data) {
+            tables.blocked.data = data;
         }
     }
 
