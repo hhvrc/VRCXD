@@ -143,7 +143,7 @@
                 }
             };
             inviteLoop();
-        } else if (messageType === 'invite') {
+        } else if (messageType === 'message') {
             I.params.messageSlot = slot;
             if (uploadImage.value) {
                 notificationRequest
