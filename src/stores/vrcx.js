@@ -622,15 +622,9 @@ export const useVrcxStore = defineStore('Vrcx', () => {
                 const type = args[1];
                 if (!type) break;
                 const data = input.replace(`import/${type}/`, '');
-                if (type === 'avatar') {
-                    favoriteStore.setAvatarImportDialogInput(data);
-                    favoriteStore.showAvatarImportDialog();
-                } else if (type === 'world') {
-                    favoriteStore.setWorldImportDialogInput(data);
-                    favoriteStore.showWorldImportDialog();
-                } else if (type === 'friend') {
-                    favoriteStore.setFriendImportDialogInput(data);
-                    favoriteStore.showFriendImportDialog();
+                if (type === 'avatar' || type === 'world' || type === 'friend') {
+                    favoriteStore.setImportDialogInput(type, data);
+                    favoriteStore.showImportDialog(type);
                 }
                 break;
         }

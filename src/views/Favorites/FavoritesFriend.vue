@@ -302,7 +302,7 @@
                 </ResizablePanel>
             </ResizablePanelGroup>
         </div>
-        <FriendExportDialog v-model:friendExportDialogVisible="friendExportDialogVisible" />
+        <FavoritesExportDialog kind="friend" v-model:visible="friendExportDialogVisible" />
     </div>
 </template>
 
@@ -347,7 +347,7 @@
     import FavoritesContentHeader from './components/FavoritesContentHeader.vue';
     import FavoritesFriendItem from './components/FavoritesFriendItem.vue';
     import FavoritesToolbar from './components/FavoritesToolbar.vue';
-    import FriendExportDialog from './dialogs/FriendExportDialog.vue';
+    import FavoritesExportDialog from './dialogs/FavoritesExportDialog.vue';
 
     const friendGroupVisibilityOptions = ref(['public', 'friends', 'private']);
 
@@ -370,13 +370,17 @@
         favoriteFriendGroups,
         groupedByGroupKeyFavoriteFriends,
         selectedFavoriteFriends,
-        friendImportDialogInput,
         isFavoriteLoading,
         localFriendFavorites,
         localFriendFavoriteGroups
     } = storeToRefs(favoriteStore);
-    const { showFriendImportDialog, handleFavoriteGroup, localFriendFavGroupLength, newLocalFriendFavoriteGroup } =
-        favoriteStore;
+    const {
+        showImportDialog,
+        setImportDialogInput,
+        handleFavoriteGroup,
+        localFriendFavGroupLength,
+        newLocalFriendFavoriteGroup
+    } = favoriteStore;
     const userStore = useUserStore();
     const { cachedUsers } = storeToRefs(userStore);
     const { t } = useI18n();
@@ -477,7 +481,7 @@
 
     function handleFriendImportClick() {
         closeFriendToolbarMenu();
-        showFriendImportDialog();
+        showImportDialog('friend');
     }
 
     function handleFriendExportClick() {
@@ -643,8 +647,8 @@
             return;
         }
         const idList = selectedFavoriteFriends.value.map((id) => `${id}\n`).join('');
-        friendImportDialogInput.value = idList;
-        showFriendImportDialog();
+        setImportDialogInput('friend', idList);
+        showImportDialog('friend');
     }
 
     function showFriendBulkUnfavoriteSelectionConfirm() {

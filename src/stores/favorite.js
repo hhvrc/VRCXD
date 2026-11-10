@@ -52,17 +52,10 @@ export const useFavoriteStore = defineStore('Favorite', () => {
 
     const isFavoriteLoading = ref(false);
 
-    const friendImportDialogInput = ref('');
+    // Favorites import dialog state, keyed by kind ('friend' | 'world' | 'avatar')
+    const importDialogInput = ref({ friend: '', world: '', avatar: '' });
 
-    const worldImportDialogInput = ref('');
-
-    const avatarImportDialogInput = ref('');
-
-    const worldImportDialogVisible = ref(false);
-
-    const avatarImportDialogVisible = ref(false);
-
-    const friendImportDialogVisible = ref(false);
+    const importDialogVisible = ref({ friend: false, world: false, avatar: false });
 
     const localWorldFavorites = reactive({});
 
@@ -229,9 +222,9 @@ export const useFavoriteStore = defineStore('Favorite', () => {
             selectedFavoriteWorlds.value = [];
             selectedFavoriteAvatars.value = [];
             favoriteDialog.value.visible = false;
-            worldImportDialogVisible.value = false;
-            avatarImportDialogVisible.value = false;
-            friendImportDialogVisible.value = false;
+            importDialogVisible.value.world = false;
+            importDialogVisible.value.avatar = false;
+            importDialogVisible.value.friend = false;
             // Cross-store operations delegated to coordinator
             onLoginStateChanged(isLoggedIn);
         },
@@ -446,45 +439,19 @@ export const useFavoriteStore = defineStore('Favorite', () => {
     }
 
     /**
+     * @param {'friend' | 'world' | 'avatar'} kind
      * @returns {void}
      */
-    function showWorldImportDialog() {
-        worldImportDialogVisible.value = true;
+    function showImportDialog(kind) {
+        importDialogVisible.value[kind] = true;
     }
 
     /**
-     * @returns {void}
-     */
-    function showAvatarImportDialog() {
-        avatarImportDialogVisible.value = true;
-    }
-
-    /**
-     * @returns {void}
-     */
-    function showFriendImportDialog() {
-        friendImportDialogVisible.value = true;
-    }
-
-    /**
+     * @param {'friend' | 'world' | 'avatar'} kind
      * @param {string} value
      */
-    function setAvatarImportDialogInput(value) {
-        avatarImportDialogInput.value = value;
-    }
-
-    /**
-     * @param {string} value
-     */
-    function setWorldImportDialogInput(value) {
-        worldImportDialogInput.value = value;
-    }
-
-    /**
-     * @param {string} value
-     */
-    function setFriendImportDialogInput(value) {
-        friendImportDialogInput.value = value;
+    function setImportDialogInput(kind, value) {
+        importDialogInput.value[kind] = value;
     }
 
     /**
@@ -734,12 +701,8 @@ export const useFavoriteStore = defineStore('Favorite', () => {
         favoriteWorldGroups,
         favoriteAvatarGroups,
         isFavoriteLoading,
-        friendImportDialogInput,
-        worldImportDialogInput,
-        avatarImportDialogInput,
-        worldImportDialogVisible,
-        avatarImportDialogVisible,
-        friendImportDialogVisible,
+        importDialogInput,
+        importDialogVisible,
         localWorldFavorites,
         localAvatarFavorites,
         localAvatarFavoritesList,
@@ -763,12 +726,8 @@ export const useFavoriteStore = defineStore('Favorite', () => {
 
         refreshFavoriteGroups,
         applyFavoriteGroup,
-        showWorldImportDialog,
-        showAvatarImportDialog,
-        showFriendImportDialog,
-        setAvatarImportDialogInput,
-        setWorldImportDialogInput,
-        setFriendImportDialogInput,
+        showImportDialog,
+        setImportDialogInput,
         syncLocalAvatarFavoriteRef,
         hasLocalWorldFavorite,
         hasLocalAvatarFavorite,

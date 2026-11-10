@@ -344,7 +344,7 @@
                 </ResizablePanel>
             </ResizablePanelGroup>
         </div>
-        <WorldExportDialog v-model:worldExportDialogVisible="worldExportDialogVisible" />
+        <FavoritesExportDialog kind="world" v-model:visible="worldExportDialogVisible" />
     </div>
 </template>
 
@@ -390,7 +390,7 @@
     import FavoritesContentHeader from './components/FavoritesContentHeader.vue';
     import FavoritesToolbar from './components/FavoritesToolbar.vue';
     import FavoritesWorldItem from './components/FavoritesWorldItem.vue';
-    import WorldExportDialog from './dialogs/WorldExportDialog.vue';
+    import FavoritesExportDialog from './dialogs/FavoritesExportDialog.vue';
 
     import * as workerTimers from 'worker-timers';
 
@@ -409,12 +409,12 @@
         favoriteWorldGroups,
         localWorldFavorites,
         selectedFavoriteWorlds,
-        worldImportDialogInput,
         isFavoriteLoading,
         localWorldFavoriteGroups
     } = storeToRefs(favoriteStore);
     const {
-        showWorldImportDialog,
+        showImportDialog,
+        setImportDialogInput,
         localWorldFavGroupLength,
         deleteLocalWorldFavoriteGroup,
         handleFavoriteGroup,
@@ -537,7 +537,7 @@
 
     function handleWorldImportClick() {
         closeWorldToolbarMenu();
-        showWorldImportDialog();
+        showImportDialog('world');
     }
 
     function handleWorldExportClick() {
@@ -821,8 +821,8 @@
             return;
         }
         const idList = selectedFavoriteWorlds.value.map((id) => `${id}\n`).join('');
-        worldImportDialogInput.value = idList;
-        showWorldImportDialog();
+        setImportDialogInput('world', idList);
+        showImportDialog('world');
     }
 
     function showWorldBulkUnfavoriteSelectionConfirm() {

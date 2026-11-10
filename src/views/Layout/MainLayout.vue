@@ -70,9 +70,9 @@
         <FullscreenImagePreview />
         <LaunchDialog />
         <LaunchOptionsDialog />
-        <FriendImportDialog />
-        <WorldImportDialog />
-        <AvatarImportDialog />
+        <FavoritesImportDialog kind="friend" />
+        <FavoritesImportDialog kind="world" />
+        <FavoritesImportDialog kind="avatar" />
         <ChooseFavoriteGroupDialog />
         <VRChatConfigDialog />
         <PrimaryPasswordDialog />
@@ -101,11 +101,9 @@
     import { useMainLayoutResizable } from '../../composables/useMainLayoutResizable';
     import { watchState } from '../../services/watchState';
 
-    import AvatarImportDialog from '../Favorites/dialogs/AvatarImportDialog.vue';
     import ChangelogDialog from '../Settings/dialogs/ChangelogDialog.vue';
     import ChooseFavoriteGroupDialog from '../../components/dialogs/ChooseFavoriteGroupDialog.vue';
     import FreeStoreItemDialog from '../../components/dialogs/FreeStoreItemDialog.vue';
-    import FriendImportDialog from '../Favorites/dialogs/FriendImportDialog.vue';
     import FullscreenImagePreview from '../../components/FullscreenImagePreview.vue';
     import GlobalToolsDialogs from '../Tools/components/GlobalToolsDialogs.vue';
     import GroupEditDialog from '../../components/dialogs/GroupDialog/GroupEditDialog.vue';
@@ -122,7 +120,6 @@
     import Sidebar from '../Sidebar/Sidebar.vue';
     import StatusBar from '../../components/StatusBar.vue';
     import VRChatConfigDialog from '../Settings/dialogs/VRChatConfigDialog.vue';
-    import WorldImportDialog from '../Favorites/dialogs/WorldImportDialog.vue';
     import WhatsNewDialog from '../../components/onboarding/WhatsNewDialog.vue';
     import SpotlightDialog from '../../components/onboarding/SpotlightDialog.vue';
 

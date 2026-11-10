@@ -421,7 +421,7 @@
                 </ResizablePanel>
             </ResizablePanelGroup>
         </div>
-        <AvatarExportDialog v-model:avatarExportDialogVisible="avatarExportDialogVisible" />
+        <FavoritesExportDialog kind="avatar" v-model:visible="avatarExportDialogVisible" />
     </div>
 </template>
 
@@ -466,7 +466,7 @@
         removeInvalidLocalAvatars
     } from '../../coordinators/favoriteCoordinator';
 
-    import AvatarExportDialog from './dialogs/AvatarExportDialog.vue';
+    import FavoritesExportDialog from './dialogs/FavoritesExportDialog.vue';
     import FavoritesAvatarItem from './components/FavoritesAvatarItem.vue';
     import FavoritesAvatarLocalHistoryItem from './components/FavoritesAvatarLocalHistoryItem.vue';
     import FavoritesContentHeader from './components/FavoritesContentHeader.vue';
@@ -502,11 +502,15 @@
         localAvatarFavorites,
         selectedFavoriteAvatars,
         isFavoriteLoading,
-        localAvatarFavoriteGroups,
-        avatarImportDialogInput
+        localAvatarFavoriteGroups
     } = storeToRefs(favoriteStore);
-    const { showAvatarImportDialog, localAvatarFavGroupLength, localAvatarFavoritesList, handleFavoriteGroup } =
-        favoriteStore;
+    const {
+        showImportDialog,
+        setImportDialogInput,
+        localAvatarFavGroupLength,
+        localAvatarFavoritesList,
+        handleFavoriteGroup
+    } = favoriteStore;
     const { avatarHistory } = storeToRefs(useAvatarStore());
     import { promptClearAvatarHistory, showAvatarDialog, applyAvatar } from '../../coordinators/avatarCoordinator';
     const { t } = useI18n();
@@ -616,7 +620,7 @@
 
     function handleAvatarImportClick() {
         closeAvatarToolbarMenu();
-        showAvatarImportDialog();
+        showImportDialog('avatar');
     }
 
     function handleAvatarExportClick() {
@@ -1160,8 +1164,8 @@
             return;
         }
         const idList = selectedFavoriteAvatars.value.map((id) => `${id}\n`).join('');
-        avatarImportDialogInput.value = idList;
-        showAvatarImportDialog();
+        setImportDialogInput('avatar', idList);
+        showImportDialog('avatar');
     }
 
     function showAvatarBulkUnfavoriteSelectionConfirm() {
