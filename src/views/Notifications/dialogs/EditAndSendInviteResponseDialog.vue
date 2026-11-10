@@ -101,7 +101,7 @@
                         .then(() => {
                             useNotificationStore().handleNotificationHide(I.invite.id);
                         });
-                    toast.success(t('message.invite.response_sent'));
+                    toast.success(t('message.invite.response_photo_sent'));
                     return args;
                 })
                 .catch((err) => {

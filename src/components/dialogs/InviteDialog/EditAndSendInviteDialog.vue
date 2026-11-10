@@ -46,6 +46,7 @@
     import { instanceRequest, inviteMessagesRequest, notificationRequest } from '../../../api';
     import { useGalleryStore, useUserStore } from '../../../stores';
     import { parseLocation } from '../../../shared/utils';
+    import { recordRecentAction } from '../../../composables/useRecentActions';
 
     const { t } = useI18n();
     const { uploadImage } = storeToRefs(useGalleryStore());
@@ -110,6 +111,9 @@
                                 instanceId: L.instanceId,
                                 worldId: L.worldId
                             })
+                            .then(() => {
+                                recordRecentAction(receiverUserId, 'Invite');
+                            })
                             .finally(inviteLoop);
                     } else if (uploadImage.value) {
                         notificationRequest
@@ -122,6 +126,9 @@
                                 },
                                 receiverUserId
                             )
+                            .then(() => {
+                                recordRecentAction(receiverUserId, 'Invite Photo');
+                            })
                             .finally(inviteLoop);
                     } else {
                         notificationRequest
@@ -134,12 +141,15 @@
                                 },
                                 receiverUserId
                             )
+                            .then(() => {
+                                recordRecentAction(receiverUserId, 'Invite Message');
+                            })
                             .finally(inviteLoop);
                     }
                 } else {
                     J.loading = false;
                     J.visible = false;
-                    toast.success(t('message.invite.sent'));
+                    toast.success('Invite message sent');
                 }
             };
             inviteLoop();
@@ -149,6 +159,7 @@
                 notificationRequest
                     .sendInvitePhoto(I.params, I.userId)
                     .then((args) => {
+                        recordRecentAction(I.userId, 'Invite Photo');
                         toast.success('Invite photo message sent');
                         return args;
                     })
@@ -159,6 +170,7 @@
                 notificationRequest
                     .sendInvite(I.params, I.userId)
                     .then((args) => {
+                        recordRecentAction(I.userId, 'Invite Message');
                         toast.success('Invite message sent');
                         return args;
                     })
@@ -172,6 +184,7 @@
                 notificationRequest
                     .sendRequestInvitePhoto(I.params, I.userId)
                     .then((args) => {
+                        recordRecentAction(I.userId, 'Request Invite Photo');
                         toast.success('Request invite photo message sent');
                         return args;
                     })
@@ -183,6 +196,7 @@
                 notificationRequest
                     .sendRequestInvite(I.params, I.userId)
                     .then((args) => {
+                        recordRecentAction(I.userId, 'Request Invite Message');
                         toast.success('Request invite message sent');
                         return args;
                     })
