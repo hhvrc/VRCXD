@@ -26,6 +26,7 @@ namespace VRCX
         private DirectoryInfo m_LogDirectoryInfo;
         private List<string[]> m_LogList;
         private ReaderWriterLockSlim m_LogListLock;
+        private readonly object m_UpdateLock = new();
         private bool m_FirstRun = true;
         private bool m_ResetLog;
         private bool threadActive;
@@ -84,11 +85,12 @@ namespace VRCX
         {
             while (m_Thread != null)
             {
-                if (threadActive)
-                    Update();
-
                 try
                 {
+                    // Reset() interrupts the thread, possibly while it waits for an update running in Get()
+                    if (threadActive)
+                        Update();
+
                     Thread.Sleep(1000);
                 }
                 catch (ThreadInterruptedException)
@@ -99,8 +101,15 @@ namespace VRCX
 
         /// <summary>
         /// Updates the log watcher by checking for new log files and updating the log list.
+        /// Called from ThreadLoop and from Get() on the caller's thread, so only one update runs at a time.
         /// </summary>
         private void Update()
+        {
+            lock (m_UpdateLock)
+                UpdateLogs();
+        }
+
+        private void UpdateLogs()
         {
             if (m_ResetLog)
             {
