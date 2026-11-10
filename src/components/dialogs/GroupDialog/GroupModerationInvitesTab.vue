@@ -126,9 +126,7 @@
     import { useI18n } from 'vue-i18n';
     import { useVrcxVueTable } from '@/lib/table/useVrcxVueTable';
 
-    import { createColumns as createInvitesColumns } from './groupMemberModerationInvitesColumns.jsx';
-    import { createColumns as createJoinRequestsColumns } from './groupMemberModerationJoinRequestsColumns.jsx';
-    import { createColumns as createBlockedColumns } from './groupMemberModerationBlockedColumns.jsx';
+    import { createInvitesColumns } from './groupMemberModerationColumns.jsx';
     import { storeToRefs } from 'pinia';
     import { useGroupStore } from '@/stores/group.js';
 
@@ -191,7 +189,7 @@
     const invitesTotalItems = computed(() => invitesTanstackTable.getFilteredRowModel().rows.length);
 
     // ── Join Requests TanStack table ─────────────────────────────
-    const joinRequestsColumns = computed(() => createJoinRequestsColumns(props.columnContext));
+    const joinRequestsColumns = computed(() => createInvitesColumns(props.columnContext));
     const { table: joinRequestsTanstackTable } = useVrcxVueTable({
         persistKey: 'group-moderation:join-requests',
         get data() {
@@ -210,7 +208,7 @@
     const joinRequestsTotalItems = computed(() => joinRequestsTanstackTable.getFilteredRowModel().rows.length);
 
     // ── Blocked TanStack table ───────────────────────────────────
-    const blockedColumns = computed(() => createBlockedColumns(props.columnContext));
+    const blockedColumns = computed(() => createInvitesColumns(props.columnContext));
     const { table: blockedTanstackTable } = useVrcxVueTable({
         persistKey: 'group-moderation:blocked',
         get data() {

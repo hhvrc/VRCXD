@@ -84,7 +84,7 @@
     } from '@/components/ui/dropdown-menu';
     import { DataTableLayout } from '@/components/ui/data-table';
     import { hasGroupPermission } from '@/shared/utils';
-    import { createColumns } from './groupMemberModerationMembersColumns.jsx';
+    import { createMembersColumns } from './groupMemberModerationColumns.jsx';
     import { useVrcxVueTable } from '@/lib/table/useVrcxVueTable';
 
     const props = defineProps({
@@ -98,7 +98,7 @@
         filterOptions: { type: /** @type {import('vue').PropType<{ name: string }[]>} */ (Array), required: true },
         pageSizes: { type: /** @type {import('vue').PropType<number[]>} */ (Array), required: true },
         columnContext: {
-            type: /** @type {import('vue').PropType<Parameters<typeof createColumns>[0]>} */ (Object),
+            type: /** @type {import('vue').PropType<Parameters<typeof createMembersColumns>[0]>} */ (Object),
             required: true
         },
         handlePageChange: { type: Function, required: true }
@@ -112,7 +112,7 @@
         Boolean(props.loading || props.memberSearch.length || !hasGroupPermission(props.groupRef, 'group-bans-manage'))
     );
 
-    const columns = computed(() => createColumns(props.columnContext));
+    const columns = computed(() => createMembersColumns(props.columnContext));
 
     const { table: tanstackTable } = useVrcxVueTable({
         persistKey: 'group-moderation:members',

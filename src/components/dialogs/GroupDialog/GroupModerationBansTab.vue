@@ -56,7 +56,7 @@
     import { InputGroupField } from '@/components/ui/input-group';
     import { DataTableLayout } from '@/components/ui/data-table';
     import { hasGroupPermission } from '@/shared/utils';
-    import { createColumns } from './groupMemberModerationBansColumns.jsx';
+    import { createBansColumns } from './groupMemberModerationColumns.jsx';
     import { useVrcxVueTable } from '@/lib/table/useVrcxVueTable';
 
     const props = defineProps({
@@ -65,7 +65,7 @@
         groupRef: { type: Object, default: () => ({}) },
         pageSizes: { type: /** @type {import('vue').PropType<number[]>} */ (Array), required: true },
         columnContext: {
-            type: /** @type {import('vue').PropType<Parameters<typeof createColumns>[0]>} */ (Object),
+            type: /** @type {import('vue').PropType<Parameters<typeof createBansColumns>[0]>} */ (Object),
             required: true
         },
         handlePageChange: { type: Function, required: true }
@@ -93,7 +93,7 @@
         });
     });
 
-    const columns = computed(() => createColumns(props.columnContext));
+    const columns = computed(() => createBansColumns(props.columnContext));
 
     const { table: tanstackTable } = useVrcxVueTable({
         persistKey: 'group-moderation:bans',
