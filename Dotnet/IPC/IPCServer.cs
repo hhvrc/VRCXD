@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.IO.Pipes;
 using System.Threading.Tasks;
 
@@ -41,27 +40,34 @@ namespace VRCX
 
         public void CreateIPCServer()
         {
-            var ipcServer = new NamedPipeServerStream(GetIpcName(), PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
-            ipcServer.BeginWaitForConnection(DoAccept, ipcServer);
+            _ = AcceptLoopAsync(CreatePipe());
         }
 
-        private void DoAccept(IAsyncResult asyncResult)
+        private static NamedPipeServerStream CreatePipe()
         {
-            var ipcServer = (NamedPipeServerStream)asyncResult.AsyncState;
+            return new NamedPipeServerStream(GetIpcName(), PipeDirection.InOut, NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+        }
 
-            try
+        private static async Task AcceptLoopAsync(NamedPipeServerStream ipcServer)
+        {
+            while (true)
             {
-                ipcServer.EndWaitForConnection(asyncResult);
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+                try
+                {
+                    await ipcServer.WaitForConnectionAsync();
 
-            var ipcClient = new IPCClient(ipcServer);
-            Clients.TryAdd(ipcClient, 0);
-            ipcClient.BeginRead();
-            CreateIPCServer();
+                    var ipcClient = new IPCClient(ipcServer);
+                    Clients.TryAdd(ipcClient, 0);
+                    _ = ipcClient.ReadLoopAsync();
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    ipcServer.Dispose();
+                }
+
+                ipcServer = CreatePipe();
+            }
         }
     }
 }
