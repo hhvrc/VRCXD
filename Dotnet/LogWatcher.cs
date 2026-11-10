@@ -219,7 +219,17 @@ namespace VRCX
                         start += length + 1;
 
                         if (line.Length > 0)
-                            ParseLine(logContext, line);
+                        {
+                            try
+                            {
+                                ParseLine(logContext, line);
+                            }
+                            catch (Exception ex) when (ex is not ThreadInterruptedException)
+                            {
+                                // skip the line rather than stopping at it on every update
+                                logger.Warn(ex, "Failed to parse log line: {0} {1}", fileInfo.Name, line);
+                            }
+                        }
 
                         logContext.Position = bufferPosition + start;
                     }
