@@ -5,9 +5,6 @@ import { useI18n } from 'vue-i18n';
 
 import {
     checkVRChatCache,
-    compareByDisplayName,
-    compareById,
-    compareByLocationAt,
     computeDisabledContentSettings,
     createDefaultInstanceRef,
     debounce,
@@ -26,6 +23,12 @@ import {
 import { instanceRequest, queryRequest, userRequest, worldRequest } from '../api';
 import { accessTypeLocaleKeyMap, instanceContentSettings } from '../shared/constants';
 import { database } from '../services/database';
+import {
+    buildInstanceRooms,
+    compareGroupDialogRooms,
+    compareWorldDialogRooms,
+    createInstanceRoom
+} from '../shared/utils/instanceRooms';
 import { resolveRef } from '../shared/utils/resolveRef';
 import { useAppearanceSettingsStore } from './settings/appearance';
 import { useFriendStore } from './friend';
@@ -656,123 +659,39 @@ export const useInstanceStore = defineStore('Instance', () => {
     }
 
     function applyWorldDialogInstancesDebounced() {
-        let ref;
-        let instance;
         const D = worldStore.worldDialog;
         if (!D.visible) {
             return;
         }
         const instances = {};
         if (D.ref.slimInstances) {
-            for (instance of D.ref.slimInstances) {
-                const { instanceId, n_users } = instance;
-                instances[instanceId] = {
-                    id: instanceId,
-                    tag: `${D.id}:${instanceId}`,
-                    $location: {},
-                    friendCount: 0,
-                    users: [],
-                    shortName: '',
+            for (const { instanceId, n_users } of D.ref.slimInstances) {
+                instances[instanceId] = createInstanceRoom(instanceId, `${D.id}:${instanceId}`, {
                     ref: {
                         userCount: n_users,
                         capacity: D.ref.capacity
                     }
-                };
+                });
             }
         }
         const { instanceId, shortName } = D?.$location || {};
         if (instanceId && typeof instances[instanceId] === 'undefined') {
-            instances[instanceId] = {
-                id: instanceId,
-                tag: `${D.id}:${instanceId}`,
-                $location: {},
-                friendCount: 0,
-                users: [],
-                shortName,
-                ref: {}
-            };
+            instances[instanceId] = createInstanceRoom(instanceId, `${D.id}:${instanceId}`, { shortName });
         }
         const cachedCurrentUser = userStore.cachedUsers.get(userStore.currentUser.id);
         const lastLocation$ = cachedCurrentUser?.$location;
-        const playersInInstance = locationStore.lastLocation.playerList;
-        if (lastLocation$?.worldId === D.id && playersInInstance.size > 0) {
-            // pull instance json from cache
-            const friendsInInstance = locationStore.lastLocation.friendList;
-            instance = {
-                id: lastLocation$.instanceId,
-                tag: lastLocation$.tag,
-                $location: {},
-                friendCount: friendsInInstance.size,
-                users: [],
-                shortName: '',
-                ref: {}
-            };
-            instances[instance.id] = instance;
-            for (const friend of friendsInInstance.values()) {
-                // if friend isn't in instance add them
-                const addUser = !instance.users.some(function (user) {
-                    return friend.userId === user.id;
-                });
-                if (addUser) {
-                    ref = userStore.cachedUsers.get(friend.userId);
-                    if (typeof ref !== 'undefined') {
-                        instance.users.push(ref);
-                    }
-                }
-            }
-        }
-        for (const friend of friendStore.friends.values()) {
-            const { ref } = friend;
-            if (
-                typeof ref === 'undefined' ||
-                typeof ref.$location === 'undefined' ||
-                ref.$location.worldId !== D.id ||
-                (ref.$location.instanceId === lastLocation$?.instanceId &&
-                    playersInInstance.size > 0 &&
-                    ref.location !== 'traveling')
-            ) {
-                continue;
-            }
-            if (ref.location === locationStore.lastLocation.location) {
-                // don't add friends to currentUser gameLog instance (except when traveling)
-                continue;
-            }
-            const { instanceId } = ref.$location;
-            instance = instances[instanceId];
-            if (typeof instance === 'undefined') {
-                instance = {
-                    id: instanceId,
-                    tag: `${D.id}:${instanceId}`,
-                    $location: {},
-                    friendCount: 0,
-                    users: [],
-                    shortName: '',
-                    ref: {}
-                };
-                instances[instanceId] = instance;
-            }
-            instance.users.push(ref);
-        }
-        ref = userStore.cachedUsers.get(userStore.currentUser.id);
-        if (typeof ref !== 'undefined' && ref.$location.worldId === D.id) {
-            const { instanceId } = ref.$location;
-            instance = instances[instanceId];
-            if (typeof instance === 'undefined') {
-                instance = {
-                    id: instanceId,
-                    tag: `${D.id}:${instanceId}`,
-                    $location: {},
-                    friendCount: 0,
-                    users: [],
-                    shortName: '',
-                    ref: {}
-                };
-                instances[instanceId] = instance;
-            }
-            instance.users.push(ref); // add self
-        }
-        const rooms = [];
-        for (instance of Object.values(instances)) {
+        const rooms = buildInstanceRooms({
+            rooms: instances,
+            matches: (L) => L.worldId === D.id,
+            keyOf: (L) => L.instanceId,
+            tagOf: (L) => `${D.id}:${L.instanceId}`,
+            currentUser: cachedCurrentUser,
+            lastLocation: locationStore.lastLocation,
+            friends: friendStore.friends.values(),
+            cachedUsers: userStore.cachedUsers,
+            sortAlphabetical: appearanceSettingsStore.instanceUsersSortAlphabetical
+        });
+        for (const instance of rooms) {
             // due to references on callback of API.getUser()
             // this should be block scope variable
             const L = parseLocation(`${D.id}:${instance.id}`);
@@ -787,7 +706,7 @@ export const useInstanceStore = defineStore('Instance', () => {
                 L.userId = cachedOwnerId;
             }
             if (L.userId) {
-                ref = userStore.cachedUsers.get(L.userId);
+                const ref = userStore.cachedUsers.get(L.userId);
                 if (typeof ref === 'undefined') {
                     userRequest
                         .getUser({
@@ -804,56 +723,15 @@ export const useInstanceStore = defineStore('Instance', () => {
                     L.user = ref;
                 }
             }
-            if (instance.friendCount === 0) {
-                instance.friendCount = instance.users.length;
-            }
-            if (appearanceSettingsStore.instanceUsersSortAlphabetical) {
-                instance.users.sort(compareByDisplayName);
-            } else {
-                instance.users.sort(compareByLocationAt);
-            }
-            rooms.push(instance);
         }
         // get instance from cache
         for (const room of rooms) {
-            ref = cachedInstances.get(room.tag);
+            const ref = cachedInstances.get(room.tag);
             if (typeof ref !== 'undefined') {
                 Object.assign(room.ref, ref);
             }
         }
-        rooms.sort(function (a, b) {
-            // sort selected and current instance to top
-            if (b.location === D.$location.tag || b.location === lastLocation$?.tag) {
-                // sort selected instance above current instance
-                if (a.location === D.$location.tag) {
-                    return -1;
-                }
-                return 1;
-            }
-            if (a.location === D.$location.tag || a.location === lastLocation$?.tag) {
-                // sort selected instance above current instance
-                if (b.location === D.$location.tag) {
-                    return 1;
-                }
-                return -1;
-            }
-            // sort by number of users when no friends in instance
-            if (a.users.length === 0 && b.users.length === 0 && a.ref?.userCount !== b.ref?.userCount) {
-                if (a.ref?.userCount < b.ref?.userCount) {
-                    return 1;
-                }
-                return -1;
-            }
-            // sort by number of friends in instance
-            if (a.users.length !== b.users.length) {
-                if (a.users.length < b.users.length) {
-                    return 1;
-                }
-                return -1;
-            }
-            // sort by id
-            return compareById(a, b);
-        });
+        rooms.sort(compareWorldDialogRooms(D.$location.tag, lastLocation$?.tag));
         D.rooms = rooms;
     }
 
@@ -861,14 +739,12 @@ export const useInstanceStore = defineStore('Instance', () => {
      * @param {object} inputInstances
      */
     function applyGroupDialogInstances(inputInstances) {
-        let ref;
-        let instance;
         const D = groupStore.groupDialog;
         if (!D.visible) {
             return;
         }
         const instances = {};
-        for (instance of D.instances) {
+        for (const instance of D.instances) {
             instances[instance.tag] = {
                 ...instance,
                 friendCount: 0,
@@ -876,117 +752,33 @@ export const useInstanceStore = defineStore('Instance', () => {
             };
         }
         if (typeof inputInstances !== 'undefined') {
-            for (instance of inputInstances) {
-                instances[instance.location] = {
-                    id: instance.instanceId,
-                    tag: instance.location,
-                    $location: {},
-                    friendCount: 0,
-                    users: [],
+            for (const instance of inputInstances) {
+                instances[instance.location] = createInstanceRoom(instance.instanceId, instance.location, {
                     shortName: instance.shortName,
                     ref: instance
-                };
+                });
             }
         }
         const cachedCurrentUser = userStore.cachedUsers.get(userStore.currentUser.id);
-        const lastLocation$ = cachedCurrentUser?.$location;
-        const currentLocation = lastLocation$?.tag;
-        const playersInInstance = locationStore.lastLocation.playerList;
-        if (lastLocation$?.groupId === D.id && playersInInstance.size > 0) {
-            const friendsInInstance = locationStore.lastLocation.friendList;
-            instance = {
-                id: lastLocation$.instanceId,
-                tag: currentLocation,
-                $location: {},
-                friendCount: friendsInInstance.size,
-                users: [],
-                shortName: '',
-                ref: {}
-            };
-            instances[currentLocation] = instance;
-            for (const friend of friendsInInstance.values()) {
-                // if friend isn't in instance add them
-                const addUser = !instance.users.some(function (user) {
-                    return friend.userId === user.id;
-                });
-                if (addUser) {
-                    ref = userStore.cachedUsers.get(friend.userId);
-                    if (typeof ref !== 'undefined') {
-                        instance.users.push(ref);
-                    }
-                }
-            }
-        }
-        for (const friend of friendStore.friends.values()) {
-            const { ref } = friend;
-            if (
-                typeof ref === 'undefined' ||
-                typeof ref.$location === 'undefined' ||
-                ref.$location.groupId !== D.id ||
-                (ref.$location.instanceId === lastLocation$?.instanceId &&
-                    playersInInstance.size > 0 &&
-                    ref.location !== 'traveling')
-            ) {
-                continue;
-            }
-            if (ref.location === locationStore.lastLocation.location) {
-                // don't add friends to currentUser gameLog instance (except when traveling)
-                continue;
-            }
-            const { instanceId, tag } = ref.$location;
-            instance = instances[tag];
-            if (typeof instance === 'undefined') {
-                instance = {
-                    id: instanceId,
-                    tag,
-                    $location: {},
-                    friendCount: 0,
-                    users: [],
-                    shortName: '',
-                    ref: {}
-                };
-                instances[tag] = instance;
-            }
-            instance.users.push(ref);
-        }
-        ref = userStore.cachedUsers.get(userStore.currentUser.id);
-        if (typeof ref !== 'undefined' && ref.$location.groupId === D.id) {
-            const { instanceId, tag } = ref.$location;
-            instance = instances[tag];
-            if (typeof instance === 'undefined') {
-                instance = {
-                    id: instanceId,
-                    tag,
-                    $location: {},
-                    friendCount: 0,
-                    users: [],
-                    shortName: '',
-                    ref: {}
-                };
-                instances[tag] = instance;
-            }
-            instance.users.push(ref); // add self
-        }
-        const rooms = [];
-        for (instance of Object.values(instances)) {
-            // due to references on callback of API.getUser()
-            // this should be block scope variable
-            const L = parseLocation(instance.tag);
+        const currentLocation = cachedCurrentUser?.$location?.tag;
+        const rooms = buildInstanceRooms({
+            rooms: instances,
+            matches: (L) => L.groupId === D.id,
+            keyOf: (L) => L.tag,
+            tagOf: (L) => L.tag,
+            currentUser: cachedCurrentUser,
+            lastLocation: locationStore.lastLocation,
+            friends: friendStore.friends.values(),
+            cachedUsers: userStore.cachedUsers,
+            sortAlphabetical: appearanceSettingsStore.instanceUsersSortAlphabetical
+        });
+        for (const instance of rooms) {
             instance.location = instance.tag;
-            instance.$location = L;
-            if (instance.friendCount === 0) {
-                instance.friendCount = instance.users.length;
-            }
-            if (appearanceSettingsStore.instanceUsersSortAlphabetical) {
-                instance.users.sort(compareByDisplayName);
-            } else {
-                instance.users.sort(compareByLocationAt);
-            }
-            rooms.push(instance);
+            instance.$location = parseLocation(instance.tag);
         }
         // get instance
         for (const room of rooms) {
-            ref = cachedInstances.get(room.tag);
+            const ref = cachedInstances.get(room.tag);
             if (typeof ref !== 'undefined') {
                 Object.assign(room.ref, ref);
             } else if (isRealInstance(room.tag)) {
@@ -996,27 +788,7 @@ export const useInstanceStore = defineStore('Instance', () => {
                 });
             }
         }
-        rooms.sort(function (a, b) {
-            // sort current instance to top
-            if (b.location === currentLocation) {
-                return 1;
-            }
-            if (a.location === currentLocation) {
-                return -1;
-            }
-            // sort by number of users when no friends in instance
-            if (a.users.length === 0 && b.users.length === 0) {
-                if (a.ref?.userCount < b.ref?.userCount) {
-                    return 1;
-                }
-                return -1;
-            }
-            // sort by number of friends in instance
-            if (a.users.length < b.users.length) {
-                return 1;
-            }
-            return -1;
-        });
+        rooms.sort(compareGroupDialogRooms(currentLocation));
         D.instances = rooms;
     }
 
