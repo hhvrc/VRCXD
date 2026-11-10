@@ -426,7 +426,7 @@
 </template>
 
 <script setup>
-    import { computed, markRaw, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue';
+    import { computed, markRaw, nextTick, reactive, ref, watch } from 'vue';
     import { Ellipsis, Loader, MoreHorizontal, Plus, RefreshCcw, RefreshCw } from 'lucide-vue-next';
     import { Button } from '@/components/ui/button';
     import { DataTableEmpty } from '@/components/ui/data-table';
@@ -450,11 +450,16 @@
     } from '../../components/ui/dropdown-menu';
     import { useAppearanceSettingsStore, useAvatarStore, useFavoriteStore, useModalStore } from '../../stores';
     import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable';
-    import { avatarRequest, favoriteRequest } from '../../api';
+    import { avatarRequest } from '../../api';
     import { debounce } from '../../shared/utils';
     import { useFavoritesCardScaling } from './composables/useFavoritesCardScaling.js';
     import { useFavoritesGroupPanel } from './composables/useFavoritesGroupPanel.js';
     import { useFavoritesLocalGroups } from './composables/useFavoritesLocalGroups.js';
+    import {
+        groupFavoritesByGroupKey,
+        useFavoritesPage,
+        useLocalFavoritesRefresh
+    } from './composables/useFavoritesPage.js';
     import { useFavoritesSplitter } from './composables/useFavoritesSplitter.js';
     import {
         deleteLocalAvatarFavoriteGroup,
@@ -472,8 +477,6 @@
     import FavoritesContentHeader from './components/FavoritesContentHeader.vue';
     import FavoritesToolbar from './components/FavoritesToolbar.vue';
     import InvalidAvatarsProgressToast from './components/InvalidAvatarsProgressToast.jsx';
-
-    import * as workerTimers from 'worker-timers';
 
     const AVATAR_GROUP_PLACEHOLDERS = Array.from({ length: 5 }, (_, index) => ({
         key: `avatar:avatars${index + 1}`,
@@ -493,7 +496,6 @@
     } = useFavoritesSplitter({ configKey: 'VRCX_FavoritesAvatarSplitter' });
 
     const { sortFavorites } = storeToRefs(useAppearanceSettingsStore());
-    const { setSortFavorites } = useAppearanceSettingsStore();
     const favoriteStore = useFavoriteStore();
     const modalStore = useModalStore();
     const {
@@ -514,57 +516,19 @@
     const {
         cardScale: avatarCardScale,
         cardSpacing: avatarCardSpacing,
+        scalePercent: avatarCardScalePercent,
+        spacingPercent: avatarCardSpacingPercent,
+        scaleValue: avatarCardScaleValue,
+        spacingValue: avatarCardSpacingValue,
         slider: avatarCardScaleSlider,
         spacingSlider: avatarCardSpacingSlider,
         containerRef: avatarFavoritesContainerRef,
         gridStyle: avatarFavoritesGridStyle
     } = useFavoritesCardScaling({
         configKey: 'VRCX_FavoritesAvatarCardScale',
-        spacingConfigKey: 'VRCX_FavoritesAvatarCardSpacing',
-        min: 0.6,
-        max: 1,
-        step: 0.01,
-        spacingMin: 0.5,
-        spacingMax: 1.5,
-        spacingStep: 0.05,
-        basePaddingY: 8,
-        basePaddingX: 10,
-        baseContentGap: 10,
-        baseActionGap: 8,
-        baseActionGroupGap: 6,
-        baseActionMargin: 8,
-        baseCheckboxMargin: 10
+        spacingConfigKey: 'VRCX_FavoritesAvatarCardSpacing'
     });
 
-    const avatarCardScalePercent = computed(() => Math.round(avatarCardScale.value * 100));
-    const avatarCardSpacingPercent = computed(() => Math.round(avatarCardSpacing.value * 100));
-    const avatarCardScaleValue = computed({
-        get: () => [avatarCardScale.value],
-        set: (value) => {
-            const next = value?.[0];
-            if (typeof next === 'number') {
-                avatarCardScale.value = next;
-            }
-        }
-    });
-    const avatarCardSpacingValue = computed({
-        get: () => [avatarCardSpacing.value],
-        set: (value) => {
-            const next = value?.[0];
-            if (typeof next === 'number') {
-                avatarCardSpacing.value = next;
-            }
-        }
-    });
-
-    const avatarExportDialogVisible = ref(false);
-    const avatarFavoriteSearch = ref('');
-    const avatarFavoriteSearchResults = ref([]);
-    const avatarEditMode = ref(false);
-    const avatarToolbarMenuOpen = ref(false);
-    const refreshingLocalFavorites = ref(false);
-    const worker = ref(null);
-    const refreshCancelToken = ref(null);
     const avatarGroupPlaceholders = AVATAR_GROUP_PLACEHOLDERS;
 
     const {
@@ -596,47 +560,7 @@
 
     const historyGroupMenuKey = 'history';
 
-    /**
-     * @param value
-     */
-    function handleSortFavoritesChange(value) {
-        const next = value === 'date';
-        if (next !== sortFavorites.value) {
-            setSortFavorites();
-        }
-    }
-
-    const hasAvatarSelection = computed(() => selectedFavoriteAvatars.value.length > 0);
-    const hasSearchInput = computed(() => avatarFavoriteSearch.value.trim().length > 0);
-    const isSearchActive = computed(() => avatarFavoriteSearch.value.trim().length >= 3);
-
-    const closeAvatarToolbarMenu = () => {
-        avatarToolbarMenuOpen.value = false;
-    };
-
-    function handleAvatarImportClick() {
-        closeAvatarToolbarMenu();
-        showAvatarImportDialog();
-    }
-
-    function handleAvatarExportClick() {
-        closeAvatarToolbarMenu();
-        showAvatarExportDialog();
-    }
-
-    const groupedAvatarFavorites = computed(() => {
-        const grouped = {};
-        favoriteAvatars.value.forEach((avatar) => {
-            if (!avatar.groupKey) {
-                return;
-            }
-            if (!grouped[avatar.groupKey]) {
-                grouped[avatar.groupKey] = [];
-            }
-            grouped[avatar.groupKey].push(avatar);
-        });
-        return grouped;
-    });
+    const groupedAvatarFavorites = computed(() => groupFavoritesByGroupKey(favoriteAvatars.value));
 
     const currentRemoteFavorites = computed(() => {
         if (!activeRemoteGroup.value) {
@@ -652,14 +576,56 @@
         return localAvatarFavorites.value[activeLocalGroupName.value] || [];
     });
 
-    const isAllAvatarsSelected = computed(() => {
-        if (!activeRemoteGroup.value || !currentRemoteFavorites.value.length) {
-            return false;
-        }
-        return currentRemoteFavorites.value
-            .map((fav) => fav.id)
-            .every((id) => selectedFavoriteAvatars.value.includes(id));
+    const {
+        exportDialogVisible: avatarExportDialogVisible,
+        search: avatarFavoriteSearch,
+        searchResults: avatarFavoriteSearchResults,
+        editMode: avatarEditMode,
+        toolbarMenuOpen: avatarToolbarMenuOpen,
+        hasSelection: hasAvatarSelection,
+        hasSearchInput,
+        isSearchActive,
+        isAllSelected: isAllAvatarsSelected,
+        handleImportClick: handleAvatarImportClick,
+        handleExportClick: handleAvatarExportClick,
+        handleSortFavoritesChange,
+        toggleSelection: toggleAvatarSelection,
+        clearSelection: clearSelectedAvatars,
+        toggleSelectAll: toggleSelectAllAvatars,
+        copySelected: copySelectedAvatars,
+        bulkUnfavoriteRemote: bulkUnfavoriteSelectedAvatars,
+        handleVisibilitySelection,
+        handleRemoteRename,
+        handleRemoteClear,
+        formatVisibility
+    } = useFavoritesPage({
+        selected: selectedFavoriteAvatars,
+        activeRemoteGroup,
+        currentRemoteFavorites,
+        importInput: avatarImportDialogInput,
+        showImportDialog: showAvatarImportDialog,
+        handleFavoriteGroup,
+        refreshFavorites,
+        handleGroupMenuVisible,
+        remoteGroupMenuKey,
+        remoteGroupType: () => 'avatar',
+        visibilityUpdatedMessage: () => 'Group visibility changed',
+        destructiveClear: true
     });
+
+    const {
+        refreshingLocalFavorites,
+        refreshLocalFavorites: refreshLocalAvatarFavorites,
+        cancelLocalRefresh: cancelLocalAvatarRefresh
+    } = useLocalFavoritesRefresh(
+        () => localAvatarFavoritesList,
+        async (avatarId) => {
+            const args = await avatarRequest.getAvatar({
+                avatarId
+            });
+            applyAvatar(args.json);
+        }
+    );
 
     watch(
         () => ({
@@ -681,21 +647,6 @@
             ensureSelectedGroup();
         },
         { immediate: true }
-    );
-
-    watch(isSearchActive, (active) => {
-        if (active && avatarEditMode.value) {
-            avatarEditMode.value = false;
-        }
-    });
-
-    watch(
-        () => avatarEditMode.value,
-        (value) => {
-            if (!value) {
-                clearSelectedAvatars();
-            }
-        }
     );
 
     /**
@@ -722,56 +673,9 @@
         selectGroup
     });
 
-    /**
-     * @param id
-     * @param value
-     */
-    function toggleAvatarSelection(id, value) {
-        if (value) {
-            if (!selectedFavoriteAvatars.value.includes(id)) {
-                selectedFavoriteAvatars.value.push(id);
-            }
-        } else {
-            selectedFavoriteAvatars.value = selectedFavoriteAvatars.value.filter((selectedId) => selectedId !== id);
-        }
-    }
-
-    function clearSelectedAvatars() {
-        selectedFavoriteAvatars.value = [];
-    }
-
-    function showAvatarExportDialog() {
-        avatarExportDialogVisible.value = true;
-    }
-
     function handleRefreshFavorites() {
         refreshFavorites();
         getLocalAvatarFavorites();
-    }
-
-    /**
-     * @param group
-     * @param visibility
-     */
-    function handleVisibilitySelection(group, visibility) {
-        const menuKey = remoteGroupMenuKey(group.key);
-        changeAvatarGroupVisibility(group.name, visibility, menuKey);
-    }
-
-    /**
-     * @param group
-     */
-    function handleRemoteRename(group) {
-        handleGroupMenuVisible(remoteGroupMenuKey(group.key), false);
-        changeFavoriteGroupName(group);
-    }
-
-    /**
-     * @param group
-     */
-    function handleRemoteClear(group) {
-        handleGroupMenuVisible(remoteGroupMenuKey(group.key), false);
-        clearFavoriteGroup(group);
     }
 
     /**
@@ -892,95 +796,6 @@
     /**
      * @param group
      */
-    function changeFavoriteGroupName(group) {
-        const currentName = group.displayName || group.name;
-        modalStore
-            .prompt({
-                title: t('prompt.change_favorite_group_name.header'),
-                description: t('prompt.change_favorite_group_name.description'),
-                confirmText: t('prompt.change_favorite_group_name.change'),
-                cancelText: t('prompt.change_favorite_group_name.cancel'),
-                pattern: /\S+/,
-                inputValue: currentName,
-                errorMessage: t('prompt.change_favorite_group_name.input_error')
-            })
-            .then(({ ok, value }) => {
-                if (!ok) return;
-                const newName = value.trim();
-                if (!newName || newName === currentName) {
-                    return;
-                }
-                favoriteRequest
-                    .saveFavoriteGroup({
-                        type: 'avatar',
-                        group: group.name,
-                        displayName: newName
-                    })
-                    .then((args) => {
-                        handleFavoriteGroup({
-                            json: args.json,
-                            params: {
-                                favoriteGroupId: args.json.id
-                            }
-                        });
-                        toast.success(t('prompt.change_favorite_group_name.message.success'));
-                        refreshFavorites();
-                    });
-            })
-            .catch(() => {});
-    }
-
-    /**
-     * @param name
-     * @param visibility
-     * @param menuKey
-     */
-    function changeAvatarGroupVisibility(name, visibility, menuKey = null) {
-        const params = {
-            type: 'avatar',
-            group: name,
-            visibility
-        };
-        favoriteRequest.saveFavoriteGroup(params).then((args) => {
-            handleFavoriteGroup({
-                json: args.json,
-                params: {
-                    favoriteGroupId: args.json.id
-                }
-            });
-            toast.success('Group visibility changed');
-            if (menuKey) {
-                handleGroupMenuVisible(menuKey, false);
-            }
-            refreshFavorites();
-            return args;
-        });
-    }
-
-    /**
-     * @param ctx
-     */
-    function clearFavoriteGroup(ctx) {
-        modalStore
-            .confirm({
-                description: t('confirm.clear_group'),
-                title: t('confirm.title'),
-                destructive: true
-            })
-            .then(({ ok }) => {
-                if (ok) {
-                    favoriteRequest.clearFavoriteGroup({
-                        type: ctx.type,
-                        group: ctx.name
-                    });
-                }
-            })
-            .catch(() => {});
-    }
-
-    /**
-     * @param group
-     */
     function promptLocalAvatarFavoriteGroupRename(group) {
         modalStore
             .prompt({
@@ -1081,89 +896,6 @@
     }
     const searchAvatarFavorites = debounce(doSearchAvatarFavorites, 200);
 
-    async function refreshLocalAvatarFavorites() {
-        if (refreshingLocalFavorites.value) {
-            return;
-        }
-        refreshingLocalFavorites.value = true;
-        const token = {
-            cancelled: false,
-            resolve: null
-        };
-        refreshCancelToken.value = token;
-        try {
-            for (const avatarId of localAvatarFavoritesList) {
-                if (token.cancelled) {
-                    break;
-                }
-                try {
-                    const args = await avatarRequest.getAvatar({
-                        avatarId
-                    });
-                    applyAvatar(args.json);
-                } catch (err) {
-                    console.error(err);
-                }
-                if (token.cancelled) {
-                    break;
-                }
-                await new Promise((resolve) => {
-                    token.resolve = resolve;
-                    worker.value = workerTimers.setTimeout(() => {
-                        worker.value = null;
-                        resolve();
-                    }, 1000);
-                });
-            }
-        } finally {
-            if (worker.value) {
-                workerTimers.clearTimeout(worker.value);
-                worker.value = null;
-            }
-            if (refreshCancelToken.value === token) {
-                refreshCancelToken.value = null;
-            }
-            refreshingLocalFavorites.value = false;
-        }
-    }
-
-    function cancelLocalAvatarRefresh() {
-        if (!refreshingLocalFavorites.value) {
-            return;
-        }
-        if (refreshCancelToken.value) {
-            refreshCancelToken.value.cancelled = true;
-            if (typeof refreshCancelToken.value.resolve === 'function') {
-                refreshCancelToken.value.resolve();
-            }
-        }
-        if (worker.value) {
-            workerTimers.clearTimeout(worker.value);
-            worker.value = null;
-        }
-        refreshingLocalFavorites.value = false;
-    }
-
-    function toggleSelectAllAvatars() {
-        if (!activeRemoteGroup.value) {
-            return;
-        }
-        if (isAllAvatarsSelected.value) {
-            selectedFavoriteAvatars.value = [];
-        } else {
-            selectedFavoriteAvatars.value = currentRemoteFavorites.value.map((fav) => fav.id);
-        }
-    }
-
-    function copySelectedAvatars() {
-        if (!selectedFavoriteAvatars.value.length) {
-            return;
-        }
-        const idList = selectedFavoriteAvatars.value.map((id) => `${id}\n`).join('');
-        avatarImportDialogInput.value = idList;
-        showAvatarImportDialog();
-    }
-
     function showAvatarBulkUnfavoriteSelectionConfirm() {
         if (!selectedFavoriteAvatars.value.length) {
             return;
@@ -1181,33 +913,6 @@
                 }
             })
             .catch(() => {});
-    }
-
-    /**
-     * @param ids
-     */
-    function bulkUnfavoriteSelectedAvatars(ids) {
-        ids.forEach((id) => {
-            favoriteRequest.deleteFavorite({
-                objectId: id
-            });
-        });
-        selectedFavoriteAvatars.value = [];
-        avatarEditMode.value = false;
-    }
-
-    onBeforeUnmount(() => {
-        cancelLocalAvatarRefresh();
-    });
-
-    /**
-     * @param value
-     */
-    function formatVisibility(value) {
-        if (!value) {
-            return '';
-        }
-        return value.charAt(0).toUpperCase() + value.slice(1);
     }
 </script>
 

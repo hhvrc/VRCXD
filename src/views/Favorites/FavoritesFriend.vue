@@ -335,6 +335,7 @@
     import { useFavoritesCardScaling } from './composables/useFavoritesCardScaling.js';
     import { useFavoritesGroupPanel } from './composables/useFavoritesGroupPanel.js';
     import { useFavoritesLocalGroups } from './composables/useFavoritesLocalGroups.js';
+    import { useFavoritesPage } from './composables/useFavoritesPage.js';
     import { useFavoritesSplitter } from './composables/useFavoritesSplitter.js';
     import {
         refreshFavorites,
@@ -362,7 +363,6 @@
     } = useFavoritesSplitter({ configKey: 'VRCX_FavoritesFriendSplitter' });
 
     const { sortFavorites } = storeToRefs(useAppearanceSettingsStore());
-    const { setSortFavorites } = useAppearanceSettingsStore();
     const favoriteStore = useFavoriteStore();
     const modalStore = useModalStore();
     const {
@@ -384,54 +384,18 @@
     const {
         cardScale: friendCardScale,
         cardSpacing: friendCardSpacing,
+        scalePercent: friendCardScalePercent,
+        spacingPercent: friendCardSpacingPercent,
+        scaleValue: friendCardScaleValue,
+        spacingValue: friendCardSpacingValue,
         slider: friendCardScaleSlider,
         spacingSlider: friendCardSpacingSlider,
         containerRef: friendFavoritesContainerRef,
         gridStyle: friendFavoritesGridStyle
     } = useFavoritesCardScaling({
         configKey: 'VRCX_FavoritesFriendCardScale',
-        spacingConfigKey: 'VRCX_FavoritesFriendCardSpacing',
-        min: 0.6,
-        max: 1,
-        step: 0.01,
-        spacingMin: 0.5,
-        spacingMax: 1.5,
-        spacingStep: 0.05,
-        basePaddingY: 8,
-        basePaddingX: 10,
-        baseContentGap: 10,
-        baseActionGap: 8,
-        baseActionGroupGap: 6,
-        baseActionMargin: 8,
-        baseCheckboxMargin: 10
+        spacingConfigKey: 'VRCX_FavoritesFriendCardSpacing'
     });
-
-    const friendCardScalePercent = computed(() => Math.round(friendCardScale.value * 100));
-    const friendCardSpacingPercent = computed(() => Math.round(friendCardSpacing.value * 100));
-    const friendCardScaleValue = computed({
-        get: () => [friendCardScale.value],
-        set: (value) => {
-            const next = value?.[0];
-            if (typeof next === 'number') {
-                friendCardScale.value = next;
-            }
-        }
-    });
-    const friendCardSpacingValue = computed({
-        get: () => [friendCardSpacing.value],
-        set: (value) => {
-            const next = value?.[0];
-            if (typeof next === 'number') {
-                friendCardSpacing.value = next;
-            }
-        }
-    });
-
-    const friendExportDialogVisible = ref(false);
-    const friendFavoriteSearch = ref('');
-    const friendFavoriteSearchResults = ref([]);
-    const friendEditMode = ref(false);
-    const friendToolbarMenuOpen = ref(false);
 
     const {
         selectedGroup,
@@ -456,34 +420,6 @@
             selectedFavoriteFriends.value = [];
         }
     });
-
-    /**
-     * @param value
-     */
-    function handleSortFavoritesChange(value) {
-        const next = value === 'date';
-        if (next !== sortFavorites.value) {
-            setSortFavorites();
-        }
-    }
-
-    const hasFriendSelection = computed(() => selectedFavoriteFriends.value.length > 0);
-    const hasSearchInput = computed(() => friendFavoriteSearch.value.trim().length > 0);
-    const isSearchActive = computed(() => friendFavoriteSearch.value.trim().length >= 3);
-
-    const closeFriendToolbarMenu = () => {
-        friendToolbarMenuOpen.value = false;
-    };
-
-    function handleFriendImportClick() {
-        closeFriendToolbarMenu();
-        showFriendImportDialog();
-    }
-
-    function handleFriendExportClick() {
-        closeFriendToolbarMenu();
-        showFriendExportDialog();
-    }
 
     const searchableFriendEntries = computed(() => {
         const seen = new Set();
@@ -520,13 +456,38 @@
         });
     });
 
-    const isAllFriendsSelected = computed(() => {
-        if (!activeRemoteGroup.value || !currentFriendFavorites.value.length) {
-            return false;
-        }
-        return currentFriendFavorites.value
-            .map((fav) => fav.id)
-            .every((id) => selectedFavoriteFriends.value.includes(id));
+    const {
+        exportDialogVisible: friendExportDialogVisible,
+        search: friendFavoriteSearch,
+        searchResults: friendFavoriteSearchResults,
+        editMode: friendEditMode,
+        toolbarMenuOpen: friendToolbarMenuOpen,
+        hasSelection: hasFriendSelection,
+        hasSearchInput,
+        isSearchActive,
+        isAllSelected: isAllFriendsSelected,
+        handleImportClick: handleFriendImportClick,
+        handleExportClick: handleFriendExportClick,
+        handleSortFavoritesChange,
+        toggleSelection: toggleFriendSelection,
+        clearSelection: clearSelectedFriends,
+        toggleSelectAll: toggleSelectAllFriends,
+        copySelected: copySelectedFriends,
+        handleVisibilitySelection,
+        handleRemoteRename,
+        handleRemoteClear,
+        formatVisibility
+    } = useFavoritesPage({
+        selected: selectedFavoriteFriends,
+        activeRemoteGroup,
+        currentRemoteFavorites: currentFriendFavorites,
+        importInput: friendImportDialogInput,
+        showImportDialog: showFriendImportDialog,
+        handleFavoriteGroup,
+        refreshFavorites,
+        handleGroupMenuVisible,
+        remoteGroupMenuKey,
+        remoteGroupType: () => 'friend'
     });
 
     watch(
@@ -535,21 +496,6 @@
             ensureSelectedGroup();
         },
         { immediate: true }
-    );
-
-    watch(isSearchActive, (active) => {
-        if (active && friendEditMode.value) {
-            friendEditMode.value = false;
-        }
-    });
-
-    watch(
-        () => friendEditMode.value,
-        (value) => {
-            if (!value) {
-                clearSelectedFriends();
-            }
-        }
     );
 
     /**
@@ -564,10 +510,6 @@
             case 'private':
                 return 'destructive';
         }
-    }
-
-    function showFriendExportDialog() {
-        friendExportDialogVisible.value = true;
     }
 
     function handleRefreshFavorites() {
@@ -609,44 +551,6 @@
     }
     const searchFriendFavorites = debounce(doSearchFriendFavorites, 200);
 
-    /**
-     * @param id
-     * @param value
-     */
-    function toggleFriendSelection(id, value) {
-        if (value) {
-            if (!selectedFavoriteFriends.value.includes(id)) {
-                selectedFavoriteFriends.value.push(id);
-            }
-        } else {
-            selectedFavoriteFriends.value = selectedFavoriteFriends.value.filter((selectedId) => selectedId !== id);
-        }
-    }
-
-    function clearSelectedFriends() {
-        selectedFavoriteFriends.value = [];
-    }
-
-    function toggleSelectAllFriends() {
-        if (!activeRemoteGroup.value) {
-            return;
-        }
-        if (isAllFriendsSelected.value) {
-            selectedFavoriteFriends.value = [];
-        } else {
-            selectedFavoriteFriends.value = currentFriendFavorites.value.map((fav) => fav.id);
-        }
-    }
-
-    function copySelectedFriends() {
-        if (!selectedFavoriteFriends.value.length) {
-            return;
-        }
-        const idList = selectedFavoriteFriends.value.map((id) => `${id}\n`).join('');
-        friendImportDialogInput.value = idList;
-        showFriendImportDialog();
-    }
-
     function showFriendBulkUnfavoriteSelectionConfirm() {
         if (!selectedFavoriteFriends.value.length) {
             return;
@@ -678,129 +582,6 @@
         }
         selectedFavoriteFriends.value = [];
         friendEditMode.value = false;
-    }
-
-    /**
-     * @param ctx
-     */
-    function clearFavoriteGroup(ctx) {
-        modalStore
-            .confirm({
-                description: t('confirm.clear_group'),
-                title: t('confirm.title')
-            })
-            .then(({ ok }) => {
-                if (ok) {
-                    favoriteRequest.clearFavoriteGroup({
-                        type: ctx.type,
-                        group: ctx.name
-                    });
-                }
-            })
-            .catch(() => {});
-    }
-
-    /**
-     * @param group
-     * @param visibility
-     */
-    function handleVisibilitySelection(group, visibility) {
-        const menuKey = remoteGroupMenuKey(group.key);
-        changeFriendGroupVisibility(group.name, visibility, menuKey);
-    }
-
-    /**
-     * @param group
-     */
-    function handleRemoteRename(group) {
-        handleGroupMenuVisible(remoteGroupMenuKey(group.key), false);
-        changeFavoriteGroupName(group);
-    }
-
-    /**
-     * @param group
-     */
-    function handleRemoteClear(group) {
-        handleGroupMenuVisible(remoteGroupMenuKey(group.key), false);
-        clearFavoriteGroup(group);
-    }
-
-    /**
-     * @param group
-     */
-    function changeFavoriteGroupName(group) {
-        const currentName = group.displayName || group.name;
-        modalStore
-            .prompt({
-                title: t('prompt.change_favorite_group_name.header'),
-                description: t('prompt.change_favorite_group_name.description'),
-                confirmText: t('prompt.change_favorite_group_name.change'),
-                cancelText: t('prompt.change_favorite_group_name.cancel'),
-                pattern: /\S+/,
-                inputValue: currentName,
-                errorMessage: t('prompt.change_favorite_group_name.input_error')
-            })
-            .then(({ ok, value }) => {
-                if (!ok) return;
-                const newName = value.trim();
-                if (!newName || newName === currentName) {
-                    return;
-                }
-                favoriteRequest
-                    .saveFavoriteGroup({
-                        type: 'friend',
-                        group: group.name,
-                        displayName: newName
-                    })
-                    .then((args) => {
-                        handleFavoriteGroup({
-                            json: args.json,
-                            params: {
-                                favoriteGroupId: args.json.id
-                            }
-                        });
-                        toast.success(t('prompt.change_favorite_group_name.message.success'));
-                        refreshFavorites();
-                    });
-            })
-            .catch(() => {});
-    }
-
-    /**
-     * @param name
-     * @param visibility
-     * @param menuKey
-     */
-    function changeFriendGroupVisibility(name, visibility, menuKey = null) {
-        const params = {
-            type: 'friend',
-            group: name,
-            visibility
-        };
-        favoriteRequest.saveFavoriteGroup(params).then((args) => {
-            handleFavoriteGroup({
-                json: args.json,
-                params: {
-                    favoriteGroupId: args.json.id
-                }
-            });
-            toast.success(t('message.group.visibility_updated'));
-            if (menuKey) {
-                handleGroupMenuVisible(menuKey, false);
-            }
-            refreshFavorites();
-            return args;
-        });
-    }
-
-    /**
-     * @param value
-     */
-    function formatVisibility(value) {
-        if (!value) {
-            return '';
-        }
-        return value.charAt(0).toUpperCase() + value.slice(1);
     }
 
     const {

@@ -349,14 +349,13 @@
 </template>
 
 <script setup>
-    import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+    import { computed, nextTick, ref, watch } from 'vue';
     import { Ellipsis, MoreHorizontal, Plus, RefreshCcw, RefreshCw } from 'lucide-vue-next';
     import { Button } from '@/components/ui/button';
     import { DataTableEmpty } from '@/components/ui/data-table';
     import { InputGroupField } from '@/components/ui/input-group';
     import { Spinner } from '@/components/ui/spinner';
     import { storeToRefs } from 'pinia';
-    import { toast } from 'vue-sonner';
     import { useI18n } from 'vue-i18n';
     import { useVirtualizer } from '@tanstack/vue-virtual';
 
@@ -373,11 +372,16 @@
     } from '../../components/ui/dropdown-menu';
     import { useAppearanceSettingsStore, useFavoriteStore, useModalStore } from '../../stores';
     import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '../../components/ui/resizable';
-    import { favoriteRequest, worldRequest } from '../../api';
+    import { worldRequest } from '../../api';
     import { debounce } from '../../shared/utils';
     import { useFavoritesCardScaling } from './composables/useFavoritesCardScaling.js';
     import { useFavoritesGroupPanel } from './composables/useFavoritesGroupPanel.js';
     import { useFavoritesLocalGroups } from './composables/useFavoritesLocalGroups.js';
+    import {
+        groupFavoritesByGroupKey,
+        useFavoritesPage,
+        useLocalFavoritesRefresh
+    } from './composables/useFavoritesPage.js';
     import { useFavoritesSplitter } from './composables/useFavoritesSplitter.js';
     import {
         renameLocalWorldFavoriteGroup,
@@ -391,8 +395,6 @@
     import FavoritesToolbar from './components/FavoritesToolbar.vue';
     import FavoritesWorldItem from './components/FavoritesWorldItem.vue';
     import WorldExportDialog from './dialogs/WorldExportDialog.vue';
-
-    import * as workerTimers from 'worker-timers';
 
     const WORLD_GROUP_PLACEHOLDERS = Array.from({ length: 4 }, (_, index) => ({
         key: `world:worlds${index + 1}`,
@@ -424,47 +426,17 @@
     const {
         cardScale: worldCardScale,
         cardSpacing: worldCardSpacing,
+        scalePercent: worldCardScalePercent,
+        spacingPercent: worldCardSpacingPercent,
+        scaleValue: worldCardScaleValue,
+        spacingValue: worldCardSpacingValue,
         slider: worldCardScaleSlider,
         spacingSlider: worldCardSpacingSlider,
         containerRef: worldFavoritesContainerRef,
         gridStyle: worldFavoritesGridStyle
     } = useFavoritesCardScaling({
         configKey: 'VRCX_FavoritesWorldCardScale',
-        spacingConfigKey: 'VRCX_FavoritesWorldCardSpacing',
-        min: 0.6,
-        max: 1,
-        step: 0.01,
-        spacingMin: 0.5,
-        spacingMax: 1.5,
-        spacingStep: 0.05,
-        basePaddingY: 8,
-        basePaddingX: 10,
-        baseContentGap: 10,
-        baseActionGap: 8,
-        baseActionGroupGap: 6,
-        baseActionMargin: 8,
-        baseCheckboxMargin: 10
-    });
-
-    const worldCardScalePercent = computed(() => Math.round(worldCardScale.value * 100));
-    const worldCardSpacingPercent = computed(() => Math.round(worldCardSpacing.value * 100));
-    const worldCardScaleValue = computed({
-        get: () => [worldCardScale.value],
-        set: (value) => {
-            const next = value?.[0];
-            if (typeof next === 'number') {
-                worldCardScale.value = next;
-            }
-        }
-    });
-    const worldCardSpacingValue = computed({
-        get: () => [worldCardSpacing.value],
-        set: (value) => {
-            const next = value?.[0];
-            if (typeof next === 'number') {
-                worldCardSpacing.value = next;
-            }
-        }
+        spacingConfigKey: 'VRCX_FavoritesWorldCardSpacing'
     });
 
     const worldGroupVisibilityOptions = ref(['public', 'friends', 'private']);
@@ -477,15 +449,7 @@
         handleLayout,
         setDragging: splitterSetDragging
     } = useFavoritesSplitter({ configKey: 'VRCX_FavoritesWorldSplitter' });
-    const worldExportDialogVisible = ref(false);
-    const worldFavoriteSearch = ref('');
-    const worldFavoriteSearchResults = ref([]);
     const worldGroupPlaceholders = WORLD_GROUP_PLACEHOLDERS;
-    const refreshingLocalFavorites = ref(false);
-    const worker = ref(null);
-    const refreshCancelToken = ref(null);
-    const worldEditMode = ref(false);
-    const worldToolbarMenuOpen = ref(false);
     const worldSortMode = ref('none');
     const worldSearchMode = ref('name');
 
@@ -527,37 +491,7 @@
         placeholders: WORLD_GROUP_PLACEHOLDERS
     });
 
-    const hasWorldSelection = computed(() => selectedFavoriteWorlds.value.length > 0);
-    const hasSearchInput = computed(() => worldFavoriteSearch.value.trim().length > 0);
-    const isSearchActive = computed(() => worldFavoriteSearch.value.trim().length >= 3);
-
-    const closeWorldToolbarMenu = () => {
-        worldToolbarMenuOpen.value = false;
-    };
-
-    function handleWorldImportClick() {
-        closeWorldToolbarMenu();
-        showWorldImportDialog();
-    }
-
-    function handleWorldExportClick() {
-        closeWorldToolbarMenu();
-        showExportDialog();
-    }
-
-    const groupedWorldFavorites = computed(() => {
-        const grouped = {};
-        favoriteWorlds.value.forEach((world) => {
-            if (!world.groupKey) {
-                return;
-            }
-            if (!grouped[world.groupKey]) {
-                grouped[world.groupKey] = [];
-            }
-            grouped[world.groupKey].push(world);
-        });
-        return grouped;
-    });
+    const groupedWorldFavorites = computed(() => groupFavoritesByGroupKey(favoriteWorlds.value));
 
     const flattenedLocalWorldFavorites = computed(() => {
         return Object.values(localWorldFavorites.value).flat();
@@ -601,6 +535,54 @@
         }
         return list;
     });
+
+    const {
+        exportDialogVisible: worldExportDialogVisible,
+        search: worldFavoriteSearch,
+        searchResults: worldFavoriteSearchResults,
+        editMode: worldEditMode,
+        toolbarMenuOpen: worldToolbarMenuOpen,
+        hasSelection: hasWorldSelection,
+        hasSearchInput,
+        isSearchActive,
+        isAllSelected: isAllWorldsSelected,
+        handleImportClick: handleWorldImportClick,
+        handleExportClick: handleWorldExportClick,
+        toggleSelection: toggleWorldSelection,
+        clearSelection: clearSelectedWorlds,
+        toggleSelectAll: toggleSelectAllWorlds,
+        copySelected: copySelectedWorlds,
+        bulkUnfavoriteRemote: bulkUnfavoriteSelectedWorlds,
+        handleVisibilitySelection,
+        handleRemoteRename,
+        handleRemoteClear,
+        formatVisibility
+    } = useFavoritesPage({
+        selected: selectedFavoriteWorlds,
+        activeRemoteGroup,
+        currentRemoteFavorites,
+        importInput: worldImportDialogInput,
+        showImportDialog: showWorldImportDialog,
+        handleFavoriteGroup,
+        refreshFavorites,
+        handleGroupMenuVisible,
+        remoteGroupMenuKey,
+        // world groups are either 'world' or 'vrcPlusWorld'
+        remoteGroupType: (group) => group.type
+    });
+
+    const {
+        refreshingLocalFavorites,
+        refreshLocalFavorites: refreshLocalWorldFavorites,
+        cancelLocalRefresh: cancelLocalWorldRefresh
+    } = useLocalFavoritesRefresh(
+        () => localWorldFavoritesList,
+        async (worldId) => {
+            await worldRequest.getWorld({
+                worldId
+            });
+        }
+    );
 
     const localFavoritesViewportRef = ref(null);
 
@@ -697,15 +679,6 @@
         }
     }
 
-    const isAllWorldsSelected = computed(() => {
-        if (!activeRemoteGroup.value || !currentRemoteFavorites.value.length) {
-            return false;
-        }
-        return currentRemoteFavorites.value
-            .map((fav) => fav.id)
-            .every((id) => selectedFavoriteWorlds.value.includes(id));
-    });
-
     watch(
         () => ({
             remote: favoriteWorldGroups.value.map((group) => group.key),
@@ -724,12 +697,6 @@
         { immediate: true }
     );
 
-    watch(isSearchActive, (active) => {
-        if (active && worldEditMode.value) {
-            worldEditMode.value = false;
-        }
-    });
-
     watch(worldSearchMode, () => {
         if (isSearchActive.value) {
             doSearchWorldFavorites();
@@ -741,17 +708,6 @@
             localVirtualizer.value?.measure?.();
         });
     });
-
-    watch(
-        () => worldEditMode.value,
-        (value) => {
-            if (!value) {
-                clearSelectedWorlds();
-            }
-        }
-    );
-
-    onMounted(() => {});
 
     /**
      * @param type
@@ -765,16 +721,6 @@
         selectGroup(type, key, { userInitiated: true });
     }
 
-    /**
-     * @param value
-     */
-    function formatVisibility(value) {
-        if (!value) {
-            return '';
-        }
-        return value.charAt(0).toUpperCase() + value.slice(1);
-    }
-
     const {
         isCreatingLocalGroup,
         newLocalGroupName,
@@ -786,44 +732,6 @@
         createGroup: newLocalWorldFavoriteGroup,
         selectGroup
     });
-
-    /**
-     * @param id
-     * @param value
-     */
-    function toggleWorldSelection(id, value) {
-        if (value) {
-            if (!selectedFavoriteWorlds.value.includes(id)) {
-                selectedFavoriteWorlds.value.push(id);
-            }
-        } else {
-            selectedFavoriteWorlds.value = selectedFavoriteWorlds.value.filter((selectedId) => selectedId !== id);
-        }
-    }
-
-    function clearSelectedWorlds() {
-        selectedFavoriteWorlds.value = [];
-    }
-
-    function toggleSelectAllWorlds() {
-        if (!activeRemoteGroup.value) {
-            return;
-        }
-        if (isAllWorldsSelected.value) {
-            selectedFavoriteWorlds.value = [];
-        } else {
-            selectedFavoriteWorlds.value = currentRemoteFavorites.value.map((fav) => fav.id);
-        }
-    }
-
-    function copySelectedWorlds() {
-        if (!selectedFavoriteWorlds.value.length) {
-            return;
-        }
-        const idList = selectedFavoriteWorlds.value.map((id) => `${id}\n`).join('');
-        worldImportDialogInput.value = idList;
-        showWorldImportDialog();
-    }
 
     function showWorldBulkUnfavoriteSelectionConfirm() {
         if (!selectedFavoriteWorlds.value.length) {
@@ -844,53 +752,9 @@
             .catch(() => {});
     }
 
-    /**
-     * @param ids
-     */
-    function bulkUnfavoriteSelectedWorlds(ids) {
-        ids.forEach((id) => {
-            favoriteRequest.deleteFavorite({
-                objectId: id
-            });
-        });
-        selectedFavoriteWorlds.value = [];
-        worldEditMode.value = false;
-    }
-
-    function showExportDialog() {
-        worldExportDialogVisible.value = true;
-    }
-
     function handleRefreshFavorites() {
         refreshFavorites();
         getLocalWorldFavorites();
-    }
-
-    /**
-     * @param group
-     * @param visibility
-     * @param menuKey
-     */
-    function changeWorldGroupVisibility(group, visibility, menuKey = null) {
-        const params = {
-            type: group.type,
-            group: group.name,
-            visibility
-        };
-        favoriteRequest.saveFavoriteGroup(params).then((args) => {
-            handleFavoriteGroup({
-                json: args.json,
-                params: {
-                    favoriteGroupId: args.json.id
-                }
-            });
-            toast.success(t('message.group.visibility_updated'));
-            if (menuKey) {
-                handleGroupMenuVisible(menuKey, false);
-            }
-            refreshFavorites();
-            return args;
-        });
     }
 
     /**
@@ -939,26 +803,6 @@
     }
 
     /**
-     * @param ctx
-     */
-    function clearFavoriteGroup(ctx) {
-        modalStore
-            .confirm({
-                description: t('confirm.clear_group'),
-                title: t('confirm.title')
-            })
-            .then(({ ok }) => {
-                if (ok) {
-                    favoriteRequest.clearFavoriteGroup({
-                        type: ctx.type,
-                        group: ctx.name
-                    });
-                }
-            })
-            .catch(() => {});
-    }
-
-    /**
      * @param worldFavoriteSearch
      */
     function doSearchWorldFavorites(searchInput) {
@@ -988,31 +832,6 @@
     const searchWorldFavorites = debounce(doSearchWorldFavorites, 200);
 
     /**
-     * @param group
-     * @param visibility
-     */
-    function handleVisibilitySelection(group, visibility) {
-        const menuKey = remoteGroupMenuKey(group.key);
-        changeWorldGroupVisibility(group, visibility, menuKey);
-    }
-
-    /**
-     * @param group
-     */
-    function handleRemoteRename(group) {
-        handleGroupMenuVisible(remoteGroupMenuKey(group.key), false);
-        changeFavoriteGroupName(group);
-    }
-
-    /**
-     * @param group
-     */
-    function handleRemoteClear(group) {
-        handleGroupMenuVisible(remoteGroupMenuKey(group.key), false);
-        clearFavoriteGroup(group);
-    }
-
-    /**
      * @param groupName
      */
     function handleLocalRename(groupName) {
@@ -1027,113 +846,6 @@
         handleGroupMenuVisible(localGroupMenuKey(groupName), false);
         promptLocalWorldFavoriteGroupDelete(groupName);
     }
-
-    /**
-     * @param group
-     */
-    function changeFavoriteGroupName(group) {
-        const currentName = group.displayName || group.name;
-        modalStore
-            .prompt({
-                title: t('prompt.change_favorite_group_name.header'),
-                description: t('prompt.change_favorite_group_name.description'),
-                confirmText: t('prompt.change_favorite_group_name.change'),
-                cancelText: t('prompt.change_favorite_group_name.cancel'),
-                pattern: /\S+/,
-                inputValue: currentName,
-                errorMessage: t('prompt.change_favorite_group_name.input_error')
-            })
-            .then(({ ok, value }) => {
-                if (!ok) return;
-                const newName = value.trim();
-                if (!newName || newName === currentName) {
-                    return;
-                }
-                favoriteRequest
-                    .saveFavoriteGroup({
-                        type: group.type,
-                        group: group.name,
-                        displayName: newName
-                    })
-                    .then((args) => {
-                        handleFavoriteGroup({
-                            json: args.json,
-                            params: {
-                                favoriteGroupId: args.json.id
-                            }
-                        });
-                        toast.success(t('prompt.change_favorite_group_name.message.success'));
-                        refreshFavorites();
-                    });
-            })
-            .catch(() => {});
-    }
-
-    async function refreshLocalWorldFavorites() {
-        if (refreshingLocalFavorites.value) {
-            return;
-        }
-        refreshingLocalFavorites.value = true;
-        const token = {
-            cancelled: false,
-            resolve: null
-        };
-        refreshCancelToken.value = token;
-        try {
-            for (const worldId of localWorldFavoritesList) {
-                if (token.cancelled) {
-                    break;
-                }
-                try {
-                    await worldRequest.getWorld({
-                        worldId
-                    });
-                } catch (err) {
-                    console.error(err);
-                }
-                if (token.cancelled) {
-                    break;
-                }
-                await new Promise((resolve) => {
-                    token.resolve = resolve;
-                    worker.value = workerTimers.setTimeout(() => {
-                        worker.value = null;
-                        resolve();
-                    }, 1000);
-                });
-            }
-        } finally {
-            if (worker.value) {
-                workerTimers.clearTimeout(worker.value);
-                worker.value = null;
-            }
-            if (refreshCancelToken.value === token) {
-                refreshCancelToken.value = null;
-            }
-            refreshingLocalFavorites.value = false;
-        }
-    }
-
-    function cancelLocalWorldRefresh() {
-        if (!refreshingLocalFavorites.value) {
-            return;
-        }
-        if (refreshCancelToken.value) {
-            refreshCancelToken.value.cancelled = true;
-            if (typeof refreshCancelToken.value.resolve === 'function') {
-                refreshCancelToken.value.resolve();
-            }
-        }
-        if (worker.value) {
-            workerTimers.clearTimeout(worker.value);
-            worker.value = null;
-        }
-        refreshingLocalFavorites.value = false;
-    }
-
-    onBeforeUnmount(() => {
-        cancelLocalWorldRefresh();
-    });
 </script>
 
 <style>

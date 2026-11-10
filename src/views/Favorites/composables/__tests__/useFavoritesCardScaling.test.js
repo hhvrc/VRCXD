@@ -50,4 +50,19 @@ describe('useFavoritesCardScaling', () => {
         expect(mocks.setString).toHaveBeenCalledWith('scale-key', '0.8');
         expect(mocks.setString).toHaveBeenCalledWith('spacing-key', '1.2');
     });
+
+    it('exposes slider values and percentages', () => {
+        const api = mountComposable();
+        api.scaleValue.value = [0.75];
+        api.spacingValue.value = [1.25];
+
+        expect(api.cardScale.value).toBe(0.75);
+        expect(api.cardSpacing.value).toBe(1.25);
+        expect(api.scaleValue.value).toEqual([0.75]);
+        expect(api.scalePercent.value).toBe(75);
+        expect(api.spacingPercent.value).toBe(125);
+
+        api.scaleValue.value = [];
+        expect(api.cardScale.value).toBe(0.75);
+    });
 });

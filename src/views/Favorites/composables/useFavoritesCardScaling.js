@@ -179,9 +179,35 @@ export function useFavoritesCardScaling(options = {}) {
         }
     });
 
+    const scalePercent = computed(() => Math.round(cardScale.value * 100));
+    const spacingPercent = computed(() => Math.round(cardSpacing.value * 100));
+    // slider v-model values are single element arrays
+    const scaleValue = computed({
+        get: () => [cardScale.value],
+        set: (value) => {
+            const next = value?.[0];
+            if (typeof next === 'number') {
+                cardScale.value = next;
+            }
+        }
+    });
+    const spacingValue = computed({
+        get: () => [cardSpacing.value],
+        set: (value) => {
+            const next = value?.[0];
+            if (typeof next === 'number') {
+                cardSpacing.value = next;
+            }
+        }
+    });
+
     return {
         cardScale,
         cardSpacing,
+        scalePercent,
+        spacingPercent,
+        scaleValue,
+        spacingValue,
         slider,
         spacingSlider,
         containerRef,
