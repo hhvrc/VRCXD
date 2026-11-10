@@ -2,12 +2,13 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { createI18n } from 'vue-i18n';
 import { createTestingPinia } from '@pinia/testing';
 import { mount } from '@vue/test-utils';
-import { ref } from 'vue';
+import { ref, toRaw } from 'vue';
 
 import { getGroupName } from '../../shared/utils/group';
 import { getWorldName } from '../../shared/utils/world';
 
 import Location from '../Location.vue';
+import { useInstanceStore } from '../../stores';
 import en from '../../localization/en.json';
 
 vi.mock('../../views/Feed/Feed.vue', () => ({
@@ -79,6 +80,11 @@ vi.mock('../../services/jsonStorage', () => ({
 vi.mock('../../services/watchState', () => ({
     watchState: { isLoggedIn: false }
 }));
+vi.mock('../../services/websocket', () => ({
+    initWebsocket: vi.fn(),
+    closeWebSocket: vi.fn(),
+    reconnectWebSocket: vi.fn()
+}));
 
 vi.mock('../../shared/utils/world', () => ({
     getWorldName: vi.fn().mockResolvedValue(''),
@@ -116,31 +122,44 @@ const stubs = {
     AlertTriangle: { template: '<span class="alert-triangle" />' }
 };
 
+function createPinia(appearanceOverrides = {}) {
+    return createTestingPinia({
+        stubActions: true,
+        initialState: {
+            Instance: {},
+            World: {},
+            Search: {},
+            AppearanceSettings: {
+                showInstanceIdInLocation: false,
+                isAgeGatedInstancesVisible: false,
+                ...appearanceOverrides
+            },
+            Group: {}
+        }
+    });
+}
+
 function mountLocation(props = {}, appearanceOverrides = {}, mountOptions = {}) {
+    const { pinia = createPinia(appearanceOverrides), ...options } = mountOptions;
     return mount(Location, {
         props,
-        ...mountOptions,
+        ...options,
         global: {
-            plugins: [
-                i18n,
-                createTestingPinia({
-                    stubActions: true,
-                    initialState: {
-                        Instance: {},
-                        World: {},
-                        Search: {},
-                        AppearanceSettings: {
-                            showInstanceIdInLocation: false,
-                            isAgeGatedInstancesVisible: false,
-                            ...appearanceOverrides
-                        },
-                        Group: {}
-                    }
-                })
-            ],
+            plugins: [i18n, pinia],
             stubs
         }
     });
+}
+
+/**
+ * @returns {{ promise: Promise<string>; resolve: (value: string) => void }}
+ */
+function deferred() {
+    let resolve;
+    const promise = new Promise((r) => {
+        resolve = r;
+    });
+    return { promise, resolve };
 }
 
 describe('Location.vue', () => {
@@ -380,6 +399,77 @@ describe('Location.vue', () => {
             );
             expect(wrapper.text()).toContain('Normal World');
             expect(wrapper.text()).not.toContain('Restricted');
+        });
+    });
+    describe('stale async names', () => {
+        test('ignores a world name that resolves after the location changed', async () => {
+            const first = deferred();
+            mockedGetWorldName.mockReturnValueOnce(first.promise).mockResolvedValueOnce('Second World');
+            const wrapper = mountLocation({ location: 'wrld_first:1' });
+            await wrapper.setProps({ location: 'wrld_second:2' });
+            await vi.waitFor(() => {
+                expect(wrapper.text()).toContain('Second World');
+            });
+            first.resolve('First World');
+            await first.promise;
+            await wrapper.vm.$nextTick();
+            expect(wrapper.text()).toContain('Second World');
+            expect(wrapper.text()).not.toContain('First World');
+        });
+
+        test('ignores a group name that resolves after the location changed', async () => {
+            const first = deferred();
+            mockedGetGroupName.mockReturnValueOnce(first.promise).mockResolvedValueOnce('Second Group');
+            const wrapper = mountLocation({ location: 'wrld_12345:1~group(grp_first)' });
+            await wrapper.setProps({ location: 'wrld_12345:2~group(grp_second)' });
+            await vi.waitFor(() => {
+                expect(wrapper.text()).toContain('Second Group');
+            });
+            first.resolve('First Group');
+            await first.promise;
+            await wrapper.vm.$nextTick();
+            expect(wrapper.text()).toContain('Second Group');
+            expect(wrapper.text()).not.toContain('First Group');
+        });
+    });
+
+    describe('cached instance', () => {
+        test('uses the cached instance display name and closed time', async () => {
+            const pinia = createPinia({ showInstanceIdInLocation: true });
+            const wrapper = mountLocation({ location: 'offline' }, {}, { pinia });
+            toRaw(useInstanceStore(pinia).cachedInstances).set('wrld_12345:67890', {
+                displayName: 'Custom Name',
+                closedAt: '2024-01-01T00:00:00.000Z'
+            });
+            await wrapper.setProps({ location: 'wrld_12345:67890' });
+            expect(wrapper.text()).toContain('#Custom Name');
+            expect(wrapper.find('.text-orange-500').exists()).toBe(true);
+        });
+
+        test('re-reads the cached instance when lastInstanceApplied matches', async () => {
+            const pinia = createPinia({ showInstanceIdInLocation: true });
+            const wrapper = mountLocation({ location: 'wrld_12345:67890' }, {}, { pinia });
+            const instanceStore = useInstanceStore(pinia);
+            // The store writes to the raw map, so these changes are not reactive on their own.
+            const cachedInstances = toRaw(instanceStore.cachedInstances);
+            expect(wrapper.text()).toContain('#67890');
+
+            cachedInstances.set('wrld_12345:67890', { displayName: 'Custom Name' });
+            instanceStore.lastInstanceApplied = 'wrld_other:1';
+            await wrapper.vm.$nextTick();
+            expect(wrapper.text()).toContain('#67890');
+
+            instanceStore.lastInstanceApplied = 'wrld_12345:67890';
+            await wrapper.vm.$nextTick();
+            expect(wrapper.text()).toContain('#Custom Name');
+            expect(wrapper.find('.text-orange-500').exists()).toBe(false);
+
+            cachedInstances.get('wrld_12345:67890').closedAt = '2024-01-01T00:00:00.000Z';
+            instanceStore.lastInstanceApplied = '';
+            await wrapper.vm.$nextTick();
+            instanceStore.lastInstanceApplied = 'wrld_12345:67890';
+            await wrapper.vm.$nextTick();
+            expect(wrapper.find('.text-orange-500').exists()).toBe(true);
         });
     });
 });
