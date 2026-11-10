@@ -1,20 +1,19 @@
 import { computed, reactive, ref, watch } from 'vue';
 import { defineStore } from 'pinia';
-import { toast } from 'vue-sonner';
-import { useI18n } from 'vue-i18n';
 
 import { compareByName, createDefaultFavoriteGroupRef, replaceReactiveObject } from '../shared/utils';
 import { favoriteRequest } from '../api';
-import { database } from '../services/database';
 import { processBulk } from '../services/request';
 import { useAppearanceSettingsStore } from './settings/appearance';
 import { watchState } from '../services/watchState';
-import { onLoginStateChanged } from '../coordinators/favoriteCoordinator';
+import {
+    deleteLocalWorldFavoriteGroup as coordinatorDeleteLocalWorldFavoriteGroup,
+    newLocalFriendFavoriteGroup as coordinatorNewLocalFriendFavoriteGroup,
+    onLoginStateChanged
+} from '../coordinators/favoriteCoordinator';
 
 export const useFavoriteStore = defineStore('Favorite', () => {
     const appearanceSettingsStore = useAppearanceSettingsStore();
-
-    const { t } = useI18n();
 
     const state = reactive({
         favoriteObjects: new Map(),
@@ -514,16 +513,7 @@ export const useFavoriteStore = defineStore('Favorite', () => {
      * @returns {boolean}
      */
     function hasLocalWorldFavorite(worldId, group) {
-        const favoriteGroup = localWorldFavorites[group];
-        if (!favoriteGroup) {
-            return false;
-        }
-        for (let i = 0; i < favoriteGroup.length; ++i) {
-            if (favoriteGroup[i].id === worldId) {
-                return true;
-            }
-        }
-        return false;
+        return localWorldFavorites[group]?.some((fav) => fav.id === worldId) ?? false;
     }
 
     /**
@@ -532,16 +522,7 @@ export const useFavoriteStore = defineStore('Favorite', () => {
      * @returns {boolean}
      */
     function hasLocalAvatarFavorite(avatarId, group) {
-        const favoriteGroup = localAvatarFavorites[group];
-        if (!favoriteGroup) {
-            return false;
-        }
-        for (let i = 0; i < favoriteGroup.length; ++i) {
-            if (favoriteGroup[i].id === avatarId) {
-                return true;
-            }
-        }
-        return false;
+        return localAvatarFavorites[group]?.some((fav) => fav.id === avatarId) ?? false;
     }
 
     /**
@@ -581,33 +562,7 @@ export const useFavoriteStore = defineStore('Favorite', () => {
      * @param {string} group
      */
     function deleteLocalWorldFavoriteGroup(group) {
-        let i;
-        // remove from cache if no longer in favorites
-        const worldIdRemoveList = new Set();
-        const favoriteGroup = localWorldFavorites[group];
-        for (i = 0; i < favoriteGroup.length; ++i) {
-            worldIdRemoveList.add(favoriteGroup[i].id);
-        }
-
-        delete localWorldFavorites[group];
-        database.deleteWorldFavoriteGroup(group);
-
-        for (i = 0; i < localWorldFavoriteGroups.value.length; ++i) {
-            const groupName = localWorldFavoriteGroups.value[i];
-            if (!localWorldFavorites[groupName]) {
-                continue;
-            }
-            for (let j = 0; j < localWorldFavorites[groupName].length; ++j) {
-                const worldId = localWorldFavorites[groupName][j].id;
-                if (worldIdRemoveList.has(worldId)) {
-                    worldIdRemoveList.delete(worldId);
-                }
-            }
-        }
-
-        worldIdRemoveList.forEach((id) => {
-            database.removeWorldFromCache(id);
-        });
+        coordinatorDeleteLocalWorldFavoriteGroup(group);
     }
 
     /**
@@ -616,11 +571,7 @@ export const useFavoriteStore = defineStore('Favorite', () => {
      * @returns {boolean}
      */
     function hasLocalFriendFavorite(userId, group) {
-        const favoriteGroup = localFriendFavorites[group];
-        if (!favoriteGroup) {
-            return false;
-        }
-        return favoriteGroup.includes(userId);
+        return localFriendFavorites[group]?.includes(userId) ?? false;
     }
 
     /**
@@ -642,17 +593,7 @@ export const useFavoriteStore = defineStore('Favorite', () => {
      * @param {string} group
      */
     function newLocalFriendFavoriteGroup(group) {
-        if (localFriendFavoriteGroups.value.includes(group)) {
-            toast.error(
-                t('prompt.new_local_favorite_group.message.error', {
-                    name: group
-                })
-            );
-            return;
-        }
-        if (!localFriendFavorites[group]) {
-            localFriendFavorites[group] = [];
-        }
+        coordinatorNewLocalFriendFavoriteGroup(group);
     }
 
     /**
