@@ -760,8 +760,10 @@ namespace VRCX
             if (!line.Contains(marker))
                 return true;
 
-            // everything after the last ") '", including the closing quote
+            // everything after the last ") '", without the closing quote
             var audioDevice = AfterLast(line, marker);
+            if (audioDevice.EndsWith('\''))
+                audioDevice = audioDevice.Remove(audioDevice.Length - 1);
             if (audioDevice.Length == 0)
                 return true;
 
