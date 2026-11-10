@@ -507,8 +507,7 @@
         localAvatarFavoriteGroups,
         avatarImportDialogInput
     } = storeToRefs(favoriteStore);
-    const { showAvatarImportDialog, localAvatarFavGroupLength, localAvatarFavoritesList, handleFavoriteGroup } =
-        favoriteStore;
+    const { showAvatarImportDialog, localAvatarFavGroupLength, handleFavoriteGroup } = favoriteStore;
     const { avatarHistory } = storeToRefs(useAvatarStore());
     import { promptClearAvatarHistory, showAvatarDialog, applyAvatar } from '../../coordinators/avatarCoordinator';
     const { t } = useI18n();
@@ -618,7 +617,7 @@
         refreshLocalFavorites: refreshLocalAvatarFavorites,
         cancelLocalRefresh: cancelLocalAvatarRefresh
     } = useLocalFavoritesRefresh(
-        () => localAvatarFavoritesList,
+        () => favoriteStore.localAvatarFavoritesList,
         async (avatarId) => {
             const args = await avatarRequest.getAvatar({
                 avatarId

@@ -415,13 +415,8 @@
         isFavoriteLoading,
         localWorldFavoriteGroups
     } = storeToRefs(favoriteStore);
-    const {
-        showWorldImportDialog,
-        localWorldFavGroupLength,
-        deleteLocalWorldFavoriteGroup,
-        handleFavoriteGroup,
-        localWorldFavoritesList
-    } = favoriteStore;
+    const { showWorldImportDialog, localWorldFavGroupLength, deleteLocalWorldFavoriteGroup, handleFavoriteGroup } =
+        favoriteStore;
 
     const {
         cardScale: worldCardScale,
@@ -576,7 +571,7 @@
         refreshLocalFavorites: refreshLocalWorldFavorites,
         cancelLocalRefresh: cancelLocalWorldRefresh
     } = useLocalFavoritesRefresh(
-        () => localWorldFavoritesList,
+        () => favoriteStore.localWorldFavoritesList,
         async (worldId) => {
             await worldRequest.getWorld({
                 worldId
