@@ -343,6 +343,32 @@ describe('useGroupModerationData', () => {
             expect(deps.tables.joinRequests.data).toHaveLength(1);
             expect(deps.tables.blocked.data).toHaveLength(1);
         });
+
+        test('stays loading until every parallel request has finished', async () => {
+            const deps = createDeps();
+            let resolveBlocked;
+            deps.groupRequest.getGroupInvites.mockResolvedValue({
+                json: [],
+                params: { groupId: 'grp_test' }
+            });
+            deps.groupRequest.getGroupJoinRequests.mockImplementation((params) =>
+                params.blocked
+                    ? new Promise((resolve) => {
+                          resolveBlocked = () => resolve({ json: [], params: { groupId: 'grp_test' } });
+                      })
+                    : Promise.resolve({ json: [], params: { groupId: 'grp_test' } })
+            );
+
+            const { getAllGroupInvitesAndJoinRequests, isGroupMembersLoading } = useGroupModerationData(deps);
+            const done = getAllGroupInvitesAndJoinRequests('grp_test');
+            await vi.waitFor(() => expect(resolveBlocked).toBeTypeOf('function'));
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            expect(isGroupMembersLoading.value).toBe(true);
+
+            resolveBlocked();
+            await done;
+            expect(isGroupMembersLoading.value).toBe(false);
+        });
     });
 
     describe('selectGroupMemberUserId', () => {

@@ -284,6 +284,8 @@ export function useGroupModerationData(deps) {
 
     // ── Bans / Invites / Join Requests / Blocked ─────────────────
 
+    let pendingPageLoads = 0;
+
     /**
      * Fetch every page of a group member list, 100 per page and at most
      * 50 pages (5000 entries), applying each entry with applyGroupMember.
@@ -298,6 +300,7 @@ export function useGroupModerationData(deps) {
     async function fetchAllPages(requestFn, groupId, extraParams, errorMessage) {
         const n = 100;
         const count = 50; // 5000 max
+        pendingPageLoads++;
         isGroupMembersLoading.value = true;
         const fetched = [];
         try {
@@ -318,7 +321,12 @@ export function useGroupModerationData(deps) {
             toast.error(errorMessage);
             return undefined;
         } finally {
-            isGroupMembersLoading.value = false;
+            // Invites, join requests and blocked load in parallel; keep the
+            // shared loading flag set until the last of them has finished.
+            pendingPageLoads--;
+            if (pendingPageLoads === 0) {
+                isGroupMembersLoading.value = false;
+            }
         }
     }
 
