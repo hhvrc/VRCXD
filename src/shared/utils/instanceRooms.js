@@ -156,7 +156,7 @@ function compareWorldDialogRooms(selectedLocation, currentLocation) {
 
 /**
  * Group dialog room order: current instance, then by friend count (by user
- * count when neither has friends).
+ * count when neither has friends), then by id.
  *
  * @param {string} [currentLocation]
  * @returns {(a: object, b: object) => number}
@@ -164,24 +164,27 @@ function compareWorldDialogRooms(selectedLocation, currentLocation) {
 function compareGroupDialogRooms(currentLocation) {
     return function (a, b) {
         // sort current instance to top
-        if (b.location === currentLocation) {
-            return 1;
-        }
-        if (a.location === currentLocation) {
-            return -1;
+        const aCurrent = a.location === currentLocation;
+        const bCurrent = b.location === currentLocation;
+        if (aCurrent !== bCurrent) {
+            return aCurrent ? -1 : 1;
         }
         // sort by number of users when no friends in instance
-        if (a.users.length === 0 && b.users.length === 0) {
+        if (a.users.length === 0 && b.users.length === 0 && a.ref?.userCount !== b.ref?.userCount) {
             if (a.ref?.userCount < b.ref?.userCount) {
                 return 1;
             }
             return -1;
         }
         // sort by number of friends in instance
-        if (a.users.length < b.users.length) {
-            return 1;
+        if (a.users.length !== b.users.length) {
+            if (a.users.length < b.users.length) {
+                return 1;
+            }
+            return -1;
         }
-        return -1;
+        // sort by id
+        return compareById(a, b);
     };
 }
 

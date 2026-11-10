@@ -191,4 +191,18 @@ describe('compareGroupDialogRooms', () => {
         rooms.sort(compareGroupDialogRooms('wrld_a:cur'));
         expect(rooms.map((r) => r.id)).toEqual(['cur', '3', '2', '1']);
     });
+
+    test('is consistent for ties', () => {
+        const compare = compareGroupDialogRooms('wrld_a:cur');
+        const a = room('wrld_a:1', 1);
+        const b = room('wrld_a:2', 1);
+        const c = room('wrld_a:3', 0, 4);
+        const d = room('wrld_a:4', 0, 4);
+        expect(compare(a, b)).toBe(-compare(b, a));
+        expect(compare(c, d)).toBe(-compare(d, c));
+        expect(compare(a, a)).toBe(0);
+        const rooms = [d, b, c, a];
+        rooms.sort(compare);
+        expect(rooms.map((r) => r.id)).toEqual(['1', '2', '3', '4']);
+    });
 });
