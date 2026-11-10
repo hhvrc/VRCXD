@@ -77,9 +77,10 @@ namespace VRCX
                 {
                     if (monitoredProcess.Process == null || WinApi.HasProcessExited(monitoredProcess.Process.Id))
                     {
+                        var pid = monitoredProcess.Process?.Id.ToString() ?? "null";
                         monitoredProcess.ProcessExited();
                         ProcessExited?.Invoke(monitoredProcess);
-                        logger.Info($"Monitored process {monitoredProcess.ProcessName} (PID: {(monitoredProcess.Process?.Id.ToString() ?? "null")}) exited.");
+                        logger.Info($"Monitored process {monitoredProcess.ProcessName} (PID: {pid}) exited.");
                     }
                 }
                 else
