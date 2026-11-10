@@ -79,12 +79,14 @@
                 </div>
             </template>
         </DataTableLayout>
-        <SendInviteResponseDialog
-            v-model:send-invite-response-dialog="sendInviteResponseDialog"
-            v-model:sendInviteResponseDialogVisible="sendInviteResponseDialogVisible" />
-        <SendInviteRequestResponseDialog
-            v-model:send-invite-response-dialog="sendInviteResponseDialog"
-            v-model:sendInviteRequestResponseDialogVisible="sendInviteRequestResponseDialogVisible" />
+        <InviteMessageDialog
+            type="response"
+            v-model:dialog="sendInviteResponseDialog"
+            v-model:visible="sendInviteResponseDialogVisible" />
+        <InviteMessageDialog
+            type="requestResponse"
+            v-model:dialog="sendInviteResponseDialog"
+            v-model:visible="sendInviteRequestResponseDialogVisible" />
     </div>
 </template>
 
@@ -112,8 +114,7 @@
     import { createColumns } from './columns.jsx';
     import { useVrcxVueTable } from '../../lib/table/useVrcxVueTable';
 
-    import SendInviteRequestResponseDialog from './dialogs/SendInviteRequestResponseDialog.vue';
-    import SendInviteResponseDialog from './dialogs/SendInviteResponseDialog.vue';
+    import InviteMessageDialog from '../../components/dialogs/InviteMessageDialog/InviteMessageDialog.vue';
     import configRepository from '../../services/config';
 
     const { refreshInviteMessageTableData } = useInviteStore();

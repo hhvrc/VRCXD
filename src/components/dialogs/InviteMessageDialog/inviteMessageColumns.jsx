@@ -5,7 +5,7 @@ import { SquarePen } from 'lucide-vue-next';
 
 const { t } = i18n.global;
 
-export const createColumns = ({ onEdit }) => [
+export const createColumns = ({ onEdit, actionButtonClass }) => [
     {
         accessorKey: 'slot',
         header: () => t('table.profile.invite_messages.slot'),
@@ -38,6 +38,7 @@ export const createColumns = ({ onEdit }) => [
         cell: ({ row }) => (
             <Button
                 size="icon-sm"
+                class={actionButtonClass}
                 variant="ghost"
                 onClick={(e) => {
                     e.stopPropagation();

@@ -83,18 +83,10 @@ vi.mock('../NotificationList.vue', () => ({
     }
 }));
 
-vi.mock('../../../Notifications/dialogs/SendInviteResponseDialog.vue', () => ({
+vi.mock('../../../../components/dialogs/InviteMessageDialog/InviteMessageDialog.vue', () => ({
     default: {
-        props: ['sendInviteResponseDialogVisible'],
-        template: '<div data-testid="dialog-response" :data-visible="String(sendInviteResponseDialogVisible)" />'
-    }
-}));
-
-vi.mock('../../../Notifications/dialogs/SendInviteRequestResponseDialog.vue', () => ({
-    default: {
-        props: ['sendInviteRequestResponseDialogVisible'],
-        template:
-            '<div data-testid="dialog-request-response" :data-visible="String(sendInviteRequestResponseDialogVisible)" />'
+        props: ['type', 'visible'],
+        template: '<div :data-testid="`dialog-${type}`" :data-visible="String(visible)" />'
     }
 }));
 
@@ -152,6 +144,6 @@ describe('NotificationCenterSheet.vue', () => {
         await wrapper.get('[data-testid="emit-show-invite-request-response"]').trigger('click');
 
         expect(mocks.inviteStore.refreshInviteMessageTableData).toHaveBeenCalledWith('requestResponse');
-        expect(wrapper.get('[data-testid="dialog-request-response"]').attributes('data-visible')).toBe('true');
+        expect(wrapper.get('[data-testid="dialog-requestResponse"]').attributes('data-visible')).toBe('true');
     });
 });

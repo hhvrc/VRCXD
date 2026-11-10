@@ -112,9 +112,10 @@
             </DialogFooter>
         </DialogContent>
 
-        <SendInviteDialog
-            v-model:sendInviteDialogVisible="sendInviteDialogVisible"
-            v-model:sendInviteDialog="sendInviteDialog"
+        <InviteMessageDialog
+            type="message"
+            v-model:visible="sendInviteDialogVisible"
+            v-model:dialog="sendInviteDialog"
             :invite-dialog="inviteDialog"
             @closeInviteDialog="closeInviteDialog" />
     </Dialog>
@@ -149,7 +150,7 @@
         DropdownMenuTrigger
     } from '../../ui/dropdown-menu';
 
-    import SendInviteDialog from './SendInviteDialog.vue';
+    import InviteMessageDialog from '../InviteMessageDialog/InviteMessageDialog.vue';
 
     const { userImage, userStatusClass } = useUserDisplay();
     const friendStore = useFriendStore();

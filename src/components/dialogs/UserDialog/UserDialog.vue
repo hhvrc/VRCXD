@@ -63,13 +63,15 @@
                         @refresh="refreshUserDialogTreeData()" />
                 </template>
             </TabsUnderline>
-            <SendInviteDialog
-                v-model:sendInviteDialogVisible="sendInviteDialogVisible"
-                v-model:sendInviteDialog="sendInviteDialog"
+            <InviteMessageDialog
+                type="message"
+                v-model:visible="sendInviteDialogVisible"
+                v-model:dialog="sendInviteDialog"
                 @closeInviteDialog="closeInviteDialog" />
-            <SendInviteRequestDialog
-                v-model:sendInviteRequestDialogVisible="sendInviteRequestDialogVisible"
-                v-model:sendInviteDialog="sendInviteDialog"
+            <InviteMessageDialog
+                type="request"
+                v-model:visible="sendInviteRequestDialogVisible"
+                v-model:dialog="sendInviteDialog"
                 @closeInviteDialog="closeInviteDialog" />
             <ModerateGroupDialog />
         </div>
@@ -106,7 +108,7 @@
     import { getFriendRequest, handleFriendDelete } from '../../../coordinators/friendRelationshipCoordinator';
 
     import DialogJsonTab from '../DialogJsonTab.vue';
-    import SendInviteDialog from '../InviteDialog/SendInviteDialog.vue';
+    import InviteMessageDialog from '../InviteMessageDialog/InviteMessageDialog.vue';
     import UserDialogActivityTab from './UserDialogActivityTab.vue';
     import UserDialogAvatarsTab from './UserDialogAvatarsTab.vue';
     import UserDialogFavoriteWorldsTab from './UserDialogFavoriteWorldsTab.vue';
@@ -117,7 +119,6 @@
     import UserSummaryHeader from './UserSummaryHeader.vue';
 
     import ModerateGroupDialog from '../ModerateGroupDialog.vue';
-    import SendInviteRequestDialog from './SendInviteRequestDialog.vue';
 
     const props = defineProps({
         previousIds: {

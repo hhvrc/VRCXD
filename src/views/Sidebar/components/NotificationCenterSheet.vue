@@ -54,12 +54,14 @@
             </Tabs>
         </SheetContent>
     </Sheet>
-    <SendInviteResponseDialog
-        v-model:send-invite-response-dialog="sendInviteResponseDialog"
-        v-model:sendInviteResponseDialogVisible="sendInviteResponseDialogVisible" />
-    <SendInviteRequestResponseDialog
-        v-model:send-invite-response-dialog="sendInviteResponseDialog"
-        v-model:sendInviteRequestResponseDialogVisible="sendInviteRequestResponseDialogVisible" />
+    <InviteMessageDialog
+        type="response"
+        v-model:dialog="sendInviteResponseDialog"
+        v-model:visible="sendInviteResponseDialogVisible" />
+    <InviteMessageDialog
+        type="requestResponse"
+        v-model:dialog="sendInviteResponseDialog"
+        v-model:visible="sendInviteRequestResponseDialogVisible" />
 </template>
 
 <script setup>
@@ -73,8 +75,7 @@
     import { useGalleryStore, useInviteStore, useNotificationStore } from '../../../stores';
 
     import NotificationList from './NotificationList.vue';
-    import SendInviteRequestResponseDialog from '../../Notifications/dialogs/SendInviteRequestResponseDialog.vue';
-    import SendInviteResponseDialog from '../../Notifications/dialogs/SendInviteResponseDialog.vue';
+    import InviteMessageDialog from '../../../components/dialogs/InviteMessageDialog/InviteMessageDialog.vue';
 
     const { t } = useI18n();
     const router = useRouter();
