@@ -825,10 +825,8 @@ namespace VRCX
 
             // 2024.07.26 01:48:56 Log        -  STEAMVR HMD Model: Index
 
-            // NOTE: the STEAMVR check compares 20 characters against a 19 character prefix,
-            // so it only matches when nothing follows the prefix.
             if (!StartsAt(line, offset, "Initializing VRSDK.") &&
-                string.Compare(line, offset, "STEAMVR HMD Model: ", 0, 20, StringComparison.Ordinal) != 0)
+                !StartsAt(line, offset, "STEAMVR HMD Model: "))
                 return false;
 
             Emit(logContext, "openvr-init");
