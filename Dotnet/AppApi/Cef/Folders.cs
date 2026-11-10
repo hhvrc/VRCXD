@@ -56,28 +56,7 @@ namespace VRCX
         public override string GetVRChatScreenshotsLocation()
         {
             // program files steam userdata screenshots
-            var steamUserdataPath = GetSteamUserdataPathFromRegistry();
-            var screenshotPath = string.Empty;
-            var latestWriteTime = DateTime.MinValue;
-            if (!Directory.Exists(steamUserdataPath))
-                return screenshotPath;
-
-            var steamUserDirs = Directory.GetDirectories(steamUserdataPath);
-            foreach (var steamUserDir in steamUserDirs)
-            {
-                var screenshotDir = Path.Join(steamUserDir, @"760\remote\438100\screenshots");
-                if (!Directory.Exists(screenshotDir))
-                    continue;
-
-                var lastWriteTime = File.GetLastWriteTime(screenshotDir);
-                if (lastWriteTime <= latestWriteTime)
-                    continue;
-
-                latestWriteTime = lastWriteTime;
-                screenshotPath = screenshotDir;
-            }
-
-            return screenshotPath;
+            return GetLatestSteamScreenshotsLocation(GetSteamUserdataPathFromRegistry());
         }
 
         public override void OpenFolderAndSelectItem(string path, bool isFolder = false)

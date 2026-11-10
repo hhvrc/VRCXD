@@ -105,24 +105,9 @@ namespace VRCX
             return _vrcCrashesPath;
         }
 
-        private string GetSteamUserdataPathFromRegistry()
-        {
-            // TODO: Fix Steam userdata path, for now just get the first folder
-            if (Directory.Exists(_steamUserdataPath))
-            {
-                var steamUserDirs = Directory.GetDirectories(_steamUserdataPath);
-                if (steamUserDirs.Length > 0)
-                {
-                    return steamUserDirs[0];
-                }
-            }
-            return string.Empty;
-        }
-
         public override string GetVRChatScreenshotsLocation()
         {
-            // program files steam userdata screenshots
-            return Path.Join(_steamUserdataPath, "760/remote/438100/screenshots");
+            return GetLatestSteamScreenshotsLocation(_steamUserdataPath);
         }
 
         public override void OpenFolderAndSelectItem(string path, bool isFolder = false)

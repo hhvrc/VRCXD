@@ -96,6 +96,36 @@ namespace VRCX
         }
 
         /// <summary>
+        /// Finds the most recently written VRChat screenshots folder across all Steam accounts
+        /// under the given Steam userdata folder (userdata/&lt;accountid&gt;/760/remote/438100/screenshots).
+        /// </summary>
+        /// <returns>The folder path, or an empty string if none exists</returns>
+        protected static string GetLatestSteamScreenshotsLocation(string steamUserdataPath)
+        {
+            var screenshotPath = string.Empty;
+            var latestWriteTime = DateTime.MinValue;
+            if (!Directory.Exists(steamUserdataPath))
+                return screenshotPath;
+
+            var steamUserDirs = Directory.GetDirectories(steamUserdataPath);
+            foreach (var steamUserDir in steamUserDirs)
+            {
+                var screenshotDir = Path.Join(steamUserDir, "760", "remote", "438100", "screenshots");
+                if (!Directory.Exists(screenshotDir))
+                    continue;
+
+                var lastWriteTime = File.GetLastWriteTime(screenshotDir);
+                if (lastWriteTime <= latestWriteTime)
+                    continue;
+
+                latestWriteTime = lastWriteTime;
+                screenshotPath = screenshotDir;
+            }
+
+            return screenshotPath;
+        }
+
+        /// <summary>
         /// Opens the folder in the platform file manager if it exists.
         /// </summary>
         /// <returns>false if the folder does not exist</returns>
