@@ -601,7 +601,6 @@ export const useFavoriteStore = defineStore('Favorite', () => {
                 const worldId = localWorldFavorites[groupName][j].id;
                 if (worldIdRemoveList.has(worldId)) {
                     worldIdRemoveList.delete(worldId);
-                    break;
                 }
             }
         }
