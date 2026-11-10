@@ -810,7 +810,7 @@ export const useNotificationStore = defineStore('Notification', () => {
     /**
      * @param noty
      */
-    function playNoty(noty) {
+    async function playNoty(noty) {
         if (userStore.currentUser.status === 'busy' || !watchState.isFriendsLoaded) {
             return;
         }
@@ -888,40 +888,19 @@ export const useNotificationStore = defineStore('Notification', () => {
             playOvrtWristNotifications ||
             playOverlayNotification
         ) {
-            if (notificationsSettingsStore.imageNotifications) {
-                notySaveImage(noty).then((image) => {
-                    if (playXSNotification) {
-                        displayXSNotification(noty, message, image);
-                    }
-                    if (playOvrtHudNotifications || playOvrtWristNotifications) {
-                        displayOvrtNotification(
-                            playOvrtHudNotifications,
-                            playOvrtWristNotifications,
-                            noty,
-                            message,
-                            image
-                        );
-                    }
-                    if (playDesktopToast) {
-                        displayDesktopToast(noty, message, image);
-                    }
-                    if (playOverlayNotification) {
-                        displayOverlayNotification(noty, message, image);
-                    }
-                });
-            } else {
-                if (playXSNotification) {
-                    displayXSNotification(noty, message, '');
-                }
-                if (playOvrtHudNotifications || playOvrtWristNotifications) {
-                    displayOvrtNotification(playOvrtHudNotifications, playOvrtWristNotifications, noty, message, '');
-                }
-                if (playDesktopToast) {
-                    displayDesktopToast(noty, message, '');
-                }
-                if (playOverlayNotification) {
-                    displayOverlayNotification(noty, message, '');
-                }
+            // no await without imageNotifications, so that path stays synchronous
+            const image = notificationsSettingsStore.imageNotifications ? await notySaveImage(noty) : '';
+            if (playXSNotification) {
+                displayXSNotification(noty, message, image);
+            }
+            if (playOvrtHudNotifications || playOvrtWristNotifications) {
+                displayOvrtNotification(playOvrtHudNotifications, playOvrtWristNotifications, noty, message, image);
+            }
+            if (playDesktopToast) {
+                displayDesktopToast(noty, message, image);
+            }
+            if (playOverlayNotification) {
+                displayOverlayNotification(noty, message, image);
             }
         }
     }
