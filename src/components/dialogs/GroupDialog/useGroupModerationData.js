@@ -298,7 +298,7 @@ export function useGroupModerationData(deps) {
                 const args = await groupRequest.getGroupBans(params);
                 if (args && args.json) {
                     if (groupMemberModeration.value.id !== args.params.groupId) {
-                        continue;
+                        return;
                     }
                     args.json.forEach((json) => {
                         const ref = applyGroupMember(json);
@@ -467,7 +467,7 @@ export function useGroupModerationData(deps) {
                 const args = await groupRequest.getGroupLogs(params);
                 if (args) {
                     if (groupMemberModeration.value.id !== args.params.groupId) {
-                        continue;
+                        return;
                     }
                     for (const json of args.json.results) {
                         const existsInData = newData.some((dataItem) => dataItem.id === json.id);

@@ -208,9 +208,26 @@ describe('useGroupModerationData', () => {
             const { getAllGroupBans } = useGroupModerationData(deps);
             await getAllGroupBans('grp_test');
 
-            // Should have continued past the mismatched group and eventually exhausted pages
-            // The data won't contain the mismatched entry because it was skipped
+            // Stops as soon as the dialog has switched to another group
             expect(deps.tables.bans.data).toHaveLength(0);
+            expect(deps.groupRequest.getGroupBans).toHaveBeenCalledTimes(1);
+        });
+
+        test('does not write a partial result after the group changes mid-load', async () => {
+            const deps = createDeps();
+            const page1 = Array.from({ length: 100 }, (_, i) => ({ userId: `usr_${i}` }));
+            deps.groupRequest.getGroupBans
+                .mockResolvedValueOnce({ json: page1, params: { groupId: 'grp_test' } })
+                .mockImplementation(() => {
+                    deps.groupMemberModeration.value.id = 'grp_other';
+                    return Promise.resolve({ json: page1, params: { groupId: 'grp_test' } });
+                });
+
+            const { getAllGroupBans } = useGroupModerationData(deps);
+            await getAllGroupBans('grp_test');
+
+            expect(deps.tables.bans.data).toHaveLength(0);
+            expect(deps.groupRequest.getGroupBans).toHaveBeenCalledTimes(2);
         });
 
         test('handles API error gracefully', async () => {
@@ -268,6 +285,20 @@ describe('useGroupModerationData', () => {
             await getAllGroupLogs('grp_test');
 
             expect(deps.tables.logs.data).toHaveLength(2);
+        });
+
+        test('stops on data from another group', async () => {
+            const deps = createDeps();
+            deps.groupRequest.getGroupLogs.mockResolvedValue({
+                json: { results: [{ id: 'log_1' }], hasNext: true },
+                params: { groupId: 'grp_other' }
+            });
+
+            const { getAllGroupLogs } = useGroupModerationData(deps);
+            await getAllGroupLogs('grp_test');
+
+            expect(deps.tables.logs.data).toHaveLength(0);
+            expect(deps.groupRequest.getGroupLogs).toHaveBeenCalledTimes(1);
         });
 
         test('passes eventTypes filter when provided', async () => {
