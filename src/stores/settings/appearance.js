@@ -35,6 +35,7 @@ import { useUserStore } from '../user';
 import { useVrStore } from '../vr';
 import { useVrcxStore } from '../vrcx';
 import { watchState } from '../../services/watchState';
+import { definePersistedSettings } from './persistedSettings';
 
 import configRepository from '../../services/config';
 
@@ -54,6 +55,39 @@ export const useAppearanceSettingsStore = defineStore(
         const MAX_TABLE_PAGE_SIZE = 1000;
         const DEFAULT_TABLE_PAGE_SIZES = [10, 15, 20, 25, 50, 100];
 
+        const settings = definePersistedSettings({
+            displayVRCProfileThemes: ['VRCX_displayVRCProfileThemes', 'bool', true, { initial: false }],
+            displayVRCProfileBackgrounds: ['VRCX_displayVRCProfileBackgrounds', 'bool', false],
+            profileBackgroundOpacity: ['VRCX_profileBackgroundOpacity', 'float', 0.5],
+            displayVRCProfileCosmetics: ['VRCX_displayVRCProfileCosmetics', 'bool', false],
+            hideNicknames: ['VRCX_hideNicknames', 'bool', false],
+            showInstanceIdInLocation: ['VRCX_showInstanceIdInLocation', 'bool', false],
+            isAgeGatedInstancesVisible: ['VRCX_isAgeGatedInstancesVisible', 'bool', true, { initial: false }],
+            isClosedInstancesVisible: ['VRCX_isClosedInstancesVisible', 'bool', true],
+            sortFavorites: ['VRCX_sortFavorites', 'bool', true],
+            instanceUsersSortAlphabetical: ['VRCX_instanceUsersSortAlphabetical', 'bool', false],
+            dtHour12: ['VRCX_dtHour12', 'bool', false],
+            dtIsoFormat: ['VRCX_dtIsoFormat', 'bool', false],
+            isSidebarGroupByInstance: ['VRCX_sidebarGroupByInstance', 'bool', true],
+            isHideFriendsInSameInstance: ['VRCX_hideFriendsInSameInstance', 'bool', false],
+            isSameInstanceAboveFavorites: ['VRCX_sameInstanceAboveFavorites', 'bool', false],
+            isSidebarDivideByFriendGroup: ['VRCX_sidebarDivideByFriendGroup', 'bool', true, { initial: false }],
+            sidebarFavoriteGroups: ['VRCX_sidebarFavoriteGroups', 'json', []],
+            sidebarFavoriteGroupOrder: ['VRCX_sidebarFavoriteGroupOrder', 'json', []],
+            sidebarCosmetics: ['VRCX_sidebarCosmetics', 'bool', false],
+            hideUserNotes: ['VRCX_hideUserNotes', 'bool', false],
+            hideUserMemos: ['VRCX_hideUserMemos', 'bool', false],
+            hideUnfriends: ['VRCX_hideUnfriends', 'bool', false],
+            randomUserColours: ['VRCX_randomUserColours', 'bool', false],
+            notificationIconDot: ['VRCX_notificationIconDot', 'bool', true, { initial: false, setter: false }],
+            isNavCollapsed: ['VRCX_navIsCollapsed', 'bool', false, { initial: true, setter: false }],
+            isDataTableStriped: ['VRCX_dataTableStriped', 'bool', false, { setter: 'toggleStripedDataTable' }],
+            accessibleStatusIndicators: ['VRCX_accessibleStatusIndicators', 'bool', false, { setter: false }],
+            showNewDashboardButton: ['VRCX_showNewDashboardButton', 'bool', true]
+        });
+        const { randomUserColours, notificationIconDot, isNavCollapsed, accessibleStatusIndicators } = settings.refs;
+        const { setRandomUserColours } = settings.setters;
+
         const appLanguage = ref('en');
         const themeMode = ref('');
         const isDarkMode = ref(false);
@@ -61,37 +95,14 @@ export const useAppearanceSettingsStore = defineStore(
         const appFontFamily = ref('inter');
         const customFontFamily = ref('');
         const appCjkFontPack = ref(APP_CJK_FONT_PACK_DEFAULT_KEY);
-        const displayVRCProfileThemes = ref(false);
-        const displayVRCProfileBackgrounds = ref(false);
-        const profileBackgroundOpacity = ref(0.5);
-        const displayVRCProfileCosmetics = ref(false);
-        const hideNicknames = ref(false);
-        const showInstanceIdInLocation = ref(false);
-        const isAgeGatedInstancesVisible = ref(false);
-        const isClosedInstancesVisible = ref(true);
-        const sortFavorites = ref(true);
-        const instanceUsersSortAlphabetical = ref(false);
         const tablePageSize = ref(15);
         const tablePageSizes = ref([...DEFAULT_TABLE_PAGE_SIZES]);
-        const dtHour12 = ref(false);
-        const dtIsoFormat = ref(false);
         const weekStartsOn = ref(/** @type {0 | 1 | 6} */ (1));
         const sidebarSortMethod1 = ref('Sort Private to Bottom');
         const sidebarSortMethod2 = ref('Sort by Time in Instance');
         const sidebarSortMethod3 = ref('Sort by Last Active');
         const sidebarSortMethods = ref(['Sort Private to Bottom', 'Sort by Time in Instance', 'Sort by Last Active']);
         const navWidth = ref(240);
-        const isSidebarGroupByInstance = ref(true);
-        const isHideFriendsInSameInstance = ref(false);
-        const isSameInstanceAboveFavorites = ref(false);
-        const isSidebarDivideByFriendGroup = ref(false);
-        const sidebarFavoriteGroups = ref([]);
-        const sidebarFavoriteGroupOrder = ref([]);
-        const sidebarCosmetics = ref(false);
-        const hideUserNotes = ref(false);
-        const hideUserMemos = ref(false);
-        const hideUnfriends = ref(false);
-        const randomUserColours = ref(false);
         const tableDensity = ref('standard');
         const TRUST_COLOR_DEFAULTS = Object.freeze({
             untrusted: '#CCCCCC',
@@ -104,8 +115,6 @@ export const useAppearanceSettingsStore = defineStore(
         });
         const trustColor = ref({ ...TRUST_COLOR_DEFAULTS });
         const currentCulture = ref('');
-        const notificationIconDot = ref(false);
-        const isNavCollapsed = ref(true);
         const isSideBarTabShow = computed(() => {
             const currentRouteName = router.currentRoute.value?.name;
             return !['friend-list', 'charts-instance', 'charts-mutual', 'charts-hot-worlds'].includes(
@@ -113,9 +122,6 @@ export const useAppearanceSettingsStore = defineStore(
             );
         });
 
-        const isDataTableStriped = ref(false);
-        const accessibleStatusIndicators = ref(false);
-        const showNewDashboardButton = ref(true);
         const tableLimitsDialog = ref({
             visible: false,
             maxTableSize: 500,
@@ -136,88 +142,34 @@ export const useAppearanceSettingsStore = defineStore(
             const { initThemeMode, isDarkMode: initDarkMode } = await getThemeMode(configRepository);
             const fallbackDarkTheme = THEME_CONFIG[initThemeMode]?.isDark === true ? initThemeMode : 'dark';
             const [
+                ,
                 appLanguageConfig,
-                displayVRCProfileThemesConfig,
-                displayVRCProfileBackgroundsConfig,
-                profileBackgroundOpacityConfig,
-                displayVRCProfileCosmeticsConfig,
-                hideNicknamesConfig,
-                showInstanceIdInLocationConfig,
-                isAgeGatedInstancesVisibleConfig,
-                isClosedInstancesVisibleConfig,
-                sortFavoritesConfig,
-                instanceUsersSortAlphabeticalConfig,
                 tablePageSizeConfig,
                 tablePageSizesConfig,
-                dtHour12Config,
-                dtIsoFormatConfig,
                 weekStartsOnConfig,
                 sidebarSortMethodsConfig,
                 navWidthConfig,
-                isSidebarGroupByInstanceConfig,
-                isHideFriendsInSameInstanceConfig,
-                isSameInstanceAboveFavoritesConfig,
-                isSidebarDivideByFriendGroupConfig,
-                sidebarFavoriteGroupsConfig,
-                sidebarFavoriteGroupOrderConfig,
-                sidebarCosmeticsConfig,
-                hideUserNotesConfig,
-                hideUserMemosConfig,
-                hideUnfriendsConfig,
-                randomUserColoursConfig,
                 tableDensityConfig,
                 compactTableModeConfig,
                 trustColorConfig,
-                notificationIconDotConfig,
-                navIsCollapsedConfig,
-                dataTableStripedConfig,
-                accessibleStatusIndicatorsConfig,
-                showNewDashboardButtonConfig,
                 appFontFamilyConfig,
                 customFontFamilyConfig,
                 appCjkFontPackConfig,
                 lastDarkThemeConfig
             ] = await Promise.all([
+                settings.load(),
                 configRepository.getString('VRCX_appLanguage'),
-                configRepository.getBool('VRCX_displayVRCProfileThemes', true),
-                configRepository.getBool('VRCX_displayVRCProfileBackgrounds', false),
-                configRepository.getFloat('VRCX_profileBackgroundOpacity', 0.5),
-                configRepository.getBool('VRCX_displayVRCProfileCosmetics', false),
-                configRepository.getBool('VRCX_hideNicknames', false),
-                configRepository.getBool('VRCX_showInstanceIdInLocation', false),
-                configRepository.getBool('VRCX_isAgeGatedInstancesVisible', true),
-                configRepository.getBool('VRCX_isClosedInstancesVisible', true),
-                configRepository.getBool('VRCX_sortFavorites', true),
-                configRepository.getBool('VRCX_instanceUsersSortAlphabetical', false),
                 configRepository.getInt('VRCX_tablePageSize', 20),
                 configRepository.getString('VRCX_tablePageSizes', JSON.stringify(DEFAULT_TABLE_PAGE_SIZES)),
-                configRepository.getBool('VRCX_dtHour12', false),
-                configRepository.getBool('VRCX_dtIsoFormat', false),
                 configRepository.getInt('VRCX_weekStartsOn', 1),
                 configRepository.getString(
                     'VRCX_sidebarSortMethods',
                     JSON.stringify(['Sort Private to Bottom', 'Sort by Time in Instance', 'Sort by Last Active'])
                 ),
                 configRepository.getInt('VRCX_navPanelWidth', 240),
-                configRepository.getBool('VRCX_sidebarGroupByInstance', true),
-                configRepository.getBool('VRCX_hideFriendsInSameInstance', false),
-                configRepository.getBool('VRCX_sameInstanceAboveFavorites', false),
-                configRepository.getBool('VRCX_sidebarDivideByFriendGroup', true),
-                configRepository.getString('VRCX_sidebarFavoriteGroups', '[]'),
-                configRepository.getString('VRCX_sidebarFavoriteGroupOrder', '[]'),
-                configRepository.getBool('VRCX_sidebarCosmetics', false),
-                configRepository.getBool('VRCX_hideUserNotes', false),
-                configRepository.getBool('VRCX_hideUserMemos', false),
-                configRepository.getBool('VRCX_hideUnfriends', false),
-                configRepository.getBool('VRCX_randomUserColours', false),
                 configRepository.getString('VRCX_tableDensity'),
                 configRepository.getBool('VRCX_compactTableMode', false),
                 configRepository.getString('VRCX_trustColor', JSON.stringify(TRUST_COLOR_DEFAULTS)),
-                configRepository.getBool('VRCX_notificationIconDot', true),
-                configRepository.getBool('VRCX_navIsCollapsed', false),
-                configRepository.getBool('VRCX_dataTableStriped', false),
-                configRepository.getBool('VRCX_accessibleStatusIndicators', false),
-                configRepository.getBool('VRCX_showNewDashboardButton', true),
                 configRepository.getString('VRCX_fontFamily', APP_FONT_DEFAULT_KEY),
                 configRepository.getString('VRCX_customFontFamily', ''),
                 configRepository.getString('VRCX_cjkFontPack', APP_CJK_FONT_PACK_DEFAULT_KEY),
@@ -248,23 +200,10 @@ export const useAppearanceSettingsStore = defineStore(
                 configRepository.setString('VRCX_fontFamily', normalizedAppFontFamily);
             }
 
-            displayVRCProfileThemes.value = displayVRCProfileThemesConfig;
-            displayVRCProfileBackgrounds.value = displayVRCProfileBackgroundsConfig;
-            profileBackgroundOpacity.value = profileBackgroundOpacityConfig;
-            displayVRCProfileCosmetics.value = displayVRCProfileCosmeticsConfig;
-            hideNicknames.value = hideNicknamesConfig;
-            showInstanceIdInLocation.value = showInstanceIdInLocationConfig;
-            isAgeGatedInstancesVisible.value = isAgeGatedInstancesVisibleConfig;
-            isClosedInstancesVisible.value = isClosedInstancesVisibleConfig;
-            sortFavorites.value = sortFavoritesConfig;
-            instanceUsersSortAlphabetical.value = instanceUsersSortAlphabeticalConfig;
-
             tablePageSizes.value = normalizeTablePageSizes(JSON.parse(tablePageSizesConfig));
 
             setTablePageSize(tablePageSizeConfig);
 
-            dtHour12.value = dtHour12Config;
-            dtIsoFormat.value = dtIsoFormatConfig;
             weekStartsOn.value = /** @type {0 | 1 | 6} */ (
                 [0, 1, 6].includes(weekStartsOnConfig) ? weekStartsOnConfig : 1
             );
@@ -283,18 +222,6 @@ export const useAppearanceSettingsStore = defineStore(
             }
             trustColor.value = { ...TRUST_COLOR_DEFAULTS };
             navWidth.value = clampInt(navWidthConfig, 64, 480);
-            isSidebarGroupByInstance.value = isSidebarGroupByInstanceConfig;
-            isHideFriendsInSameInstance.value = isHideFriendsInSameInstanceConfig;
-            isSameInstanceAboveFavorites.value = isSameInstanceAboveFavoritesConfig;
-            isSidebarDivideByFriendGroup.value = isSidebarDivideByFriendGroupConfig;
-            sidebarFavoriteGroups.value = JSON.parse(sidebarFavoriteGroupsConfig);
-            sidebarFavoriteGroupOrder.value = JSON.parse(sidebarFavoriteGroupOrderConfig);
-            sidebarCosmetics.value = sidebarCosmeticsConfig;
-            hideUserNotes.value = hideUserNotesConfig;
-            hideUserMemos.value = hideUserMemosConfig;
-            hideUnfriends.value = hideUnfriendsConfig;
-            randomUserColours.value = randomUserColoursConfig;
-            notificationIconDot.value = notificationIconDotConfig;
             const resolvedTableDensity = normalizeTableDensity(
                 tableDensityConfig || (compactTableModeConfig ? 'compact' : 'standard')
             );
@@ -303,10 +230,6 @@ export const useAppearanceSettingsStore = defineStore(
             if (!tableDensityConfig) {
                 configRepository.setString('VRCX_tableDensity', tableDensity.value);
             }
-            isNavCollapsed.value = navIsCollapsedConfig;
-            isDataTableStriped.value = dataTableStripedConfig;
-            accessibleStatusIndicators.value = accessibleStatusIndicatorsConfig;
-            showNewDashboardButton.value = showNewDashboardButtonConfig;
 
             applyAccessibleStatusClass();
 
@@ -516,54 +439,10 @@ export const useAppearanceSettingsStore = defineStore(
             applyAppCjkFontPack(normalized);
         }
 
-        function setDisplayVRCProfileThemes() {
-            displayVRCProfileThemes.value = !displayVRCProfileThemes.value;
-            configRepository.setBool('VRCX_displayVRCProfileThemes', displayVRCProfileThemes.value);
-        }
-
-        function setDisplayVRCProfileBackgrounds() {
-            displayVRCProfileBackgrounds.value = !displayVRCProfileBackgrounds.value;
-            configRepository.setBool('VRCX_displayVRCProfileBackgrounds', displayVRCProfileBackgrounds.value);
-        }
-
-        function setProfileBackgroundOpacity(value) {
-            profileBackgroundOpacity.value = value;
-            configRepository.setFloat('VRCX_profileBackgroundOpacity', value);
-        }
-
-        function setDisplayVRCProfileCosmetics() {
-            displayVRCProfileCosmetics.value = !displayVRCProfileCosmetics.value;
-            configRepository.setBool('VRCX_displayVRCProfileCosmetics', displayVRCProfileCosmetics.value);
-        }
-
         function setNotificationIconDot() {
             notificationIconDot.value = !notificationIconDot.value;
             configRepository.setBool('VRCX_notificationIconDot', notificationIconDot.value);
             uiStore.updateTrayIconNotify();
-        }
-        function setHideNicknames() {
-            hideNicknames.value = !hideNicknames.value;
-            configRepository.setBool('VRCX_hideNicknames', hideNicknames.value);
-        }
-        function setShowInstanceIdInLocation() {
-            showInstanceIdInLocation.value = !showInstanceIdInLocation.value;
-            configRepository.setBool('VRCX_showInstanceIdInLocation', showInstanceIdInLocation.value);
-        }
-        function setIsAgeGatedInstancesVisible() {
-            isAgeGatedInstancesVisible.value = !isAgeGatedInstancesVisible.value;
-            configRepository.setBool('VRCX_isAgeGatedInstancesVisible', isAgeGatedInstancesVisible.value);
-        }
-        function setIsClosedInstancesVisible() {
-            isClosedInstancesVisible.value = !isClosedInstancesVisible.value;
-            configRepository.setBool('VRCX_isClosedInstancesVisible', isClosedInstancesVisible.value);
-        }
-        function setSortFavorites() {
-            sortFavorites.value = !sortFavorites.value;
-            configRepository.setBool('VRCX_sortFavorites', sortFavorites.value);
-        }
-        function setInstanceUsersSortAlphabetical() {
-            instanceUsersSortAlphabetical.value = !instanceUsersSortAlphabetical.value;
-            configRepository.setBool('VRCX_instanceUsersSortAlphabetical', instanceUsersSortAlphabetical.value);
         }
 
         /**
@@ -598,14 +477,6 @@ export const useAppearanceSettingsStore = defineStore(
             if (!tablePageSizes.value.includes(tablePageSize.value)) {
                 setTablePageSize(tablePageSizes.value[0]);
             }
-        }
-        function setDtHour12() {
-            dtHour12.value = !dtHour12.value;
-            configRepository.setBool('VRCX_dtHour12', dtHour12.value);
-        }
-        function setDtIsoFormat() {
-            dtIsoFormat.value = !dtIsoFormat.value;
-            configRepository.setBool('VRCX_dtIsoFormat', dtIsoFormat.value);
         }
         /**
          * @param {number} value - 0 (Sunday), 1 (Monday), or 6 (Saturday)
@@ -670,56 +541,6 @@ export const useAppearanceSettingsStore = defineStore(
                 });
             }
         }
-        function setIsSidebarGroupByInstance() {
-            isSidebarGroupByInstance.value = !isSidebarGroupByInstance.value;
-            configRepository.setBool('VRCX_sidebarGroupByInstance', isSidebarGroupByInstance.value);
-        }
-        function setIsHideFriendsInSameInstance() {
-            isHideFriendsInSameInstance.value = !isHideFriendsInSameInstance.value;
-            configRepository.setBool('VRCX_hideFriendsInSameInstance', isHideFriendsInSameInstance.value);
-        }
-        function setIsSameInstanceAboveFavorites() {
-            isSameInstanceAboveFavorites.value = !isSameInstanceAboveFavorites.value;
-            configRepository.setBool('VRCX_sameInstanceAboveFavorites', isSameInstanceAboveFavorites.value);
-        }
-        function setIsSidebarDivideByFriendGroup() {
-            isSidebarDivideByFriendGroup.value = !isSidebarDivideByFriendGroup.value;
-            configRepository.setBool('VRCX_sidebarDivideByFriendGroup', isSidebarDivideByFriendGroup.value);
-        }
-        /**
-         * @param {string[]} value
-         */
-        function setSidebarFavoriteGroups(value) {
-            sidebarFavoriteGroups.value = value;
-            configRepository.setString('VRCX_sidebarFavoriteGroups', JSON.stringify(value));
-        }
-        /**
-         * @param {string[]} value
-         */
-        function setSidebarFavoriteGroupOrder(value) {
-            sidebarFavoriteGroupOrder.value = value;
-            configRepository.setString('VRCX_sidebarFavoriteGroupOrder', JSON.stringify(value));
-        }
-        function setSidebarCosmetics() {
-            sidebarCosmetics.value = !sidebarCosmetics.value;
-            configRepository.setBool('VRCX_sidebarCosmetics', sidebarCosmetics.value);
-        }
-        function setHideUserNotes() {
-            hideUserNotes.value = !hideUserNotes.value;
-            configRepository.setBool('VRCX_hideUserNotes', hideUserNotes.value);
-        }
-        function setHideUserMemos() {
-            hideUserMemos.value = !hideUserMemos.value;
-            configRepository.setBool('VRCX_hideUserMemos', hideUserMemos.value);
-        }
-        function setHideUnfriends() {
-            hideUnfriends.value = !hideUnfriends.value;
-            configRepository.setBool('VRCX_hideUnfriends', hideUnfriends.value);
-        }
-        function setRandomUserColours() {
-            randomUserColours.value = !randomUserColours.value;
-            configRepository.setBool('VRCX_randomUserColours', randomUserColours.value);
-        }
         /**
          * @param value
          */
@@ -740,11 +561,6 @@ export const useAppearanceSettingsStore = defineStore(
             configRepository.setString('VRCX_tableDensity', tableDensity.value);
         }
 
-        function toggleStripedDataTable() {
-            isDataTableStriped.value = !isDataTableStriped.value;
-            configRepository.setBool('VRCX_dataTableStriped', isDataTableStriped.value);
-        }
-
         function applyAccessibleStatusClass() {
             const classList = document.documentElement.classList;
             classList.remove('accessible-status-indicators');
@@ -758,11 +574,6 @@ export const useAppearanceSettingsStore = defineStore(
             accessibleStatusIndicators.value = !accessibleStatusIndicators.value;
             configRepository.setBool('VRCX_accessibleStatusIndicators', accessibleStatusIndicators.value);
             applyAccessibleStatusClass();
-        }
-
-        function setShowNewDashboardButton() {
-            showNewDashboardButton.value = !showNewDashboardButton.value;
-            configRepository.setBool('VRCX_showNewDashboardButton', showNewDashboardButton.value);
         }
 
         /**
@@ -911,92 +722,41 @@ export const useAppearanceSettingsStore = defineStore(
         }
 
         return {
+            ...settings.refs,
             appLanguage,
             themeMode,
             isDarkMode,
             appFontFamily,
             appCjkFontPack,
-            displayVRCProfileThemes,
-            displayVRCProfileBackgrounds,
-            profileBackgroundOpacity,
-            displayVRCProfileCosmetics,
-            hideNicknames,
-            showInstanceIdInLocation,
-            isAgeGatedInstancesVisible,
-            isClosedInstancesVisible,
-            sortFavorites,
-            instanceUsersSortAlphabetical,
             tablePageSize,
             tablePageSizes,
-            dtHour12,
-            dtIsoFormat,
             weekStartsOn,
             sidebarSortMethod1,
             sidebarSortMethod2,
             sidebarSortMethod3,
             sidebarSortMethods,
             navWidth,
-            isSidebarGroupByInstance,
-            isHideFriendsInSameInstance,
-            isSameInstanceAboveFavorites,
-            isSidebarDivideByFriendGroup,
-            sidebarFavoriteGroups,
-            sidebarFavoriteGroupOrder,
-            sidebarCosmetics,
-            hideUserNotes,
-            hideUserMemos,
-            hideUnfriends,
-            randomUserColours,
             tableDensity,
             trustColor,
             currentCulture,
             isSideBarTabShow,
-            notificationIconDot,
-            isNavCollapsed,
-            isDataTableStriped,
-            accessibleStatusIndicators,
-            showNewDashboardButton,
             tableLimitsDialog,
             TABLE_MAX_SIZE_MIN,
             TABLE_MAX_SIZE_MAX,
             SEARCH_LIMIT_MIN,
             SEARCH_LIMIT_MAX,
 
+            ...settings.setters,
             setAppLanguage,
-            setDisplayVRCProfileThemes,
-            setDisplayVRCProfileBackgrounds,
-            setProfileBackgroundOpacity,
-            setDisplayVRCProfileCosmetics,
-            setHideNicknames,
-            setShowInstanceIdInLocation,
-            setIsAgeGatedInstancesVisible,
-            setIsClosedInstancesVisible,
-            setSortFavorites,
-            setInstanceUsersSortAlphabetical,
             setTablePageSize,
             setTablePageSizes,
-            setDtHour12,
-            setDtIsoFormat,
             setWeekStartsOn,
             setSidebarSortMethod1,
             setSidebarSortMethod2,
             setSidebarSortMethod3,
             setSidebarSortMethods,
             setNavWidth,
-            setIsSidebarGroupByInstance,
-            setIsHideFriendsInSameInstance,
-            setIsSameInstanceAboveFavorites,
-            setIsSidebarDivideByFriendGroup,
-            setSidebarFavoriteGroups,
-            setSidebarFavoriteGroupOrder,
-            setSidebarCosmetics,
-            setHideUserNotes,
-            setHideUserMemos,
-            setHideUnfriends,
-            setRandomUserColours,
-            toggleStripedDataTable,
             toggleAccessibleStatusIndicators,
-            setShowNewDashboardButton,
             setTableDensity,
             setTrustColor,
             tryInitUserColours,
