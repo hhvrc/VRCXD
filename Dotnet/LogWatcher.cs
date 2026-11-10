@@ -235,15 +235,8 @@ namespace VRCX
                 return;
             }
 
-            if (DateTime.TryParseExact(
-                    line.Substring(0, 19),
-                    "yyyy.MM.dd HH:mm:ss",
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.None,
-                    out var lineDate
-                ))
+            if (TryParseLineDate(line, out var lineDate))
             {
-                lineDate = lineDate.ToUniversalTime();
                 // check if date is older than last database entry
                 if (DateTime.Compare(lineDate, tillDate) <= 0)
                 {
@@ -358,26 +351,26 @@ namespace VRCX
             return utcDate.ToString("yyyy'-'MM'-'dd'T'HH':'mm':'ss'.'fff'Z'", CultureInfo.InvariantCulture);
         }
 
-        private static string ConvertLogTimeToISO8601(string line)
+        /// <summary>
+        /// Parses the local time at the start of a log line (2020.10.31 23:36:22) and returns it in UTC.
+        /// </summary>
+        private static bool TryParseLineDate(string line, out DateTime utcDate)
         {
-            // 2020.10.31 23:36:22
-
-            if (DateTime.TryParseExact(
+            if (line.Length >= 19 &&
+                DateTime.TryParseExact(
                     line.Substring(0, 19),
                     "yyyy.MM.dd HH:mm:ss",
                     CultureInfo.InvariantCulture,
                     DateTimeStyles.None,
-                    out var dt
+                    out utcDate
                 ))
             {
-                dt = dt.ToUniversalTime();
-            }
-            else
-            {
-                dt = DateTime.UtcNow;
+                utcDate = utcDate.ToUniversalTime();
+                return true;
             }
 
-            return ToISO8601(dt);
+            utcDate = default;
+            return false;
         }
 
         /// <summary>
@@ -819,10 +812,19 @@ namespace VRCX
                 return false;
 
             // checked before the line date is parsed, continuation lines have no timestamp of their own
+            var lineDate = DateTime.UtcNow;
+            if (TryParseLineDate(line, out var date))
+            {
+                // already handled on an earlier run
+                if (DateTime.Compare(date, tillDate) <= 0)
+                    return true;
+                lineDate = date;
+            }
+
             AppendLog(new[]
             {
                 logContext.FileName,
-                ConvertLogTimeToISO8601(line),
+                ToISO8601(lineDate),
                 "udon-exception",
                 line.Substring(lineOffset)
             });
