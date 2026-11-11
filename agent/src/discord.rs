@@ -114,11 +114,8 @@ async fn open_pipe() -> std::io::Result<Box<dyn Stream>> {
 
 #[cfg(unix)]
 async fn open_pipe() -> std::io::Result<Box<dyn Stream>> {
-    let mut dirs: Vec<std::path::PathBuf> = ["XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"]
-        .iter()
-        .filter_map(|v| std::env::var_os(v))
-        .map(Into::into)
-        .collect();
+    let mut dirs: Vec<std::path::PathBuf> =
+        ["XDG_RUNTIME_DIR", "TMPDIR", "TMP", "TEMP"].iter().filter_map(std::env::var_os).map(Into::into).collect();
     dirs.push("/tmp".into());
     let mut last = std::io::Error::from(std::io::ErrorKind::NotFound);
     for dir in dirs {

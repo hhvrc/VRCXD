@@ -83,10 +83,12 @@ pub fn ovrt_messages(hud: bool, wrist: bool, title: &str, body: &str, image: &[u
     messages
 }
 
+#[cfg(any(windows, test))]
 fn xml_escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&apos;")
 }
 
+#[cfg(any(windows, test))]
 /// The toast's XML: the image as the app logo, then the bold line and the text, as ToastContentBuilder makes it.
 pub fn toast_xml(title: &str, body: &str, image: Option<&std::path::Path>) -> String {
     let mut binding = String::new();
