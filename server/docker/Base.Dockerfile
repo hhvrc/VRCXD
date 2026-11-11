@@ -1,8 +1,7 @@
 # The SDK stage is glibc (Ubuntu), not Alpine: Grpc.Tools' bundled protoc is a glibc binary and
 # cannot start on musl. The runtime image (API.Dockerfile) stays Alpine.
-# Pinned to an exact SDK so a rebuild cannot silently pick up another one. Move both this and
-# API.Dockerfile's runtime to the final 11.0 release (and global.json off prerelease) when it ships.
-FROM mcr.microsoft.com/dotnet/sdk:11.0.100-rc.3-resolute AS build-common
+# Pinned to an exact SDK so a rebuild cannot silently pick up another one (keep in step with global.json).
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100-resolute AS build-common
 WORKDIR /src
 
 COPY --link Vrchat/*.csproj Vrchat/
