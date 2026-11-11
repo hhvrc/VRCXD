@@ -8,6 +8,9 @@ import { m } from '#lib/paraglide/messages.js';
 import { readSetting, shiftKey } from '#lib/settings/table-settings.svelte.js';
 import { translation } from '#lib/settings/translation.svelte.js';
 import { toast } from 'svelte-sonner';
+import { agentCan } from '#lib/instances/instance-launch.svelte.js';
+import { readRegistryKey, setRegistryKey } from '#lib/agent/agent.js';
+import { compareInGame, groupOrderKey, moveGroupInOrder, normalizeGroupOrder, parseGroupOrder } from '#lib/groups/group-order.js';
 
 export type RepresentedGroup = { groupId: string; name: string; iconUrl?: string; bannerUrl?: string; ownerId?: string; memberCount: number; isRepresenting: boolean; mutualGroup?: boolean | null; memberVisibility?: string | null; privacy?: string | null };
 export type TabRow = { id: string; name: string; image?: string | null; iconFrame?: string | null; detail?: string; href?: string; sort?: Record<string, string | number | undefined>; group?: string; groupInfo?: RepresentedGroup };
@@ -47,14 +50,16 @@ export class UserTabs {
 
 	// The original's groups tab edit mode on your own page (upstream PRs 1241 and 1244): per-group
 	// visibility and leave, plus Manage Selected for many at once. Holding Shift leaves without asking
-	// (issue 1268). The in-game order arrows need the VRChat registry, which is a desktop action.
+	// (issue 1268). The in-game order (sorting and the arrows) is VRChat's registry, through the PC's agent.
 	groupEditMode = $state(false);
+	inGameOrder = $state<string[]>([]);
 	groupSelected = $state<string[]>([]);
 	groupBulkValue = $state('');
 
 	editGroups = $derived.by(() => {
 		const seen = new Set<string>();
-		return (this.lists.groups?.rows ?? []).filter((row) => row.groupInfo && !seen.has(row.id) && seen.add(row.id));
+		const rows = (this.lists.groups?.rows ?? []).filter((row) => row.groupInfo && !seen.has(row.id) && seen.add(row.id));
+		return this.inGameOrder.length ? rows.sort((a, b) => compareInGame(this.inGameOrder, a.id, b.id)) : rows;
 	});
 
 	readonly #userId: () => string;
@@ -106,6 +111,7 @@ Translated by ${translation.providerLabel}`, translation.bioLanguage);
 
 	sortRows(tab: string, rows: TabRow[]): TabRow[] {
 		const key = this.tabSort[tab];
+		if (key === 'inGame') return [...rows].sort((a, b) => compareInGame(this.inGameOrder, a.id, b.id));
 		const byName = (a: TabRow, b: TabRow) => a.name.localeCompare(b.name);
 		if (key === 'alphabetical' || key === 'name') {
 			const sorted = [...rows].sort(byName);
@@ -155,6 +161,11 @@ Translated by ${translation.providerLabel}`, translation.bioLanguage);
 			// your own page), and the rest. An own group you share shows in both (upstream issue 498).
 			const userId = this.#userId();
 			const self = userId === vrchatAuth.ownerUserId;
+			// The original sorts your own groups in in-game order, and nobody else's.
+			if (self && agentCan('registry')) {
+				await this.loadInGameOrder();
+				this.tabSort.groups = 'inGame';
+			} else if (this.tabSort.groups === 'inGame') this.tabSort.groups = 'alphabetical';
 			return groups.flatMap((g) => {
 				const row = { id: g.groupId, name: g.name, href: groupHref(g.groupId), image: g.iconUrl, detail: `(${g.memberCount})`, sort: { members: g.memberCount }, groupInfo: g };
 				const own = g.ownerId === userId;
@@ -298,5 +309,38 @@ Translated by ${translation.providerLabel}`, translation.bioLanguage);
 	exitGroupEdit() {
 		this.groupEditMode = false;
 		this.groupSelected = [];
+	}
+
+	/** updateInGameGroupOrder: VRChat's saved order for your groups, or none. */
+	async loadInGameOrder() {
+		this.inGameOrder = [];
+		try {
+			this.inGameOrder = parseGroupOrder(await readRegistryKey(groupOrderKey(vrchatAuth.ownerUserId)));
+		} catch {
+			// No agent or no value: the groups stay as they are.
+		}
+	}
+
+	/** editModeCurrentUserGroups: the order covers every group, in-game order first. */
+	async enterGroupEdit() {
+		if (agentCan('registry')) {
+			await this.loadInGameOrder();
+			this.inGameOrder = normalizeGroupOrder(this.inGameOrder, this.editGroups.map((row) => row.id));
+		}
+		this.groupEditMode = true;
+	}
+
+	/** moveGroupTop/Up/Down/Bottom, saved to VRChat's registry as the original does (a binary string). */
+	async moveGroup(groupId: string, to: 'top' | 'up' | 'down' | 'bottom') {
+		const order = [...this.inGameOrder];
+		const index = order.indexOf(groupId);
+		const target = to === 'top' ? 0 : to === 'bottom' ? order.length - 1 : to === 'up' ? index - 1 : index + 1;
+		if (!moveGroupInOrder(order, groupId, target)) return;
+		this.inGameOrder = order;
+		try {
+			await setRegistryKey(groupOrderKey(vrchatAuth.ownerUserId), JSON.stringify(order), 3);
+		} catch {
+			toast.error('Failed to save in-game group order');
+		}
 	}
 }

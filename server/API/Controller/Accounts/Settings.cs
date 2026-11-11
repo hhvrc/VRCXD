@@ -53,7 +53,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<AccountSettings>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> PutSettings([FromRoute] string accountId, [FromBody] AccountSettings body, CancellationToken cancellationToken)
+    public async Task<IActionResult> PutSettings([FromRoute] string accountId, [FromBody] AccountSettings body, [FromServices] VRCX.Common.Services.Live.DesktopClients desktops, [FromServices] VRCX.Common.Services.Live.AgentSettingsPush agentSettings, [FromServices] VRCX.Common.Services.Live.DiscordPresenceService discordPresence, [FromServices] VRCX.Common.Services.Live.Photon.PhotonService photon, CancellationToken cancellationToken)
     {
         var account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == accountId, cancellationToken);
         if (account is null) return Problem(AccountError.AccountNotFound);
@@ -68,8 +68,12 @@ public sealed partial class AccountsController
             LastAvatarCleanupAt = account.Settings.LastAvatarCleanupAt,
             // The original's setAutoLoginDelaySeconds keeps it within 0 to 10.
             AutoLoginDelaySeconds = Math.Clamp(body.AutoLoginDelaySeconds, 0, 10),
+            UgcFolderPath = body.UgcFolderPath?.Trim() ?? "",
         };
         await _db.SaveChangesAsync(cancellationToken);
+        await agentSettings.SendAsync(await FindDesktopAsync(accountId, desktops, cancellationToken), account.Settings, cancellationToken);
+        discordPresence.SettingsChanged(accountId);
+        photon.SettingsChanged(accountId);
         return Ok(account.Settings);
 
         static string Clip(string? text) => text is { Length: > 32 } ? text[..32] : text ?? "";

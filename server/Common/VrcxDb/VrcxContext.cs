@@ -157,6 +157,8 @@ public class VrcxContext : DbContext
 
     public DbSet<SavedCredential> SavedCredentials { get; set; }
 
+    public DbSet<VrchatRegistryBackup> VrchatRegistryBackups { get; set; }
+
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         if (!optionsBuilder.IsConfigured)
@@ -1160,6 +1162,23 @@ public class VrcxContext : DbContext
             entity.HasOne(x => x.User).WithMany().HasForeignKey(x => x.UserId)
                 .OnDelete(DeleteBehavior.SetNull).HasConstraintName("fk_portal_spawns_user_id");
             entity.HasIndex(x => x.At);
+        });
+
+        modelBuilder.Entity<VrchatRegistryBackup>(entity =>
+        {
+            entity.ToTable("vrchat_registry_backups");
+            entity.HasKey(x => x.Id).HasName("vrchat_registry_backups_pkey");
+
+            entity.Property(x => x.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+            entity.Property(x => x.AccountId).HasColumnName("account_id");
+            entity.Property(x => x.Name).HasColumnName("name");
+            entity.Property(x => x.CreatedAt).HasColumnName("created_at");
+            entity.Property(x => x.Data).HasColumnName("data").HasColumnType("jsonb");
+            entity.Property(x => x.RestoreOffered).HasColumnName("restore_offered");
+
+            entity.HasOne(x => x.Account).WithMany().HasForeignKey(x => x.AccountId)
+                .OnDelete(DeleteBehavior.Cascade).HasConstraintName("fk_vrchat_registry_backups_account_id");
+            entity.HasIndex(x => new { x.AccountId, x.CreatedAt });
         });
 
         modelBuilder.Entity<SavedCredential>(entity =>

@@ -226,6 +226,15 @@ public static class VrcxServiceHelper
         services.AddSingleton<GameClientRegistry>();
         services.AddSingleton<VRCX.Common.Services.Sync.OwnAvatarsFetchLog>();
         services.AddSingleton<DesktopClients>();
+        services.AddSingleton<CrashRelaunch>();
+        services.AddSingleton<AgentSettingsPush>();
+        services.AddSingleton<RegistryBackups>();
+        services.AddSingleton<DebugLoggingCheck>();
+        services.AddSingleton<AutoCacheSweep>();
+        services.AddSingleton<MediaSaver>();
+        services.AddSingleton<DiscordPresenceService>();
+        services.AddSingleton<VRCX.Common.Services.Live.Photon.PhotonService>();
+        services.AddHostedService(sp => sp.GetRequiredService<DiscordPresenceService>());
         services.AddSingleton<InstanceQueues>();
         services.AddSingleton<AccountAutomation>();
         services.AddSingleton<IImageFetcher, VrchatImageFetcher>();

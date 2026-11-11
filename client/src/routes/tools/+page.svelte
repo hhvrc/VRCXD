@@ -13,6 +13,13 @@
 	import ModerationReportsDialog from '#lib/components/tools/moderation-reports-dialog.svelte';
 	import NoteExportDialog from '#lib/components/tools/note-export-dialog.svelte';
 	import PurchaseHistoryDialog from '#lib/components/tools/purchase-history-dialog.svelte';
+	import RegistryBackupDialog from '#lib/components/tools/registry-backup-dialog.svelte';
+	import VrchatConfigDialog from '#lib/components/tools/vrchat-config-dialog.svelte';
+	import { agentCan } from '#lib/instances/instance-launch.svelte.js';
+	import { openFolder } from '#lib/agent/agent.js';
+	import { toastError } from '#lib/helpers/feedback.js';
+	import { toast } from 'svelte-sonner';
+	import { ApiError } from '#lib/api/client.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { readPinnedTools, toolCategories, tools, writePinnedTools, type Tool } from '#lib/nav/tools.js';
 	import { pinnedTools } from '#lib/nav/pinned-tools.svelte.js';
@@ -33,6 +40,8 @@
 	let calendarOpen = $state(false);
 	let infoPushOpen = $state(false);
 	let autoStatusOpen = $state(false);
+	let vrchatConfigOpen = $state(false);
+	let registryBackupOpen = $state(false);
 	let notice = $state('');
 
 	onMount(() => {
@@ -51,6 +60,8 @@
 		writePinnedTools(pinnedTools.keys);
 	}
 
+	const usable = (tool: Tool) => tool.kind === 'dialog' || (tool.kind === 'agent' && !!tool.capability && agentCan(tool.capability));
+
 	function trigger(tool: Tool) {
 		notice = '';
 		if (tool.kind === 'desktop') {
@@ -64,6 +75,20 @@
 		if (!vrchatAuth.ownerUserId) {
 			notice = 'Log in to VRChat first.';
 			return;
+		}
+		if (tool.kind === 'agent') {
+			if (!tool.capability || !agentCan(tool.capability)) {
+				notice = `${tool.title} works on your PC, so it needs the VRCX agent running there.`;
+				return;
+			}
+			if (tool.folder) {
+				// The original's app-api tool action: a toast either way.
+				openFolder(tool.folder).then(
+					() => toast.success(m.message_file_folder_opened()),
+					(err) => (ApiError.from(err).status === 404 ? toast.error(m.message_file_folder_missing()) : toastError(err))
+				);
+				return;
+			}
 		}
 		switch (tool.key) {
 			case 'export-friend-list':
@@ -105,6 +130,12 @@
 			case 'auto-change-status':
 				autoStatusOpen = true;
 				break;
+			case 'vrchat-config':
+				vrchatConfigOpen = true;
+				break;
+			case 'registry-backup':
+				registryBackupOpen = true;
+				break;
 		}
 	}
 
@@ -140,7 +171,7 @@
 							<div
 								role="button"
 								tabindex="0"
-								class="group flex cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-accent/50 {tool.kind === 'dialog' ? '' : 'opacity-60'}"
+								class="group flex cursor-pointer items-center gap-3 rounded-lg border p-3 hover:bg-accent/50 {usable(tool) ? '' : 'opacity-60'}"
 								onclick={() => trigger(tool)}
 								onkeydown={(e) => e.key === 'Enter' && trigger(tool)}
 							>
@@ -148,7 +179,7 @@
 								<div class="min-w-0 flex-1">
 									<div class="flex items-start gap-2">
 										<div class="flex-1 text-sm font-medium">{tool.title}</div>
-										{#if tool.kind === 'dialog'}
+										{#if tool.kind === 'dialog' || tool.kind === 'agent'}
 											<Button
 												size="icon-xs"
 												variant={pinned ? 'secondary' : 'ghost'}
@@ -189,3 +220,5 @@
 <CalendarDialog bind:open={calendarOpen} />
 <InfoPushDialog bind:open={infoPushOpen} />
 <AutoChangeStatusDialog bind:open={autoStatusOpen} />
+<VrchatConfigDialog bind:open={vrchatConfigOpen} />
+<RegistryBackupDialog bind:open={registryBackupOpen} />

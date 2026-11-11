@@ -32,6 +32,12 @@ public sealed class GameLogSession
     public Dictionary<string, string> AvatarsByName { get; } = new(StringComparer.Ordinal);
     /// <summary>Whether VRChat runs on the PC, as its GameState last said; null until it has.</summary>
     public bool? GameRunning { get; set; }
+    /// <summary>The Photon logger runs on this PC: its stream, not the log, tells avatar changes and portals.</summary>
+    public bool PhotonLogger { get; set; }
+    /// <summary>The world's ProTV nowplaying producers (the original's nowPlayingSpec handler).</summary>
+    public NowPlayingProducers NowPlaying { get; } = new();
+    /// <summary>The PC was told something plays, so a stop has to be sent.</summary>
+    public bool PieShown { get; set; }
 }
 
 /// <summary>What a batch produced: how many lines were understood, and what the client should do now.</summary>
@@ -205,10 +211,17 @@ public sealed class GameLogIngestor(
         return false;
     }
 
+    private static void ResetNowPlaying(GameLogSession session, List<ServerEvent> published)
+    {
+        if (!session.NowPlaying.HasProducer) return;
+        session.NowPlaying.Reset();
+        published.Add(LiveEvents.NowPlayingSpecCleared(session.AccountId));
+    }
+
     private static string? Blank(string? s) => string.IsNullOrEmpty(s) ? null : s;
 
     /// <summary>JavaScript's decodeURI: escapes decoded except those of reserved characters.</summary>
-    private static string DecodeUri(string url)
+    internal static string DecodeUri(string url)
     {
         if (string.IsNullOrEmpty(url) || !url.Contains('%')) return url;
         try
@@ -276,8 +289,14 @@ public sealed class GameLogIngestor(
         var storedKinds = new HashSet<string>(StringComparer.Ordinal);
 
         var currentAt = DateTimeOffset.UtcNow;
+        VideoPlay? lastSpecPlay = null;
         // The original's addGameLogVideo / setNowPlaying: a YouTube video is named by the YouTube API when
         // the account has a key; a world's own line already carries the name.
+        // The clock the PC's progress pie follows, when this batch changed it.
+        NowPlayingPie? pie = null;
+        NowPlayingPie Pie(string name, double position, DateTimeOffset loggedAt, double length) =>
+            new() { Active = true, Name = name, Position = position, LoggedAt = loggedAt.ToUnixTimeMilliseconds() / 1000.0, Length = length, Speed = 1 };
+
         async Task AddVideoAsync(MediaPlay play, bool lookUpYouTube)
         {
             var (videoId, videoName, videoLength) = (play.VideoId == "YouTube" ? null : play.VideoId, play.VideoName, play.VideoLength);
@@ -289,7 +308,7 @@ public sealed class GameLogIngestor(
             }
             var player = await ResolvePlayerAsync(db, session, play.DisplayName ?? "", ct);
             storedKinds.Add("video");
-            db.VideoPlays.Add(new VideoPlay
+            db.VideoPlays.Add(lastSpecPlay = new VideoPlay
             {
                 At = currentAt,
                 InstanceLocation = session.CurrentInstanceLocation,
@@ -301,6 +320,7 @@ public sealed class GameLogIngestor(
                 VideoPos = play.VideoPos,
                 VideoLength = videoLength,
             });
+            pie = Pie(videoName ?? play.VideoUrl, play.VideoPos ?? 0, currentAt, videoLength ?? 0);
         }
 
         foreach (var entry in entries)
@@ -321,6 +341,8 @@ public sealed class GameLogIngestor(
 
                 case LogEntry.EntryOneofCase.Location:
                     await EnterAsync(db, session, entry.Location.Location, entry.Location.WorldName, at, published, ct);
+                    ResetNowPlaying(session, published);
+                    pie = new NowPlayingPie();
                     accepted++;
                     break;
 
@@ -330,6 +352,8 @@ public sealed class GameLogIngestor(
                     await LeaveAllAsync(db, session, at, published, ct);
                     session.AvatarsByName.Clear();
                     session.LastVideoUrl = null;
+                    ResetNowPlaying(session, published);
+                    pie = new NowPlayingPie();
                     accepted++;
                     break;
 
@@ -382,8 +406,9 @@ public sealed class GameLogIngestor(
                     {
                         var url = DecodeUri(entry.VideoPlay.VideoUrl);
                         // The original's video-play: the same URL again is not a new play, and worlds with
-                        // their own integration name the video in their own "[VRCX]" line instead.
-                        if (!string.IsNullOrEmpty(url) && url != session.LastVideoUrl)
+                        // their own integration name the video in their own "[VRCX]" line instead, and a
+                        // world with ProTV nowplaying producers says what plays through those.
+                        if (!session.NowPlaying.HasProducer && !string.IsNullOrEmpty(url) && url != session.LastVideoUrl)
                         {
                             session.LastVideoUrl = url;
                             if (!MediaParsers.IsRpcWorld(session.CurrentInstanceLocation))
@@ -392,6 +417,40 @@ public sealed class GameLogIngestor(
                         accepted++;
                         break;
                     }
+
+                case LogEntry.EntryOneofCase.NowPlaying:
+                    foreach (var effect in session.NowPlaying.Apply(entry.NowPlaying.Text, at))
+                    {
+                        switch (effect)
+                        {
+                            case NowPlayingAddVideo add:
+                                await AddVideoAsync(new MediaPlay(add.VideoUrl, add.MediaId, null, add.OwnerName, VideoPos: 0), lookUpYouTube: true);
+                                break;
+                            case NowPlayingSet set:
+                                await AddVideoAsync(new MediaPlay(set.UrlHidden ? "" : set.VideoUrl, set.VideoId, Blank(set.VideoName), set.OwnerName, VideoPos: 0, VideoLength: set.VideoLength), lookUpYouTube: false);
+                                break;
+                            case NowPlayingRename rename:
+                                // The row this producer's media made, stored now or in an earlier batch.
+                                if (lastSpecPlay is { VideoName: null } row) row.VideoName = rename.VideoName;
+                                else if (session.CurrentInstanceLocation is { } here)
+                                {
+                                    var stored = await db.VideoPlays.Where(v => v.InstanceLocation == here).OrderByDescending(v => v.At).FirstOrDefaultAsync(ct);
+                                    if (stored is { VideoName: null }) stored.VideoName = rename.VideoName;
+                                }
+                                storedKinds.Add("video");
+                                break;
+                            case NowPlayingTiming t:
+                                published.Add(LiveEvents.NowPlayingSpec(session.AccountId, t));
+                                pie = new NowPlayingPie { Active = true, Name = t.Name, Position = t.Position, LoggedAt = t.At, Length = t.Length, Speed = t.Speed, Paused = t.Paused };
+                                break;
+                            case NowPlayingClear:
+                                published.Add(LiveEvents.NowPlayingSpecCleared(session.AccountId));
+                                pie = new NowPlayingPie();
+                                break;
+                        }
+                    }
+                    accepted++;
+                    break;
 
                 case LogEntry.EntryOneofCase.Vrcx:
                     // A dance or cinema world saying what it plays (VRDancing, LSMedia, PopcornPalace).
@@ -404,7 +463,10 @@ public sealed class GameLogIngestor(
                         }
                         else if (play.VideoPos is { } pos)
                             // The same video again: only its position moved (the original's setNowPlaying update).
+                        {
                             published.Add(LiveEvents.NowPlayingPosition(session.AccountId, play.VideoUrl, pos, play.VideoLength ?? 0, at));
+                            pie = Pie(play.VideoName ?? play.VideoUrl, pos, at, play.VideoLength ?? 0);
+                        }
                     }
                     accepted++;
                     break;
@@ -412,7 +474,7 @@ public sealed class GameLogIngestor(
                 case LogEntry.EntryOneofCase.AvatarChange:
                     {
                         var (name, avatar) = (entry.AvatarChange.DisplayName, entry.AvatarChange.AvatarName);
-                        if (session.CurrentInstanceLocation is { } instance && !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(avatar))
+                        if (session.CurrentInstanceLocation is { } instance && !session.PhotonLogger && !string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(avatar))
                         {
                             var known = session.AvatarsByName.TryGetValue(name, out var previous);
                             session.AvatarsByName[name] = avatar;
@@ -435,7 +497,8 @@ public sealed class GameLogIngestor(
                     {
                         var instance = session.CurrentInstanceLocation;
                         var n = repeats.Next("portal", at, instance, null);
-                        if (await db.PortalSpawns.CountAsync(p => p.At == at && p.InstanceLocation == instance, ct) < n)
+                        // The Photon stream names the portal's owner and target, so it stores the spawn.
+                        if (!(session.PhotonLogger && session.GameRunning == true) && await db.PortalSpawns.CountAsync(p => p.At == at && p.InstanceLocation == instance, ct) < n)
                         {
                             db.PortalSpawns.Add(new PortalSpawn { At = at, InstanceLocation = instance });
                             storedKinds.Add("portal");
@@ -527,6 +590,15 @@ public sealed class GameLogIngestor(
         if (noVrChanged && desktops?.Get(session.ClientId) is { } desktop)
             bus.Publish(LiveEvents.Desktop(session.ClientId, connected: true, desktop.GameRunning, client.GameNoVr));
         foreach (var (path, s) in pendingScreenshots) actions.Add(await ScreenshotActionAsync(db, session, path, s, ct));
+        if (pie is not null && desktops?.Get(session.ClientId) is { } pc && pc.Can(Capability.Openvr))
+        {
+            var s = await SettingsAsync();
+            if (!s.OpenVr) pie = new NowPlayingPie();
+            // The original's updateVRLastLocation: progressPie, and with its filter only in rpcWorlds.
+            pie.Pie = pie.Active && s.ProgressPie && (!s.ProgressPieFilter || MediaParsers.IsRpcWorld(session.CurrentInstanceLocation));
+            if (pie.Active || session.PieShown) actions.Add(new ClientAction { UpdateNowPlayingPie = pie });
+            session.PieShown = pie.Active;
+        }
         return new GameLogBatchResult(accepted, actions);
     }
 
@@ -542,6 +614,10 @@ public sealed class GameLogIngestor(
         }
         else if (row.GameStartedAt is { } started)
         {
+            // The original's game-stop flow clears now playing and the nowplaying producers.
+            var published = new List<ServerEvent>();
+            ResetNowPlaying(session, published);
+            foreach (var e in published) bus.Publish(e);
             var stopped = at;
             // Stopped while the app was away: it ended no later than its last log line.
             if (session.GameRunning != true && session.LastEntryAt is { } last && last > started && last < at) stopped = last;

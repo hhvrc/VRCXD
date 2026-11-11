@@ -112,6 +112,73 @@ public sealed record AccountSettings
     public bool AutoDeclineFriendRequests { get; init; }
     /// <summary>Delete the oldest prints that aren't favorites when the account is near its print limit (the original's VRCX_autoDeleteOldPrints).</summary>
     public bool AutoDeleteOldPrints { get; init; }
+    /// <summary>Start VRChat again in its last instance when it closes without quitting (the original's VRCX_relaunchVRChatAfterCrash).</summary>
+    public bool RelaunchVrchatAfterCrash { get; init; }
+    /// <summary>Back up VRChat's registry every three days, keeping two weeks of auto backups (VRCX_vrcRegistryAutoBackup).</summary>
+    public bool VrcRegistryAutoBackup { get; init; } = true;
+    /// <summary>Offer a backup when VRChat's registry is gone; the original also backs up only with this on (VRCX_vrcRegistryAskRestore).</summary>
+    public bool VrcRegistryAskRestore { get; init; } = true;
+    /// <summary>Sweep VRChat's cache of old versions when the game closes (VRCX_autoSweepVRChatCache).</summary>
+    public bool AutoSweepVrchatCache { get; init; }
+
+    /// <summary>OpenVR on the PC (the original's openVR): HMD AFK and the VR overlays.</summary>
+    public bool OpenVr { get; init; }
+    /// <summary>Keep OpenVR on while SteamVR runs, with VRChat closed or in desktop mode (openVRAlways).</summary>
+    public bool OpenVrAlways { get; init; }
+    /// <summary>VRCX_overlayWrist: the wrist feed overlay.</summary>
+    public bool OverlayWrist { get; init; }
+    /// <summary>VRCX_overlaybutton: the menu button shows the wrist overlay instead of grip.</summary>
+    public bool OverlayButton { get; init; }
+    /// <summary>VRCX_overlayHand: 0 either, 1 left, 2 right.</summary>
+    public int OverlayHand { get; init; }
+    /// <summary>The original's VRCX_selfInviteOverride toggle.</summary>
+    public bool SelfInviteOverride { get; init; }
+    /// <summary>Where the PC's agent saves prints, stickers and emoji; empty means VRChat's photos folder (VRCX_userGeneratedContentPath).</summary>
+    public string UgcFolderPath { get; init; } = "";
+    /// <summary>Save prints spawned around you into the UGC folder (VRCX_saveInstancePrints).</summary>
+    public bool SaveInstancePrints { get; init; }
+    /// <summary>Cut saved prints to their picture (VRCX_cropInstancePrints).</summary>
+    public bool CropInstancePrints { get; init; }
+    /// <summary>Save stickers spawned around you (VRCX_saveInstanceStickers).</summary>
+    public bool SaveInstanceStickers { get; init; }
+    /// <summary>Save emoji used around you (VRCX_saveInstanceEmoji).</summary>
+    public bool SaveInstanceEmoji { get; init; }
+    /// <summary>Discord Rich Presence through the PC's agent (discordActive and the rest of the original's Discord options).</summary>
+    public bool DiscordActive { get; init; }
+    public bool DiscordInstance { get; init; } = true;
+    public bool DiscordHideInvite { get; init; } = true;
+    public bool DiscordJoinButton { get; init; }
+    public bool DiscordHideImage { get; init; }
+    public bool DiscordShowPlatform { get; init; } = true;
+    public bool DiscordWorldIntegration { get; init; } = true;
+    public bool DiscordWorldNameAsDiscordStatus { get; init; }
+    public bool DiscordMediaImage { get; init; }
+    /// <summary>The Photon lobby: how long without movement makes a player timed out (VRCX_photonLobbyTimeoutThreshold, ms).</summary>
+    public int PhotonLobbyTimeoutThreshold { get; init; } = 6000;
+    /// <summary>Chatbox messages not shown: users by id with their name (VRCX_chatboxUserBlacklist), and keywords (VRCX_chatboxBlacklist).</summary>
+    public Dictionary<string, string> ChatboxUserBlacklist { get; init; } = [];
+    public string[] ChatboxBlacklist { get; init; } = [.. VRCX.Common.Services.Live.Photon.PhotonLobby.DefaultChatboxBlacklist];
+    /// <summary>The Photon event table's type filter (VRCX_photonEventTypeFilter).</summary>
+    public string[] PhotonEventTypeFilter { get; init; } = [];
+    /// <summary>The Photon event HUD on the SteamVR overlay (VRCX_PhotonEventOverlay), whose events: VIP, Friends or Everyone (VRCX_PhotonEventOverlayFilter).</summary>
+    public bool PhotonEventOverlay { get; init; }
+    public string PhotonEventOverlayFilter { get; init; } = "Everyone";
+    /// <summary>The event types the HUD shows, all when empty (VRCX_photonEventTypeOverlayFilter).</summary>
+    public string[] PhotonEventTypeOverlayFilter { get; init; } = [];
+    /// <summary>How long a HUD line stays, in ms (VRCX_photonOverlayMessageTimeout).</summary>
+    public int PhotonOverlayMessageTimeout { get; init; } = 6000;
+    /// <summary>The timeout HUD on the SteamVR overlay (VRCX_TimeoutHudOverlay) and whose timeouts it shows (VRCX_TimeoutHudOverlayFilter).</summary>
+    public bool TimeoutHudOverlay { get; init; }
+    public string TimeoutHudOverlayFilter { get; init; } = "Everyone";
+    /// <summary>The video progress pie on the SteamVR overlay (VRCX_progressPie), only in dance worlds with their own video lines (VRCX_progressPieFilter).</summary>
+    public bool ProgressPie { get; init; }
+    public bool ProgressPieFilter { get; init; } = true;
+    /// <summary>The app launcher: start the shortcuts in the agent's startup folder with VRChat (VRCX_enableAppLauncher).</summary>
+    public bool EnableAppLauncher { get; init; } = true;
+    /// <summary>Close what the app launcher started when VRChat closes (VRCX_enableAppLauncherAutoClose).</summary>
+    public bool EnableAppLauncherAutoClose { get; init; } = true;
+    /// <summary>Don't start a shortcut that already runs (VRCX_enableAppLauncherRunProcessOnce).</summary>
+    public bool EnableAppLauncherRunProcessOnce { get; init; } = true;
     /// <summary>Favorite groups whose friends count as favorites (VIP): "friend:group_N" or "local:Name"; empty means all.</summary>
     public string[] FavoriteFriendGroups { get; init; } = [];
     /// <summary>
@@ -166,6 +233,25 @@ public sealed class StoredCookie
     public string Path { get; set; } = "/";
     public string Domain { get; set; } = "";
     public DateTimeOffset? Expires { get; set; }
+}
+
+/// <summary>
+/// A copy of VRChat's registry (its PlayerPrefs) from the account's PC: the original's
+/// VRCX_VRChatRegistryBackups, one row per backup.
+/// </summary>
+public sealed class VrchatRegistryBackup
+{
+    public const string AutoName = "Auto Backup";
+
+    public long Id { get; set; }
+    public required string AccountId { get; set; }
+    public Account Account { get; set; } = null!;
+    public required string Name { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    /// <summary>{"&lt;key&gt;": {"data": .., "type": 3 | 4 | 100}}, as the agent read it.</summary>
+    public required System.Text.Json.JsonDocument Data { get; set; }
+    /// <summary>The user was already offered this backup once VRChat's registry was gone (VRCX_VRChatRegistryLastRestoreCheck).</summary>
+    public bool RestoreOffered { get; set; }
 }
 
 /// <summary>How a saved password is encrypted.</summary>

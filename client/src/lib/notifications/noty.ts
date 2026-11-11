@@ -66,6 +66,16 @@ export const NOTY_FILTER_OPTIONS: FilterOption[] = [
 	{ key: 'AvatarChange', name: 'Lobby Avatar Change', options: VFE }
 ];
 
+/** photonFeedFiltersOptions: shown while the PC runs the Photon logger. */
+export const PHOTON_FILTER_OPTIONS: FilterOption[] = [
+	{ key: 'PortalSpawn', name: 'Portal Spawn', options: VFE },
+	{ key: 'ChatBoxMessage', name: 'Lobby ChatBox Message', options: VFE },
+	{ key: 'Blocked', name: 'Blocked', options: ON },
+	{ key: 'Unblocked', name: 'Unblocked', options: ON },
+	{ key: 'Muted', name: 'Muted', options: ON },
+	{ key: 'Unmuted', name: 'Unmuted', options: ON }
+];
+
 export const WRIST_FILTER_OPTIONS: FilterOption[] = [{ key: 'Location', name: 'Self Location', options: ON }, ...NOTY_FILTER_OPTIONS];
 
 const COMMON = {
@@ -217,6 +227,8 @@ export type Noty = {
 	message?: string;
 	details?: { worldId?: string; worldName?: string; inviteMessage?: string; requestMessage?: string; responseMessage?: string };
 	data?: string;
+	/** A chatbox message's text. */
+	text?: string;
 	notyName?: string;
 	imageUrl?: string;
 	isFriend: boolean;
@@ -253,6 +265,19 @@ export function notyMessage(noty: Noty): string {
 }
 
 const fill = (text: string, values: Record<string, string | undefined>) => text.replace(/\{(\w+)\}/g, (_, k: string) => values[k] ?? '');
+
+export type NotyUser = { iconUrl?: string | null; profilePicOverride?: string | null; currentAvatarThumbnailImageUrl?: string | null };
+
+/**
+ * The original's notyGetImage: the notification's own image, else the user's icon, profile picture
+ * or avatar thumbnail (none for a group); a failed lookup gives no image.
+ */
+export async function notyImage(noty: { imageUrl?: string; userId?: string }, fetchUser: (userId: string) => Promise<NotyUser | null>): Promise<string> {
+	if (noty.imageUrl) return noty.imageUrl;
+	if (!noty.userId || noty.userId.startsWith('grp_')) return '';
+	const user = await fetchUser(noty.userId).catch(() => null);
+	return user?.iconUrl || user?.profilePicOverride || user?.currentAvatarThumbnailImageUrl || '';
+}
 
 /** The original's getNotificationMessage. */
 export function notificationMessage(noty: Noty, message: string, nameOverride?: string): { title: string; body: string } | null {
@@ -323,6 +348,16 @@ export function notificationMessage(noty: Noty, message: string, nameOverride?: 
 			return name ? { title: name, body: `has spawned a portal to ${displayLocation(noty.location, noty.worldName, noty.groupName)}` } : { title: '', body: 'User has spawned a portal' };
 		case 'AvatarChange':
 			return { title: name, body: `changed into avatar ${noty.data ?? ''}` };
+		case 'ChatBoxMessage':
+			return { title: name, body: `said: ${noty.text ?? ''}` };
+		case 'Blocked':
+			return { title: name, body: 'has blocked you' };
+		case 'Unblocked':
+			return { title: name, body: 'has unblocked you' };
+		case 'Muted':
+			return { title: name, body: 'has muted you' };
+		case 'Unmuted':
+			return { title: name, body: 'has unmuted you' };
 		case 'BlockedOnPlayerJoined':
 			return { title: name, body: 'Blocked user has joined' };
 		case 'BlockedOnPlayerLeft':

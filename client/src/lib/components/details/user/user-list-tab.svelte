@@ -1,4 +1,8 @@
 <script lang="ts">
+	import Download from '@lucide/svelte/icons/download';
+	import ArrowUp from '@lucide/svelte/icons/arrow-up';
+	import ArrowDown from '@lucide/svelte/icons/arrow-down';
+	import { agentCan } from '#lib/instances/instance-launch.svelte.js';
 	import PersonAvatar from '#lib/components/common/person-avatar.svelte';
 	import DataTableEmpty from '#lib/components/common/data-table-empty.svelte';
 	import { m } from '#lib/paraglide/messages.js';
@@ -32,7 +36,7 @@
 		{ value: 'private', get label() { return m.dialog_user_avatars_private(); } },
 		{ value: 'licensed', get label() { return m.dialog_user_avatars_purchased(); } }
 	];
-	// UserDialog's sort options. The groups tab's In Game order comes from the running game, so it isn't here.
+	// UserDialog's sort options. In-Game Order is VRChat's registry on your PC, so only on your own page with the agent.
 	const SORT_OPTIONS: Record<string, { value: string; label: string }[]> = {
 		mutuals: [
 			{ value: 'alphabetical', get label() { return m.dialog_user_groups_sorting_alphabetical(); } },
@@ -40,7 +44,8 @@
 		],
 		groups: [
 			{ value: 'alphabetical', get label() { return m.dialog_user_groups_sorting_alphabetical(); } },
-			{ value: 'members', get label() { return m.dialog_user_groups_sorting_members(); } }
+			{ value: 'members', get label() { return m.dialog_user_groups_sorting_members(); } },
+			{ value: 'inGame', get label() { return m.dialog_user_groups_sorting_in_game(); } }
 		],
 		worlds: [
 			{ value: 'name', get label() { return m.dialog_user_worlds_sorting_name(); } },
@@ -83,7 +88,7 @@
 				<Select.Trigger size="sm" class="mr-2">{SORT_OPTIONS[tab].find((option) => option.value === tabs.tabSort[tab])?.label}</Select.Trigger>
 				<Select.Content>
 					{#each SORT_OPTIONS[tab] as option (option.value)}
-						<Select.Item value={option.value} label={option.label}>{option.label}</Select.Item>
+						<Select.Item value={option.value} label={option.label} disabled={option.value === 'inGame' && (!isSelf || !agentCan('registry'))}>{option.label}</Select.Item>
 					{/each}
 				</Select.Content>
 			</Select.Root>
@@ -112,7 +117,7 @@
 			{#if tab === 'groups' && tabs.groupEditMode}
 				<Button variant="outline" size="sm" onclick={() => tabs.exitGroupEdit()}>{m.dialog_user_groups_exit_edit_mode()}</Button>
 			{:else if tab === 'groups' && isSelf}
-				<Button variant="outline" size="sm" class="ml-2" disabled={state?.loading} onclick={() => (tabs.groupEditMode = true)}>{m.dialog_user_groups_edit_mode()}</Button>
+				<Button variant="outline" size="sm" class="ml-2" disabled={state?.loading} onclick={() => tabs.enterGroupEdit()}>{m.dialog_user_groups_edit_mode()}</Button>
 			{/if}
 		</div>
 	</div>
@@ -152,6 +157,17 @@
 						{@const g = row.groupInfo!}
 						{@const sole = soleOwner(g)}
 						<div class="box-border flex w-full items-center p-1.5 text-compact hover:rounded-[25px_5px_5px_25px] hover:bg-muted">
+							{#if agentCan('registry')}
+								<!-- The original's in-game order arrows: top and bottom, then up and down. -->
+								<div class="mr-1 flex flex-col gap-1">
+									<Button size="icon-sm" variant="outline" class="size-6" aria-label="Move to top" title="Move to top" onclick={() => tabs.moveGroup(row.id, 'top')}><Download class="size-3.5 rotate-180" /></Button>
+									<Button size="icon-sm" variant="outline" class="size-6" aria-label="Move to bottom" title="Move to bottom" onclick={() => tabs.moveGroup(row.id, 'bottom')}><Download class="size-3.5" /></Button>
+								</div>
+								<div class="mr-2 flex flex-col gap-1">
+									<Button size="icon-sm" variant="outline" class="size-6" aria-label="Move up" title="Move up" onclick={() => tabs.moveGroup(row.id, 'up')}><ArrowUp class="size-3.5" /></Button>
+									<Button size="icon-sm" variant="outline" class="size-6" aria-label="Move down" title="Move down" onclick={() => tabs.moveGroup(row.id, 'down')}><ArrowDown class="size-3.5" /></Button>
+								</div>
+							{/if}
 							<span class="mr-2.5 flex items-center">
 								<Checkbox checked={tabs.groupSelected.includes(row.id)} onCheckedChange={(v) => (tabs.groupSelected = v ? [...tabs.groupSelected, row.id] : tabs.groupSelected.filter((id) => id !== row.id))} aria-label="Select {row.name}" />
 							</span>

@@ -1,10 +1,12 @@
 import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
 import { m } from '#lib/paraglide/messages.js';
+import type { AgentCapability } from '#lib/instances/instance-launch.svelte.js';
+import type { AgentFolder } from '#lib/agent/agent.js';
 // The original's tool list (src/shared/constants/tools.js): same keys, icons, categories and
-// wording. `kind` says how this client runs each one: a dialog here, or a job only the
-// desktop app can do because it needs the local disk or registry.
+// wording. `kind` says how this client runs each one: a dialog here, a job the PC's agent does
+// (offered when it declares `capability`), or one nothing here does yet.
 
-export type ToolKind = 'dialog' | 'desktop' | 'pending';
+export type ToolKind = 'dialog' | 'agent' | 'desktop' | 'pending';
 
 export type Tool = {
 	key: string;
@@ -13,6 +15,10 @@ export type Tool = {
 	title: string;
 	description: string;
 	kind: ToolKind;
+	/** For an agent tool: what the PC's agent must declare. */
+	capability?: AgentCapability;
+	/** For a folder shortcut: the folder the agent opens. */
+	folder?: AgentFolder;
 };
 
 export const toolCategories = [
@@ -28,14 +34,14 @@ export const toolCategories = [
 export const tools: Tool[] = [
 	{ key: 'screenshot-metadata', category: 'image', icon: 'ri-camera-line', get title() { return m.view_tools_pictures_screenshot(); }, get description() { return m.view_tools_pictures_screenshot_description(); }, kind: 'dialog' },
 	{ key: 'gallery', category: 'image', icon: 'ri-image-line', get title() { return m.view_tools_pictures_gallery(); }, get description() { return m.view_tools_pictures_gallery_description(); }, kind: 'dialog' },
-	{ key: 'vrc-photos', category: 'shortcuts', icon: 'ri-folder-image-line', get title() { return m.view_tools_pictures_pictures_vrc_photos(); }, get description() { return m.view_tools_pictures_pictures_vrc_photos_description(); }, kind: 'desktop' },
-	{ key: 'steam-screenshots', category: 'shortcuts', icon: 'ri-folder-image-line', get title() { return m.view_tools_pictures_pictures_steam_screenshots(); }, get description() { return m.view_tools_pictures_pictures_steam_screenshots_description(); }, kind: 'desktop' },
-	{ key: 'vrcx-data', category: 'shortcuts', icon: 'ri-folder-settings-line', get title() { return m.view_tools_shortcuts_vrcx_data(); }, get description() { return m.view_tools_shortcuts_vrcx_data_description(); }, kind: 'desktop' },
-	{ key: 'vrchat-data', category: 'shortcuts', icon: 'ri-folder-settings-line', get title() { return m.view_tools_shortcuts_vrchat_data(); }, get description() { return m.view_tools_shortcuts_vrchat_data_description(); }, kind: 'desktop' },
-	{ key: 'crash-dumps', category: 'shortcuts', icon: 'ri-folder-warning-line', get title() { return m.view_tools_shortcuts_crash_dumps(); }, get description() { return m.view_tools_shortcuts_crash_dumps_description(); }, kind: 'desktop' },
-	{ key: 'vrchat-config', category: 'system', icon: 'ri-settings-3-line', get title() { return m.view_tools_system_tools_vrchat_config(); }, get description() { return m.view_tools_system_tools_vrchat_config_description(); }, kind: 'desktop' },
+	{ key: 'vrc-photos', category: 'shortcuts', icon: 'ri-folder-image-line', get title() { return m.view_tools_pictures_pictures_vrc_photos(); }, get description() { return m.view_tools_pictures_pictures_vrc_photos_description(); }, kind: 'agent', capability: 'folders', folder: 'photos' },
+	{ key: 'steam-screenshots', category: 'shortcuts', icon: 'ri-folder-image-line', get title() { return m.view_tools_pictures_pictures_steam_screenshots(); }, get description() { return m.view_tools_pictures_pictures_steam_screenshots_description(); }, kind: 'agent', capability: 'folders', folder: 'screenshots' },
+	{ key: 'vrcx-data', category: 'shortcuts', icon: 'ri-folder-settings-line', get title() { return m.view_tools_shortcuts_vrcx_data(); }, get description() { return m.view_tools_shortcuts_vrcx_data_description(); }, kind: 'agent', capability: 'folders', folder: 'agent_data' },
+	{ key: 'vrchat-data', category: 'shortcuts', icon: 'ri-folder-settings-line', get title() { return m.view_tools_shortcuts_vrchat_data(); }, get description() { return m.view_tools_shortcuts_vrchat_data_description(); }, kind: 'agent', capability: 'folders', folder: 'app_data' },
+	{ key: 'crash-dumps', category: 'shortcuts', icon: 'ri-folder-warning-line', get title() { return m.view_tools_shortcuts_crash_dumps(); }, get description() { return m.view_tools_shortcuts_crash_dumps_description(); }, kind: 'agent', capability: 'folders', folder: 'crash_dumps' },
+	{ key: 'vrchat-config', category: 'system', icon: 'ri-settings-3-line', get title() { return m.view_tools_system_tools_vrchat_config(); }, get description() { return m.view_tools_system_tools_vrchat_config_description(); }, kind: 'agent', capability: 'vrchat_config' },
 	{ key: 'launch-options', category: 'system', icon: 'ri-terminal-box-line', get title() { return m.view_settings_advanced_advanced_launch_options(); }, get description() { return m.view_tools_system_tools_launch_options_description(); }, kind: 'desktop' },
-	{ key: 'registry-backup', category: 'system', icon: 'ri-archive-stack-line', get title() { return m.view_tools_system_tools_registry_backup(); }, get description() { return m.view_tools_system_tools_registry_backup_description(); }, kind: 'desktop' },
+	{ key: 'registry-backup', category: 'system', icon: 'ri-archive-stack-line', get title() { return m.view_tools_system_tools_registry_backup(); }, get description() { return m.view_tools_system_tools_registry_backup_description(); }, kind: 'agent', capability: 'registry' },
 	{ key: 'auto-change-status', category: 'system', icon: 'ri-user-settings-line', get title() { return m.view_settings_general_automation_auto_change_status_switch(); }, description: 'Change your status automatically', kind: 'dialog' },
 	{ key: 'group-calendar', category: 'group', icon: 'ri-calendar-event-line', get title() { return m.view_tools_group_calendar(); }, get description() { return m.view_tools_group_calendar_description(); }, kind: 'dialog' },
 	{ key: 'blocked-groups', category: 'group', icon: 'ri-forbid-line', get title() { return m.view_tools_group_blocked_groups(); }, get description() { return m.view_tools_group_blocked_groups_description(); }, kind: 'dialog' },

@@ -28,6 +28,24 @@ public sealed partial class LegacyImporter
         _ => fallback,
     };
 
+    /// <summary>A JSON object of strings, as the original saved its maps.</summary>
+    private Dictionary<string, string>? ConfigMap(string name)
+    {
+        var raw = Config(name);
+        if (string.IsNullOrEmpty(raw)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(raw);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                ? doc.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString() ?? "" : p.Value.GetRawText())
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     private string[] ConfigList(string name, string[] fallback)
     {
         var raw = Config(name);
@@ -57,6 +75,45 @@ public sealed partial class LegacyImporter
             YoutubeApi = ConfigBool("VRCX_youtubeAPI", d.YoutubeApi),
             YoutubeApiKey = Config("VRCX_youtubeAPIKey") ?? d.YoutubeApiKey,
             VrcQuitFix = ConfigBool("VRCX_vrcQuitFix", d.VrcQuitFix),
+            RelaunchVrchatAfterCrash = ConfigBool("VRCX_relaunchVRChatAfterCrash", d.RelaunchVrchatAfterCrash),
+            VrcRegistryAutoBackup = ConfigBool("VRCX_vrcRegistryAutoBackup", d.VrcRegistryAutoBackup),
+            VrcRegistryAskRestore = ConfigBool("VRCX_vrcRegistryAskRestore", d.VrcRegistryAskRestore),
+            AutoSweepVrchatCache = ConfigBool("VRCX_autoSweepVRChatCache", d.AutoSweepVrchatCache),
+            OpenVr = ConfigBool("openVR", d.OpenVr),
+            OpenVrAlways = ConfigBool("openVRAlways", d.OpenVrAlways),
+            OverlayWrist = ConfigBool("VRCX_overlayWrist", d.OverlayWrist),
+            OverlayButton = ConfigBool("VRCX_overlaybutton", d.OverlayButton),
+            OverlayHand = int.TryParse(Config("VRCX_overlayHand"), out var hand) && hand is >= 0 and <= 2 ? hand : d.OverlayHand,
+            SaveInstancePrints = ConfigBool("VRCX_saveInstancePrints", d.SaveInstancePrints),
+            CropInstancePrints = ConfigBool("VRCX_cropInstancePrints", d.CropInstancePrints),
+            SaveInstanceStickers = ConfigBool("VRCX_saveInstanceStickers", d.SaveInstanceStickers),
+            SaveInstanceEmoji = ConfigBool("VRCX_saveInstanceEmoji", d.SaveInstanceEmoji),
+            DiscordActive = ConfigBool("discordActive", d.DiscordActive),
+            DiscordInstance = ConfigBool("discordInstance", d.DiscordInstance),
+            DiscordHideInvite = ConfigBool("discordHideInvite", d.DiscordHideInvite),
+            DiscordJoinButton = ConfigBool("discordJoinButton", d.DiscordJoinButton),
+            DiscordHideImage = ConfigBool("discordHideImage", d.DiscordHideImage),
+            DiscordShowPlatform = ConfigBool("discordShowPlatform", d.DiscordShowPlatform),
+            DiscordWorldIntegration = ConfigBool("discordWorldIntegration", d.DiscordWorldIntegration),
+            DiscordWorldNameAsDiscordStatus = ConfigBool("discordWorldNameAsDiscordStatus", d.DiscordWorldNameAsDiscordStatus),
+            DiscordMediaImage = ConfigBool("discordMediaImage", d.DiscordMediaImage),
+            PhotonLobbyTimeoutThreshold = int.TryParse(Config("VRCX_photonLobbyTimeoutThreshold"), out var photonTimeout) ? photonTimeout : d.PhotonLobbyTimeoutThreshold,
+            ChatboxUserBlacklist = ConfigMap("VRCX_chatboxUserBlacklist") ?? d.ChatboxUserBlacklist,
+            ChatboxBlacklist = ConfigList("VRCX_chatboxBlacklist", d.ChatboxBlacklist),
+            PhotonEventTypeFilter = ConfigList("VRCX_photonEventTypeFilter", d.PhotonEventTypeFilter),
+            PhotonEventOverlay = ConfigBool("VRCX_PhotonEventOverlay", d.PhotonEventOverlay),
+            PhotonEventOverlayFilter = Config("VRCX_PhotonEventOverlayFilter") ?? d.PhotonEventOverlayFilter,
+            PhotonEventTypeOverlayFilter = ConfigList("VRCX_photonEventTypeOverlayFilter", d.PhotonEventTypeOverlayFilter),
+            PhotonOverlayMessageTimeout = int.TryParse(Config("VRCX_photonOverlayMessageTimeout"), out var hudTimeout) ? hudTimeout : d.PhotonOverlayMessageTimeout,
+            TimeoutHudOverlay = ConfigBool("VRCX_TimeoutHudOverlay", d.TimeoutHudOverlay),
+            TimeoutHudOverlayFilter = Config("VRCX_TimeoutHudOverlayFilter") ?? d.TimeoutHudOverlayFilter,
+            ProgressPie = ConfigBool("VRCX_progressPie", d.ProgressPie),
+            ProgressPieFilter = ConfigBool("VRCX_progressPieFilter", d.ProgressPieFilter),
+            SelfInviteOverride = ConfigBool("VRCX_selfInviteOverride", d.SelfInviteOverride),
+            UgcFolderPath = Config("VRCX_userGeneratedContentPath") ?? d.UgcFolderPath,
+            EnableAppLauncher = ConfigBool("VRCX_enableAppLauncher", d.EnableAppLauncher),
+            EnableAppLauncherAutoClose = ConfigBool("VRCX_enableAppLauncherAutoClose", d.EnableAppLauncherAutoClose),
+            EnableAppLauncherRunProcessOnce = ConfigBool("VRCX_enableAppLauncherRunProcessOnce", d.EnableAppLauncherRunProcessOnce),
             LogResourceLoad = ConfigBool("VRCX_logResourceLoad", d.LogResourceLoad),
             UdonExceptionLogging = ConfigBool("VRCX_udonExceptionLogging", d.UdonExceptionLogging),
             AutoStateChangeEnabled = ConfigBool("VRCX_autoStateChangeEnabled", d.AutoStateChangeEnabled),

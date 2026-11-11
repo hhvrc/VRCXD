@@ -167,6 +167,7 @@
 	--color-status-busy: var(--status-busy);
 	--color-status-askme: var(--status-askme);
 	--color-status-offline: var(--status-offline);
+	--color-status-offline-alt: var(--status-offline-alt);
 	--color-status-active: var(--status-active);
 }
 

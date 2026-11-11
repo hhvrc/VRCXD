@@ -16,7 +16,7 @@ public sealed record LaunchGameBody(string Url, bool DesktopMode, bool AllowSeco
 public sealed record OpenInGameBody(string Url);
 
 /// <summary>The instance the account's game is in by its game log, and who is there (the original's lastLocation.friendList).</summary>
-public sealed record GameInstanceResponse(string? Location, IReadOnlyList<string> PlayerIds);
+public sealed record GameInstanceResponse(string? Location, IReadOnlyList<string> PlayerIds, DateTimeOffset? JoinedAt = null);
 
 // The original's launchGame and tryOpenInstanceInVrc. The game runs where the desktop app runs,
 // so these ask that app to do it over its live socket.
@@ -42,7 +42,11 @@ public sealed partial class AccountsController
         var ids = await _db.InstanceVisits.AsNoTracking()
             .Where(v => v.InstanceLocation == location && v.LeftAt == null && v.Source == VRCX.Common.VrcxDb.VisitSource.GameLog && v.UserId != accountId)
             .Select(v => v.UserId).Distinct().ToListAsync(cancellationToken);
-        return Ok(new GameInstanceResponse(location, ids));
+        // The original's lastLocation.date: when the game joined, for the wrist overlay's timer.
+        var joinedAt = await _db.InstanceVisits.AsNoTracking()
+            .Where(v => v.InstanceLocation == location && v.LeftAt == null && v.Source == VRCX.Common.VrcxDb.VisitSource.GameLog && v.UserId == accountId)
+            .OrderByDescending(v => v.JoinedAt).Select(v => (DateTimeOffset?)v.JoinedAt).FirstOrDefaultAsync(cancellationToken);
+        return Ok(new GameInstanceResponse(location, ids, joinedAt));
     }
 
     [HttpGet("{accountId}/desktop")]
@@ -64,6 +68,11 @@ public sealed partial class AccountsController
             GameStartedAt = running ? times?.GameStartedAt : null,
             LastGameStartedAt = times?.LastGameStartedAt, LastGameStoppedAt = times?.LastGameStoppedAt,
             GameNoVr = times?.GameNoVr ?? false,
+            SteamVrRunning = desktop?.SteamVrRunning ?? false,
+            HmdAfk = desktop?.HmdAfk ?? false,
+            Capabilities = desktop?.Capabilities ?? [],
+            Os = desktop?.Os,
+            Folders = desktop?.Folders is { } f ? new DesktopFolders(f.AppData, f.Photos, f.Screenshots, f.Cache, f.UgcPhotos, f.CrashDumps) : null,
         });
     }
 

@@ -209,9 +209,9 @@ public sealed class VrcxScenario : IAsyncDisposable
     /// A desktop app connecting from a gaming PC. With signedInAs it first ships the "User
     /// Authenticated" line, as the app does at the top of every log, so the server knows whose PC it is.
     /// </summary>
-    public async Task<FakeDesktop> ConnectDesktopAsync(string clientId = "pc-test", string? signedInAs = null, bool muteEvents = true)
+    public async Task<FakeDesktop> ConnectDesktopAsync(string clientId = "pc-test", string? signedInAs = null, bool muteEvents = true, IEnumerable<VRCX.Common.Live.Capability>? capabilities = null)
     {
-        var desktop = await FakeDesktop.ConnectAsync(await OpenSocketAsync(), clientId, Time, muteEvents);
+        var desktop = await FakeDesktop.ConnectAsync(await OpenSocketAsync(), clientId, Time, muteEvents, capabilities);
         lock (_sockets) _sockets.Add(desktop);
         var account = signedInAs ?? AccountId;
         if (account is not null)

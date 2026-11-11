@@ -9,7 +9,8 @@ namespace VRCX.Testing.Desktop;
 /// The desktop app on a gaming PC (desktop/src/log_service.cpp), as the server sees it: it says
 /// hello with its client id, ships parsed VRChat log lines in batches and waits for the ack,
 /// reports whether the game runs, and carries out the actions the server sends (launch,
-/// screenshot metadata, the quit fix). Raw log text is parsed by the desktop app itself
+/// screenshot metadata, the quit fix). It says hello as the agent (agent/) does, declaring every
+/// capability, unless told which. Raw log text is parsed by the desktop app itself
 /// (desktop/src/log_parser.cpp); this starts from the parsed <see cref="LogEntry"/> it sends, built
 /// with <see cref="GameLog"/>.
 /// </summary>
@@ -28,11 +29,21 @@ public sealed class FakeDesktop : LiveSocket
     /// <summary>What the server said about this client's earlier log on hello.</summary>
     public GameLogResume? Resume { get; private set; }
 
-    internal static async Task<FakeDesktop> ConnectAsync(WebSocket socket, string clientId, TimeProvider time, bool muteEvents)
+    /// <summary>The folders the fake PC reports.</summary>
+    public static AgentFolders TestFolders => new()
+    {
+        AppData = "C:/Users/me/AppData/LocalLow/VRChat/VRChat", Photos = "C:/Users/me/Pictures/VRChat",
+        Screenshots = "", Cache = "C:/Users/me/AppData/LocalLow/VRChat/VRChat/Cache-WindowsPlayer",
+        UgcPhotos = "C:/Users/me/Pictures/VRChat", CrashDumps = "C:/Users/me/AppData/Local/Temp/VRChat/VRChat/Crashes",
+    };
+
+    internal static async Task<FakeDesktop> ConnectAsync(WebSocket socket, string clientId, TimeProvider time, bool muteEvents, IEnumerable<Capability>? capabilities = null)
     {
         var desktop = new FakeDesktop(socket, clientId, time);
         await desktop.NextAsync(m => m.MessageCase == ServerMessage.MessageOneofCase.Hello, what: "server hello");
-        await desktop.SendAsync(new ClientMessage { Hello = new ClientHello { ClientId = clientId, ClientName = "vrcx-desktop/test", ProtocolVersion = 1, MuteEvents = muteEvents } });
+        var hello = new ClientHello { ClientId = clientId, ClientName = "vrcxd-agent/test", ProtocolVersion = 1, MuteEvents = muteEvents, Os = "windows", Folders = TestFolders };
+        hello.Capabilities.AddRange(capabilities ?? System.Enum.GetValues<Capability>().Where(c => c != Capability.Unspecified));
+        await desktop.SendAsync(new ClientMessage { Hello = hello });
         desktop.Resume = (await desktop.NextAsync(m => m.MessageCase == ServerMessage.MessageOneofCase.GameLogResume, what: "game log resume")).GameLogResume;
         return desktop;
     }
@@ -68,12 +79,33 @@ public sealed class FakeDesktop : LiveSocket
         await PingAsync();
     }
 
+    /// <summary>Reports the game state as the agent does: SteamVR too, and on a stop whether VRChat quit on its own.</summary>
+    public async Task GameStateAsync(bool running, bool steamVrRunning = false, bool? closedGracefully = null)
+    {
+        var state = new GameState { Running = running, SteamvrRunning = steamVrRunning };
+        if (closedGracefully is { } graceful) state.ClosedGracefully = graceful;
+        await SendAsync(new ClientMessage { GameState = state });
+        await PingAsync();
+    }
+
+    /// <summary>Reports VRChat in VR with the headset worn or not, as the agent's OpenVR does.</summary>
+    public async Task HmdAfkAsync(bool afk)
+    {
+        await SendAsync(new ClientMessage { GameState = new GameState { Running = true, SteamvrRunning = true, HmdAfk = afk } });
+        await PingAsync();
+    }
+
     /// <summary>The next action the server asks for (a launch from the UI, say). Pipe packets are read with <see cref="NextIpcAsync"/>.</summary>
     public async Task<ClientAction> NextActionAsync(TimeSpan? timeout = null) =>
         (await NextAsync(IsAction, timeout, "client action")).Action;
 
     private static bool IsAction(ServerMessage m) =>
-        m.MessageCase == ServerMessage.MessageOneofCase.Action && m.Action.ActionCase != ClientAction.ActionOneofCase.SendIpc;
+        m.MessageCase == ServerMessage.MessageOneofCase.Action
+        && m.Action.ActionCase is not (ClientAction.ActionOneofCase.SendIpc or ClientAction.ActionOneofCase.ApplyAgentSettings);
+
+    /// <summary>The next settings push (on connect, or after the account's settings were saved).</summary>
+    public async Task<AgentSettings> NextAgentSettingsAsync(TimeSpan? timeout = null) =>
+        (await NextAsync(m => m.MessageCase == ServerMessage.MessageOneofCase.Action && m.Action.ActionCase == ClientAction.ActionOneofCase.ApplyAgentSettings, timeout, "agent settings")).Action.ApplyAgentSettings;
 
     /// <summary>
     /// A packet another program wrote to the VRCX named pipe on this PC, as the desktop app relays it
@@ -90,8 +122,8 @@ public sealed class FakeDesktop : LiveSocket
         (await NextAsync(m => m.MessageCase == ServerMessage.MessageOneofCase.Action && m.Action.ActionCase == ClientAction.ActionOneofCase.SendIpc, timeout, "pipe packet")).Action.SendIpc;
 
     /// <summary>Answers an action that carried a request id.</summary>
-    public Task CompleteAsync(ClientAction action, ActionStatus status = ActionStatus.Ok, string error = "") =>
-        SendAsync(new ClientMessage { ActionResult = new ActionResult { RequestId = action.RequestId, Status = status, Error = error } });
+    public Task CompleteAsync(ClientAction action, ActionStatus status = ActionStatus.Ok, string error = "", string json = "") =>
+        SendAsync(new ClientMessage { ActionResult = new ActionResult { RequestId = action.RequestId, Status = status, Error = error, Json = json } });
 }
 
 public sealed record LogBatchResult(int Accepted, IReadOnlyList<ClientAction> Actions);
@@ -127,6 +159,7 @@ public static class GameLog
     public static LogEntry PortalSpawn() => new() { PortalSpawn = new LogNoData() };
     public static LogEntry Event(string text) => new() { Event = new LogText { Text = text } };
     public static LogEntry Vrcx(string text) => new() { Vrcx = new LogText { Text = text } };
+    public static LogEntry NowPlaying(string json) => new() { NowPlaying = new LogText { Text = json } };
     public static LogEntry Notification(string text) => new() { Notification = new LogText { Text = text } };
     public static LogEntry ApiRequest(string url) => new() { ApiRequest = new LogText { Text = url } };
     public static LogEntry AvatarChange(string displayName, string avatarName) => new() { AvatarChange = new LogAvatarChange { DisplayName = displayName, AvatarName = avatarName } };
@@ -149,6 +182,7 @@ public static class Ipc
         new() { CustomTag = new IpcCustomTag { UserId = userId, Tag = tag, TagColour = colour } };
 
     public static IpcPacket ClearCustomTags() => new() { ClearCustomTags = new LogNoData() };
+    public static IpcPacket Photon(string json) => new() { PhotonJson = json };
     public static IpcPacket Noty(string data) => new() { Noty = new LogText { Text = data } };
 
     public static IpcPacket External(string message, string userId = "", string displayName = "", bool? notify = null)

@@ -1,53 +1,4 @@
 <script lang="ts" module>
-	// The original's statusBarUtils.
-
-	export const defaultVisibility = { vrchat: true, ws: true, nowPlaying: true, uptime: true, clocks: true, zoom: true, servers: true };
-	export type Visibility = typeof defaultVisibility;
-
-	/** Clamps and rounds to a UTC offset in [-12, 14]; 0 for anything not a number. */
-	export function normalizeUtcHour(value: unknown): number {
-		const n = Number(value);
-		if (!Number.isFinite(n)) return 0;
-		return Math.max(-12, Math.min(14, Math.round(n)));
-	}
-
-	export function formatUtcHour(offset: number): string {
-		const n = normalizeUtcHour(offset);
-		return `UTC${n >= 0 ? '+' : ''}${n}`;
-	}
-
-	/** A number, "5", "UTC+9", "UTC-5:30", or an old IANA zone name, as an offset. */
-	export function parseClockOffset(value: unknown): number {
-		if (typeof value === 'number') return normalizeUtcHour(value);
-		if (typeof value !== 'string') return 0;
-		if (/^[+-]?\d+$/.test(value.trim())) return normalizeUtcHour(Number(value));
-		const utc = value.match(/^UTC([+-])(\d{1,2})(?::(\d{1,2}))?$/i);
-		if (utc) return normalizeUtcHour((utc[1] === '+' ? 1 : -1) * (Number(utc[2]) + Number(utc[3] || 0) / 60));
-		// Clocks once stored IANA zone names.
-		try {
-			const parts = new Intl.DateTimeFormat('en-US', { timeZone: value, timeZoneName: 'longOffset' }).formatToParts(new Date());
-			const name = parts.find((p) => p.type === 'timeZoneName')?.value ?? '';
-			const m = name.match(/GMT([+-])(\d{2}):(\d{2})/);
-			return m ? normalizeUtcHour((m[1] === '+' ? 1 : -1) * (Number(m[2]) + Number(m[3]) / 60)) : 0;
-		} catch {
-			return 0;
-		}
-	}
-
-	export function normalizeClock(entry: unknown): { offset: number } {
-		if (entry && typeof entry === 'object') {
-			if ('offset' in entry) return { offset: parseClockOffset((entry as { offset: unknown }).offset) };
-			if ('timezone' in entry) return { offset: parseClockOffset((entry as { timezone: unknown }).timezone) };
-		}
-		return { offset: 0 };
-	}
-
-	export function formatAppUptime(elapsedSeconds: number): string {
-		const safe = Math.max(0, Math.floor(elapsedSeconds));
-		const pad = (n: number) => String(n).padStart(2, '0');
-		return `${pad(Math.floor(safe / 3600))}:${pad(Math.floor((safe % 3600) / 60))}:${pad(safe % 60)}`;
-	}
-
 	const appStartAt = Date.now();
 </script>
 
@@ -69,30 +20,17 @@
 	import type { GameLogRow } from '#lib/activity/game-log-sessions.js';
 	import { readSetting, storeSetting } from '#lib/settings/table-settings.svelte.js';
 	import { vrchatStatus } from '#lib/api/vrchat-status.svelte.js';
+	import { clockElapsed, formatAppUptime, formatUtcHour, loadClockCount, loadClocks, loadVisibility, normalizeUtcHour, parseClockOffset, type NowPlayingClock, type Visibility } from './status-bar-utils.js';
 
 	// The original's StatusBar: the game and its session, the live socket's message rate, uptime and
 	// clocks, VRChat's server status and the video now playing in the game's instance, each hidden or
-	// shown from the right-click menu, and the page zoom (the Interface setting). Its SteamVR and
-	// proxy segments are not ported (desktop).
+	// shown from the right-click menu, and the page zoom (the Interface setting). SteamVR is as the
+	// account's PC reports it. The proxy segment is not ported: the server makes VRChat's requests.
 	const VISIBILITY_KEY = 'VRCX_statusBarVisibility';
 	const CLOCKS_KEY = 'VRCX_statusBarClocks';
 	const CLOCK_COUNT_KEY = 'VRCX_statusBarClockCount';
 
-	// The original stores these as JSON strings in its config; here they are JSON in local storage.
-	function readJson<T>(key: string, fallback: T): T {
-		const raw = readSetting<unknown>(key, null);
-		if (raw === null) return fallback;
-		if (typeof raw === 'string') {
-			try {
-				return JSON.parse(raw) as T;
-			} catch {
-				return fallback;
-			}
-		}
-		return raw as T;
-	}
-
-	let visibility = $state<Visibility>({ ...defaultVisibility, ...readJson<Partial<Visibility>>(VISIBILITY_KEY, {}) });
+	let visibility = $state<Visibility>(loadVisibility(readSetting<unknown>(VISIBILITY_KEY, null)));
 
 	function toggle(key: keyof Visibility) {
 		visibility[key] = !visibility[key];
@@ -120,14 +58,19 @@
 	// The original's nowPlaying: start is when playback began (logged time less the logged position),
 	// and a known length gives the progress bar; a video past its length is cleared, as the original's
 	// updateNowPlaying does.
-	let nowPlaying = $state<{ url: string; name: string; start: number; length: number } | null>(null);
+	// A ProTV world's nowplaying producers send their own clock, thumbnail and hidden URL instead.
+	let nowPlaying = $state<{ url: string; name: string; start: number; length: number; clock?: NowPlayingClock; thumbnailUrl?: string; urlHidden?: boolean } | null>(null);
 	let nowPlayingNow = $state(Date.now() / 1000);
-	const nowPlayingElapsed = $derived(nowPlaying && nowPlaying.length > 0 ? Math.min(nowPlaying.length, Math.max(0, nowPlayingNow - nowPlaying.start)) : 0);
+	const nowPlayingElapsed = $derived(
+		!nowPlaying || nowPlaying.length <= 0 ? 0
+		: nowPlaying.clock ? clockElapsed(nowPlaying.clock, nowPlaying.length, nowPlayingNow)
+		: Math.min(nowPlaying.length, Math.max(0, nowPlayingNow - nowPlaying.start))
+	);
 	$effect(() => {
-		if (!nowPlaying || nowPlaying.length <= 0) return;
+		if (!nowPlaying || nowPlaying.length <= 0 || nowPlaying.clock?.paused) return;
 		const timer = setInterval(() => {
 			nowPlayingNow = Date.now() / 1000;
-			if (nowPlaying && nowPlayingNow - nowPlaying.start >= nowPlaying.length) nowPlaying = null;
+			if (nowPlaying && !nowPlaying.clock && nowPlayingNow - nowPlaying.start >= nowPlaying.length) nowPlaying = null;
 		}, 1000);
 		return () => clearInterval(timer);
 	});
@@ -138,9 +81,10 @@
 	let seek: { url: string; start: number; length: number } | null = null;
 
 	async function loadNowPlaying(account: string) {
+		if (nowPlaying?.clock) return;
 		try {
 			const [last] = await api.get<GameLogRow[]>(accountPath(account, '/game-log'), { types: 'Location,VideoPlay', limit: 1 });
-			if (account !== vrchatAuth.ownerUserId) return;
+			if (account !== vrchatAuth.ownerUserId || nowPlaying?.clock) return;
 			nowPlaying =
 				last?.type === 'VideoPlay' && last.videoUrl
 					? {
@@ -168,6 +112,20 @@
 		loadNowPlaying(account);
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		const unsubscribe = onLiveEvent((event) => {
+			if (event.event.case === 'nowPlayingSpec') {
+				const p = event.event.value;
+				if (p.accountId !== account) return;
+				if (p.cleared || !p.loggedAt) {
+					nowPlaying = null;
+					loadNowPlaying(account);
+					return;
+				}
+				const at = Number(p.loggedAt.seconds) + p.loggedAt.nanos / 1e9;
+				const clock = { position: p.position, at, speed: p.speed || 1, paused: p.paused };
+				nowPlaying = { url: p.videoUrl, name: p.name, start: at - p.position, length: p.length, clock, thumbnailUrl: p.thumbnailUrl, urlHidden: p.urlHidden };
+				nowPlayingNow = Date.now() / 1000;
+				return;
+			}
 			if (event.event.case === 'nowPlayingPosition') {
 				const p = event.event.value;
 				if (p.accountId !== account || !p.loggedAt) return;
@@ -268,13 +226,8 @@
 
 	// Clocks.
 	const localOffset = normalizeUtcHour(-new Date().getTimezoneOffset() / 60);
-	const savedClocks = readJson<unknown[] | null>(CLOCKS_KEY, null);
-	let clocks = $state(
-		Array.isArray(savedClocks) && savedClocks.length
-			? [0, 1, 2].map((i) => normalizeClock(savedClocks[i] ?? { offset: 0 }))
-			: [{ offset: localOffset }, { offset: 0 }, { offset: localOffset < 0 ? 9 : -5 }]
-	);
-	let clockCount = $state(Math.max(0, Math.min(3, Number(readJson<number | string>(CLOCK_COUNT_KEY, 2)) || 0)));
+	let clocks = $state(loadClocks(readSetting<unknown>(CLOCKS_KEY, null), [{ offset: localOffset }, { offset: 0 }, { offset: localOffset < 0 ? 9 : -5 }]));
+	let clockCount = $state(loadClockCount(readSetting<unknown>(CLOCK_COUNT_KEY, null)));
 	let clockOpen = $state([false, false, false]);
 
 	function setClockCount(count: number) {
@@ -308,6 +261,20 @@
 				class="flex min-w-0 flex-1 items-center overflow-hidden [&>*:first-child]:pl-0.5"
 				style="mask-image: linear-gradient(to right, black calc(100% - 20px), transparent 100%)"
 			>
+				{#if visibility.steamvr}
+					<Tooltip.Root>
+						<Tooltip.Trigger>
+							{#snippet child({ props })}
+								<div {...props} class={SEGMENT}>
+									<span class="inline-block size-2 shrink-0 rounded-full {desktop.steamVrRunning ? 'bg-status-online' : 'bg-status-offline-alt'}"></span>
+									<span class="text-2xs text-foreground">{m.status_bar_steamvr()}</span>
+								</div>
+							{/snippet}
+						</Tooltip.Trigger>
+						<Tooltip.Content side="top">{desktop.steamVrRunning ? m.status_bar_steamvr_running() : m.status_bar_steamvr_stopped()}</Tooltip.Content>
+					</Tooltip.Root>
+				{/if}
+
 				{#if visibility.vrchat}
 					<HoverCard.Root openDelay={50} closeDelay={50}>
 						<HoverCard.Trigger>
@@ -383,13 +350,14 @@
 						<Tooltip.Root>
 							<Tooltip.Trigger>
 								{#snippet child({ props })}
-									<button {...props} type="button" class="cursor-pointer truncate text-2xs text-foreground" onclick={() => nowPlaying && window.open(nowPlaying.url, '_blank', 'noopener,noreferrer')}>{nowPlaying?.name || nowPlaying?.url}</button>
+									<button {...props} type="button" class="cursor-pointer truncate text-2xs text-foreground" onclick={() => nowPlaying && !nowPlaying.urlHidden && window.open(nowPlaying.url, '_blank', 'noopener,noreferrer')}>{nowPlaying?.name || nowPlaying?.url}</button>
 								{/snippet}
 							</Tooltip.Trigger>
 							<Tooltip.Content side="top" class="p-2">
 								<div class="flex max-w-[320px] flex-col gap-1.5">
+									{#if nowPlaying.thumbnailUrl}<img src={nowPlaying.thumbnailUrl} alt="" class="max-h-[180px] w-full rounded object-contain" loading="lazy" />{/if}
 									{#if nowPlaying.name}<span class="whitespace-pre-wrap">{nowPlaying.name}</span>{/if}
-									<span class="break-all text-muted-foreground">{nowPlaying.url}</span>
+									{#if !nowPlaying.urlHidden}<span class="break-all text-muted-foreground">{nowPlaying.url}</span>{/if}
 								</div>
 							</Tooltip.Content>
 						</Tooltip.Root>
@@ -479,6 +447,7 @@
 		<ContextMenu.Content>
 			<ContextMenu.CheckboxItem checked={visibility.vrchat} closeOnSelect={false} onCheckedChange={() => toggle('vrchat')}>{m.status_bar_game()}</ContextMenu.CheckboxItem>
 			<ContextMenu.CheckboxItem checked={visibility.servers} closeOnSelect={false} onCheckedChange={() => toggle('servers')}>{m.status_bar_servers()}</ContextMenu.CheckboxItem>
+			<ContextMenu.CheckboxItem checked={visibility.steamvr} closeOnSelect={false} onCheckedChange={() => toggle('steamvr')}>{m.status_bar_steamvr()}</ContextMenu.CheckboxItem>
 			<ContextMenu.CheckboxItem checked={visibility.ws} closeOnSelect={false} onCheckedChange={() => toggle('ws')}>{m.view_login_field_websocket()}</ContextMenu.CheckboxItem>
 			<ContextMenu.CheckboxItem checked={visibility.nowPlaying} closeOnSelect={false} onCheckedChange={() => toggle('nowPlaying')}>{m.status_bar_now_playing()}</ContextMenu.CheckboxItem>
 			<ContextMenu.CheckboxItem checked={visibility.uptime} closeOnSelect={false} onCheckedChange={() => toggle('uptime')}>{m.status_bar_app_uptime_short()}</ContextMenu.CheckboxItem>

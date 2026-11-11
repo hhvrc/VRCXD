@@ -18,7 +18,7 @@ public sealed class IpcSession
 /// VRCX named pipe on its PC. Custom tags are kept per account; Noty and External become game
 /// log rows in the PC's current instance, as the original stored them with its lastLocation.
 /// </summary>
-public sealed class IpcIngestor(IDbContextFactory<VrcxContext> dbFactory, ILiveEventBus bus, ILogger<IpcIngestor> logger)
+public sealed class IpcIngestor(IDbContextFactory<VrcxContext> dbFactory, ILiveEventBus bus, VRCX.Common.Services.Live.Photon.PhotonService photon, ILogger<IpcIngestor> logger)
 {
     /// <summary>Above this, the external notifier sends its own Noty notifications.</summary>
     private const int NotifierOwnNoty = 21;
@@ -30,6 +30,12 @@ public sealed class IpcIngestor(IDbContextFactory<VrcxContext> dbFactory, ILiveE
         {
             case IpcPacket.PacketOneofCase.Ping:
                 ipc.PhotonLogger = true;
+                session.PhotonLogger = true;
+                photon.LoggerSeen(session);
+                break;
+            case IpcPacket.PacketOneofCase.PhotonJson:
+                session.PhotonLogger = true;
+                await photon.HandleAsync(session, packet.PhotonJson, ct);
                 break;
             case IpcPacket.PacketOneofCase.MsgPing:
                 ipc.ExternalNotifierVersion = packet.MsgPing.Version;

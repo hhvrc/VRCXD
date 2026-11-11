@@ -86,6 +86,8 @@
 	import { appearance } from '#lib/settings/appearance.svelte.js';
 	import { announceUserDialog, customTag } from '#lib/people/custom-tags.svelte.js';
 	import { tagStyle } from '#lib/people/custom-tags.js';
+	import { agentCan } from '#lib/instances/instance-launch.svelte.js';
+	import { AVATAR_HIDE, AVATAR_SHOW, readLocalModerations, setLocalModeration } from '#lib/agent/agent.js';
 
 	// The original's user dialog (UserDialog.vue and its tabs), class for class: a summary column
 	// with the image on top, and underlined tabs beside it. Used by the pop-up and by /user.
@@ -102,6 +104,8 @@
 	let draftMemo = $state('');
 	let friend = $state<Friend | undefined>();
 	let moderations = $state<PlayerModeration[]>([]);
+	// VRChat's own show/hide avatar list on the PC (LocalPlayerModerations): 4 hidden, 5 shown, 0 neither.
+	let localAvatar = $state(0);
 	let instance = $state<Instance | undefined>();
 	let worldThumbnail = $state<string | undefined>();
 	let loadError = $state('');
@@ -171,6 +175,24 @@
 		{ type: 'muteChat', on: 'Mute Chatbox', off: 'Unmute Chatbox' },
 		{ type: 'interactOff', on: 'Disable Avatar Interaction', off: 'Enable Avatar Interaction' }
 	];
+	// The original's setPlayerModeration: Hide and Show Avatar toggle, through the PC's agent.
+	async function setLocalAvatar(type: number) {
+		const id = userId;
+		const next = localAvatar === type ? 0 : type;
+		try {
+			await setLocalModeration(id, next);
+			if (id === userId) localAvatar = next;
+		} catch {
+			toast.error(m.message_avatar_change_moderation_failed());
+		}
+	}
+
+	async function loadLocalAvatar(id: string) {
+		if (!agentCan('local_moderations')) return;
+		const list = await readLocalModerations().catch(() => null);
+		if (id === userId) localAvatar = list?.[id] ?? 0;
+	}
+
 	function moderate(type: string, label: string, on: boolean) {
 		actions.confirming = { command: label, get title() { return m.dialog_user_note_memo_confirm(); }, destructive: !on, run: () => actions.act(() => setModeration(type, !on), 'User moderated') };
 	}
@@ -300,6 +322,8 @@
 			history = undefined;
 			friend = undefined;
 			moderations = [];
+			localAvatar = 0;
+			untrack(() => loadLocalAvatar(id));
 			instance = undefined;
 			relationship = undefined;
 			actions.reset();
@@ -423,7 +447,7 @@
 						{#if hasModeration('block')}<span title="Blocked"><XCircle class="h-6 w-6 text-red-400" /></span>{/if}
 						{#if hasModeration('mute')}<span title="Muted"><VolumeX class="h-6 w-6 text-red-400" /></span>{/if}
 						{#if hasModeration('muteChat')}<span title="Chatbox disabled"><MessageCircle class="h-6 w-6 text-red-400" /></span>{/if}
-						{#if hasModeration('hideAvatar')}<span title="Avatar hidden"><UserIcon class="h-6 w-6 text-red-400" /></span>{/if}
+						{#if hasModeration('hideAvatar') || localAvatar === AVATAR_HIDE}<span title="Avatar hidden"><UserIcon class="h-6 w-6 text-red-400" /></span>{/if}
 						{#if hasModeration('interactOff')}<span title="Avatar interaction disabled"><Hand class="h-6 w-6 text-red-400" /></span>{/if}
 					</div>
 					<div class="absolute bottom-0 left-3 z-20 size-24 translate-y-1/2">
@@ -521,6 +545,10 @@
 												{@const label = on ? moderation.off : moderation.on}
 												<DropdownMenu.Item disabled={!on && isModerator} onSelect={() => moderate(moderation.type, label, on)}>{label}</DropdownMenu.Item>
 											{/each}
+											{#if agentCan('local_moderations')}
+												<DropdownMenu.Item onSelect={() => setLocalAvatar(AVATAR_SHOW)}><UserIcon class="size-4" />{#if localAvatar === AVATAR_SHOW}<Check class="size-4" />{/if} {m.dialog_user_actions_moderation_show_avatar()}</DropdownMenu.Item>
+												<DropdownMenu.Item onSelect={() => setLocalAvatar(AVATAR_HIDE)}><UserIcon class="size-4" />{#if localAvatar === AVATAR_HIDE}<Check class="size-4" />{/if} {m.dialog_user_actions_moderation_hide_avatar()}</DropdownMenu.Item>
+											{/if}
 										</DropdownMenu.SubContent>
 									</DropdownMenu.Sub>
 									<DropdownMenu.Separator />

@@ -162,7 +162,7 @@ and the desktop app both use the web container's address; the API itself is not 
 On the NAS, with Docker Compose:
 
 ```sh
-git clone https://github.com/hhvrc/vrcxd && cd vrcxd/Server
+git clone https://github.com/hhvrc/VRCXD && cd VRCXD/Server
 cp .env.example .env        # set PG_PASS and VRCX_TOKEN (16+ chars, e.g. openssl rand -hex 24)
 docker compose up -d --build                  # build here, or
 docker compose pull && docker compose up -d   # use the images CI publishes from master

@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using VRCX.Common.Live;
 using VRCX.Testing;
@@ -83,5 +84,41 @@ public sealed class VideoPlayTests
         // Still one stored play: a seek is not a new video.
         await using var db = app.CreateDbContext();
         await Assert.That(await db.VideoPlays.CountAsync(v => v.InstanceLocation == Here)).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task The_progress_pie_follows_dance_world_videos_on_the_pc()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        await app.LoginAsync();
+        await using var pc = await app.ConnectDesktopAsync("pc-pie");
+        await pc.SendLogAsync(GameLog.UserAuthenticated(app.AccountId!, "Me"));
+        var settings = await app.GetJsonAsync(app.AccountPath("settings"));
+        var body = System.Text.Json.Nodes.JsonNode.Parse(settings.GetRawText())!.AsObject();
+        body["openVr"] = true;
+        body["progressPie"] = true;
+        await VrcxScenario.EnsureSuccessAsync(await app.Api.PutAsJsonAsync(app.AccountPath("settings"), body), "save settings");
+        await pc.NextAgentSettingsAsync();
+        var at = DateTimeOffset.UtcNow.AddSeconds(-5);
+
+        // A plain world: the clock goes for the wrist's now playing, but the dance-world-only filter keeps the pie off.
+        await pc.SendLogAsync(
+            GameLog.Location(Here, "Cinema").At(at),
+            GameLog.Vrcx("""LSMedia 0,6298.292,Someone,The Outfit (2022), 1080p""").At(at.AddSeconds(1)));
+        var plain = (await pc.NextActionAsync()).UpdateNowPlayingPie;
+        await Assert.That((plain.Active, plain.Pie, plain.Name)).IsEqualTo((true, false, "The Outfit (2022)"));
+        await pc.SendLogAsync(
+            GameLog.Location(DanceWorld, "Dance").At(at.AddSeconds(2)),
+            GameLog.Vrcx("""VideoPlay(VRDancing) "https://example.test/d.mp4",0,200,7,"Dancer","Song" """).At(at.AddSeconds(3)));
+        var action = await pc.NextActionAsync();
+        await Assert.That(action.ActionCase).IsEqualTo(ClientAction.ActionOneofCase.UpdateNowPlayingPie);
+        var pie = action.UpdateNowPlayingPie;
+        await Assert.That((pie.Active, pie.Pie, pie.Position, pie.Length, pie.Speed, pie.Name)).IsEqualTo((true, true, 0d, 200d, 1d, "Song"));
+        await Assert.That(pie.LoggedAt).IsEqualTo(at.AddSeconds(3).ToUnixTimeMilliseconds() / 1000.0);
+
+        // Leaving stops it.
+        await pc.SendLogAsync(GameLog.Location(Here, "Cinema").At(at.AddSeconds(4)));
+        action = await pc.NextActionAsync();
+        await Assert.That((action.UpdateNowPlayingPie.Active, action.UpdateNowPlayingPie.Pie)).IsEqualTo((false, false));
     }
 }

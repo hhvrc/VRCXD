@@ -39,7 +39,7 @@ class SidebarData {
 	groupInstances = $state.raw<GroupInstance[]>([]);
 	currentLocation = $state<string | null>(null);
 	/** The game's instance by the desktop app's game log and who is in it: the original's lastLocation.friendList. */
-	gameInstance = $state.raw<{ location: string | null; playerIds: Set<string> }>({ location: null, playerIds: new Set() });
+	gameInstance = $state.raw<{ location: string | null; playerIds: Set<string>; joinedAt?: string | null }>({ location: null, playerIds: new Set() });
 	refreshing = $state(false);
 	error = $state('');
 
@@ -80,8 +80,8 @@ class SidebarData {
 	async loadGameInstance() {
 		const account = vrchatAuth.ownerUserId;
 		if (!account) return;
-		const data = await api.get<{ location: string | null; playerIds: string[] }>(accountPath(account, '/game/instance')).catch(() => null);
-		if (data) this.gameInstance = { location: data.location, playerIds: new Set(data.playerIds) };
+		const data = await api.get<{ location: string | null; playerIds: string[]; joinedAt?: string | null }>(accountPath(account, '/game/instance')).catch(() => null);
+		if (data) this.gameInstance = { location: data.location, playerIds: new Set(data.playerIds), joinedAt: data.joinedAt ?? null };
 	}
 
 	/**

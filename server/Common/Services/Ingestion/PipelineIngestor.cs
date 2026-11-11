@@ -191,7 +191,7 @@ public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, V
     }
 
     /// <summary>The original's displayLocation.</summary>
-    private static string DisplayLocation(VRCX.Vrchat.VrchatLocation l, string worldName, string groupName)
+    internal static string DisplayLocation(VRCX.Vrchat.VrchatLocation l, string worldName, string groupName)
     {
         if (l.IsOffline) return "Offline";
         if (l.IsPrivate) return "Private";

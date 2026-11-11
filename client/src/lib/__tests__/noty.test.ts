@@ -50,6 +50,20 @@ describe('noty wording', () => {
 		expect(notificationMessage(base({ type: 'AvatarChange', displayName: 'Ann', data: 'Fox' }), '')).toEqual({ title: 'Ann', body: 'changed into avatar Fox' });
 	});
 
+	it('resets to the defaults, Photon rows included', () => {
+		const d = defaultSharedFeedFilters();
+		expect([d.noty.ChatBoxMessage, d.noty.Blocked, d.noty.Muted, d.wrist.Blocked, d.wrist.Unmuted]).toEqual(['Off', 'Off', 'Off', 'On', 'On']);
+		expect(d.noty.PortalSpawn).toBe('Everyone');
+	});
+
+	it('words the Photon stream: chatbox messages and moderations against you', () => {
+		expect(notificationMessage(base({ type: 'ChatBoxMessage', displayName: 'Ann', text: 'hi' }), '')).toEqual({ title: 'Ann', body: 'said: hi' });
+		expect(notificationMessage(base({ type: 'Blocked', displayName: 'Ann' }), '')).toEqual({ title: 'Ann', body: 'has blocked you' });
+		expect(notificationMessage(base({ type: 'Unblocked', displayName: 'Ann' }), '')).toEqual({ title: 'Ann', body: 'has unblocked you' });
+		expect(notificationMessage(base({ type: 'Muted', displayName: 'Ann' }), '')).toEqual({ title: 'Ann', body: 'has muted you' });
+		expect(notificationMessage(base({ type: 'Unmuted', displayName: 'Ann' }), '')).toEqual({ title: 'Ann', body: 'has unmuted you' });
+	});
+
 	it('joins title and body per type', () => {
 		expect(notificationText('Event', 'Test notification.', 'Event')).toBe('Test notification.');
 		expect(notificationText('Now playing', 'Song', 'VideoPlay')).toBe('Now playing: Song');

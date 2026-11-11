@@ -139,10 +139,44 @@ public static class LiveEvents
         },
     };
 
+    public static ServerEvent PhotonUpdated(string accountId, string notysJson = "") => new()
+    {
+        At = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+        Photon = new PhotonUpdated { AccountId = accountId, NotysJson = notysJson },
+    };
+
+    public static ServerEvent AgentAlert(string accountId, AgentAlertKind kind, string detail = "") => new()
+    {
+        At = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
+        AgentAlert = new AgentAlert { AccountId = accountId, Kind = kind, Detail = detail },
+    };
+
     public static ServerEvent YouTubeBotError(string? accountId, string message) => new()
     {
         At = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow),
         YoutubeBotError = new YouTubeBotError { AccountId = accountId ?? "", Message = message },
+    };
+
+    public static ServerEvent NowPlayingSpec(string? accountId, NowPlayingTiming t) => new()
+    {
+        NowPlayingSpec = new NowPlayingSpec
+        {
+            AccountId = accountId ?? "",
+            VideoUrl = t.VideoUrl,
+            Name = t.Name,
+            ThumbnailUrl = t.ThumbnailUrl,
+            Length = t.Length,
+            Speed = t.Speed,
+            Paused = t.Paused,
+            Position = t.Position,
+            LoggedAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(DateTimeOffset.FromUnixTimeMilliseconds((long)Math.Round(t.At * 1000))),
+            UrlHidden = t.UrlHidden,
+        },
+    };
+
+    public static ServerEvent NowPlayingSpecCleared(string? accountId) => new()
+    {
+        NowPlayingSpec = new NowPlayingSpec { AccountId = accountId ?? "", Cleared = true },
     };
 
     public static ServerEvent NowPlayingPosition(string? accountId, string videoUrl, double videoPos, double videoLength, DateTimeOffset loggedAt) => new()

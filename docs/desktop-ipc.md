@@ -1,8 +1,8 @@
-# VRCX named pipe in the desktop app
+# VRCX named pipe in the agent
 
 The original VRCX ran a named pipe (`Dotnet/IPC/IPCServer.cs`, `IPCClient.cs`, `IPCPacket.cs`) that
 other programs on the PC use: VRCX's Photon logger mod, external notifiers, tools that tag users.
-The desktop app owns that pipe now. It parses each packet and relays it to the server over the live
+The PC agent (`agent/src/ipc.rs`) owns that pipe now. It parses each packet and relays it to the server over the live
 socket (`server/Common/Protos/vrcx_live.proto`); the server applies it. The server can also ask the
 app to write a packet to the pipe. This page is what the desktop side needs to build it.
 
@@ -13,7 +13,8 @@ app to write a packet to the pipe. This page is what the desktop side needs to b
   Programs compute the name the same way, so it must match exactly.
 - Duplex (`InOut`), byte mode, asynchronous, as many instances as clients connect
   (`MaxAllowedServerInstances`): after each connection is accepted a new listening instance is made.
-- The original VRCX made the same pipe, so it and the desktop app should not both run.
+- The original VRCX made the same pipe, so it and the agent should not both run. While VRCX holds the
+  name, the agent tries again every minute.
 
 ## Framing
 
@@ -41,12 +42,14 @@ the server ignores IPC from a connection without one.
 | `VrcxMessage` | `External` | `Data`, `UserId`, `DisplayName`, `notify` | `external` (`IpcExternal`: `message` = `Data`, `user_id`, `display_name`; set `notify` only when the JSON has `notify`) |
 | `Ping` | | none | `ping` (`LogNoData`), every time one arrives |
 | `MsgPing` | | `version` (number) | `msg_ping` (`IpcMsgPing.version`) |
+| `OnEvent`, `OnOperationResponse`, `VRCEvent`, `Event7List` | | the whole packet | `photon_json` (the packet's JSON as read) |
 
-Not relayed, for now:
+The Photon stream is relayed whole: the server parses it as the original's photon store did, and
+drops it while VRChat is not running there.
 
-- `OnEvent`, `OnOperationResponse`, `OnOperationRequest`, `VRCEvent`, `Event7List`: the Photon
-  stream. The Photon features are ported separately and will get
-  their own cases.
+Not relayed:
+
+- `OnOperationRequest`: the original only logged it.
 - `LaunchCommand` (`command`): another VRCX start handing over a `vrcx://` command. The app handles it
   itself by opening the web UI's `/launch?command=<command>` page, which does what the original's
   `eventLaunchCommand` did.
@@ -77,4 +80,4 @@ fails, as the original did.
 
 `server/Testing/Desktop/FakeDesktop.cs` sends these cases (`SendIpcAsync`, builders in `Ipc`) and
 reads the written packets (`NextIpcAsync`); `server/API.IntegrationTests/Tests/IpcTests.cs` covers
-the server side. The pipe itself (name, framing, JSON mapping) is the desktop app's to test.
+the server side. The pipe itself (name, framing, JSON mapping) is tested in `agent/src/ipc.rs`.

@@ -47,6 +47,10 @@ public sealed class AutoDeclineTests
         await Assert.That(await automation.DeclineFriendRequestAsync(app.AccountId!, metByName, CancellationToken.None)).IsFalse();
         app.Vrchat.AssertNotCalled("PUT", "auth/user/notifications/not_met/hide");
 
+        var invite = new VrchatNotification { Id = "not_invite", Type = "invite", SenderUserId = "usr_stranger", SenderUsername = "Stranger" };
+        await Assert.That(await automation.DeclineFriendRequestAsync(app.AccountId!, invite, CancellationToken.None)).IsFalse();
+        app.Vrchat.AssertNotCalled("PUT", "auth/user/notifications/not_invite/hide");
+
         await Assert.That(await automation.DeclineFriendRequestAsync(app.AccountId!, stranger, CancellationToken.None)).IsTrue();
         app.Vrchat.AssertCalled("PUT", "auth/user/notifications/not_stranger/hide");
     }

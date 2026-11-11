@@ -44,6 +44,9 @@ message IpcPacket {
         LogNoData ping = 14;
         // MsgPing: an external notifier and its version (above 21 it sends its own notifications).
         IpcMsgPing msg_ping = 15;
+        // The Photon logger's stream (OnEvent, OnOperationResponse, VRCEvent, Event7List): the
+        // packet's JSON as read, which the server parses as the original's photon store did.
+        string photon_json = 16;
     }
 }
 
@@ -71,6 +74,8 @@ message ActionResult {
     string request_id = 1;
     ActionStatus status = 2;
     string error = 3;
+    // What the action read, as JSON, for the actions that read something (each one says its shape).
+    string json = 4;
 }
 
 enum ActionStatus {
@@ -79,11 +84,25 @@ enum ActionStatus {
     ACTION_STATUS_FAILED = 2;
     // A launch was refused because VRChat is already running and a second copy was not asked for.
     ACTION_STATUS_GAME_RUNNING = 3;
+    // The agent does not do this action (an older agent, or not on this OS).
+    ACTION_STATUS_UNSUPPORTED = 4;
+    // A destructive action came without confirm set.
+    ACTION_STATUS_NOT_CONFIRMED = 5;
+    // What the action works on is not there (no VRChat registry, no cache entry, no config file).
+    ACTION_STATUS_NOT_FOUND = 6;
 }
 
 // Whether VRChat is running on this PC. Sent after the hello and whenever it changes.
 message GameState {
     bool running = 1;
+    // Whether SteamVR (vrserver) runs on this PC (the original's IsSteamVRRunning).
+    bool steamvr_running = 2;
+    // Set when VRChat just stopped: whether it quit on its own (its log's last lines say so), the
+    // original's VrcClosedGracefully. Unset while it runs or before it ran.
+    optional bool closed_gracefully = 3;
+    // The headset's proximity sensor says nobody wears it (the original's IsHmdAfk), while the
+    // agent's OpenVR is active.
+    bool hmd_afk = 4;
 }
 
 message ClientHello {
@@ -97,6 +116,60 @@ message ClientHello {
     // When false the server does not stream ServerEvents to this connection (a desktop app
     // that only ships logs). Default true.
     bool mute_events = 3;
+    // The ClientAction cases this PC's agent carries out; the web client offers only those.
+    repeated Capability capabilities = 5;
+    // "windows" or "linux".
+    string os = 6;
+    // Where VRChat keeps its files on this PC, for display (the original's Get*Location).
+    AgentFolders folders = 7;
+    // The PC's offset from UTC in minutes, for the local dates the original puts in saved file names.
+    sint32 utc_offset_minutes = 8;
+}
+
+message AgentFolders {
+    string app_data = 1;
+    string photos = 2;
+    string screenshots = 3;
+    string cache = 4;
+    string ugc_photos = 5;
+    string crash_dumps = 6;
+}
+
+// One per ClientAction family.
+enum Capability {
+    CAPABILITY_UNSPECIFIED = 0;
+    // launch_vrchat, quit_vrchat
+    CAPABILITY_LAUNCH = 1;
+    // open_instance
+    CAPABILITY_OPEN_INSTANCE = 2;
+    // process_screenshot, delete_screenshot_metadata
+    CAPABILITY_SCREENSHOTS = 3;
+    // send_ipc
+    CAPABILITY_IPC = 4;
+    // open_folder
+    CAPABILITY_FOLDERS = 5;
+    // pick_path
+    CAPABILITY_PICK_PATH = 6;
+    // read_vrchat_config, write_vrchat_config
+    CAPABILITY_VRCHAT_CONFIG = 7;
+    // the registry actions
+    CAPABILITY_REGISTRY = 8;
+    // read_local_moderations, set_local_moderation
+    CAPABILITY_LOCAL_MODERATIONS = 9;
+    // the cache actions
+    CAPABILITY_CACHE = 10;
+    // save_media, crop_prints
+    CAPABILITY_SAVE_MEDIA = 11;
+    // show_notification
+    CAPABILITY_NOTIFICATIONS = 12;
+    // set_discord_presence
+    CAPABILITY_DISCORD = 13;
+    // open_calendar_file
+    CAPABILITY_CALENDAR = 14;
+    // apply_agent_settings
+    CAPABILITY_SETTINGS = 15;
+    // the agent runs OpenVR (HMD AFK; the VR overlays) when the settings ask for it
+    CAPABILITY_OPENVR = 16;
 }
 
 message Ping {}
@@ -140,6 +213,8 @@ message LogEntry {
         LogStickerSpawn sticker_spawn = 29;
         // The VRChat account signed in to the game on this PC.
         LogPlayer user_authenticated = 30;
+        // A ProTV "nowplaying {json}" line (https://protv.dev/guides/nowplaying): the JSON.
+        LogText now_playing = 31;
     }
 }
 
@@ -224,6 +299,32 @@ message ClientAction {
         LaunchVrchat launch_vrchat = 3;
         OpenInstanceInGame open_instance = 4;
         SendIpc send_ipc = 6;
+        OpenFolder open_folder = 7;
+        PickPath pick_path = 8;
+        LogNoData read_vrchat_config = 9;
+        WriteVrchatConfig write_vrchat_config = 10;
+        LogNoData read_vrchat_registry = 11;
+        WriteVrchatRegistry write_vrchat_registry = 12;
+        Confirm delete_vrchat_registry = 13;
+        ReadVrchatRegistryKey read_vrchat_registry_key = 14;
+        SetVrchatRegistryKey set_vrchat_registry_key = 15;
+        ReadLocalModerations read_local_moderations = 16;
+        SetLocalModeration set_local_moderation = 17;
+        LogNoData get_cache_info = 18;
+        CacheEntry check_cache = 19;
+        CacheEntry delete_cache_entry = 20;
+        Confirm clear_cache = 21;
+        LogNoData sweep_cache = 22;
+        DeleteScreenshotMetadata delete_screenshot_metadata = 23;
+        SaveMedia save_media = 24;
+        CropPrints crop_prints = 25;
+        ShowNotification show_notification = 26;
+        DiscordPresence set_discord_presence = 27;
+        OpenCalendarFile open_calendar_file = 28;
+        AgentSettings apply_agent_settings = 29;
+        WristFeed update_wrist_feed = 30;
+        HudFeed update_hud = 31;
+        NowPlayingPie update_now_playing_pie = 32;
     }
     // Set when the server wants an ActionResult back.
     string request_id = 5;
@@ -256,6 +357,300 @@ message SendIpc {
     string data = 3;
 }
 
+// Folders the agent opens in the PC's file manager. Only these: the server never sends a path.
+enum Folder {
+    FOLDER_UNSPECIFIED = 0;
+    FOLDER_PHOTOS = 1;
+    FOLDER_SCREENSHOTS = 2;
+    FOLDER_APP_DATA = 3;
+    FOLDER_UGC_PHOTOS = 4;
+    FOLDER_CRASH_DUMPS = 5;
+    // The agent's own folder (the original's VRCX app data).
+    FOLDER_AGENT_DATA = 6;
+    // The app launcher's shortcut folder.
+    FOLDER_SHORTCUTS = 7;
+    FOLDER_CACHE = 8;
+}
+
+// Opens a folder (the original's Open*Folder); with relative_path, selects that item inside it
+// (OpenFolderAndSelectItem). A relative path that leaves the folder is refused.
+message OpenFolder {
+    Folder folder = 1;
+    string relative_path = 2;
+}
+
+enum PickPurpose {
+    PICK_PURPOSE_UNSPECIFIED = 0;
+    // The VRChat install folder or its launch.exe (the launch path override).
+    PICK_PURPOSE_VRCHAT_PATH = 1;
+    // The UGC photos folder override.
+    PICK_PURPOSE_UGC_FOLDER = 2;
+    // The app launcher's shortcut folder.
+    PICK_PURPOSE_SHORTCUT_FOLDER = 3;
+    // Any folder, only answered (config.json's cache and picture folders).
+    PICK_PURPOSE_FOLDER = 4;
+}
+
+// Shows the native folder or file picker on the PC (OpenFolderSelectorDialog, OpenFileSelectorDialog)
+// and keeps the choice as the agent's own setting for that purpose. Answers json {"path": "..."},
+// empty when cancelled.
+message PickPath {
+    PickPurpose purpose = 1;
+    // Where the picker opens (FOLDER only; the others know their own place).
+    string start = 2;
+}
+
+message Confirm {
+    // Set by the web client only after asking; without it the agent answers NOT_CONFIRMED.
+    bool confirm = 1;
+}
+
+// Replaces VRChat's config.json (WriteConfigFile) with a JSON object; the agent checks it parses.
+// read_vrchat_config answers json {"exists": bool, "json": "<the file>"}.
+message WriteVrchatConfig {
+    string json = 1;
+}
+
+// Restores a registry backup (SetVRChatRegistry): the JSON read_vrchat_registry answers, which is
+// {"<key>": {"data": <value>, "type": 3 binary, 4 DWORD or 100 float}}; NOT_FOUND when VRChat has no key.
+message WriteVrchatRegistry {
+    string json = 1;
+    bool confirm = 2;
+}
+
+// GetVRChatRegistryKey: answers json {"value": <value or null>}.
+message ReadVrchatRegistryKey {
+    string key = 1;
+}
+
+// SetVRChatRegistryKey: value_json is the value as JSON, type the RegistryValueKind number.
+message SetVrchatRegistryKey {
+    string key = 1;
+    string value_json = 2;
+    int32 type = 3;
+}
+
+// GetVRChatModerations: answers json {"<user id>": <type>}, the signed-in user's local show/hide
+// avatar list.
+message ReadLocalModerations {
+    string current_user_id = 1;
+}
+
+// SetVRChatUserModeration.
+message SetLocalModeration {
+    string current_user_id = 1;
+    string user_id = 2;
+    int32 type = 3;
+}
+
+// One asset bundle in VRChat's cache (AssetBundleManager). check_cache answers json
+// {"size": n, "locked": bool, "path": "..."}, size -1 when it is not cached. get_cache_info answers
+// {"size": n, "location": "..."}; sweep_cache answers the removed folders as a JSON list.
+message CacheEntry {
+    string id = 1;
+    int32 version = 2;
+    string variant = 3;
+    int32 variant_version = 4;
+}
+
+// DeleteScreenshotMetadata (one picture inside the screenshots folder) or, with all and confirm,
+// DeleteAllScreenshotMetadata.
+message DeleteScreenshotMetadata {
+    string relative_path = 1;
+    bool all = 2;
+    bool confirm = 3;
+}
+
+enum MediaKind {
+    MEDIA_KIND_UNSPECIFIED = 0;
+    MEDIA_KIND_PRINT = 1;
+    MEDIA_KIND_STICKER = 2;
+    MEDIA_KIND_EMOJI = 3;
+}
+
+// SavePrintToFile, SaveStickerToFile, SaveEmojiToFile: writes data (the image the server downloaded
+// from url) into the UGC folder, under kind and month_folder, unless the file is there. Answers json
+// {"path": "..."}, the path empty when the file was there already.
+message SaveMedia {
+    MediaKind kind = 1;
+    string url = 2;
+    string month_folder = 3;
+    string file_name = 4;
+    // Crop a print to its picture (the crop prints setting).
+    bool crop = 5;
+    bytes data = 6;
+}
+
+// CropAllPrints over the UGC prints folder. Answers json {"cropped": n}.
+message CropPrints {
+    bool confirm = 1;
+}
+
+// A notification on the PC: the desktop toast (DesktopNotification), XSOverlay and OVR Toolkit.
+message ShowNotification {
+    string title = 1;
+    string body = 2;
+    // The image's URL, which the server downloads into image.
+    string image_url = 3;
+    bool desktop = 4;
+    bool xsoverlay = 5;
+    bool ovrtoolkit_hud = 6;
+    bool ovrtoolkit_wrist = 7;
+    // Seconds, for XSOverlay and OVR Toolkit.
+    int32 timeout = 8;
+    double opacity = 9;
+    // The image's bytes; empty shows VRCX's icon on the overlays and none on the toast.
+    bytes image = 10;
+    // What XSOverlay and OVR Toolkit show (toNotificationText), under the title "VRCX".
+    string overlay_text = 11;
+    // The agent's own SteamVR HMD overlay (the original's overlayNotifications), at this Noty
+    // layout (topCenter, bottomRight, ...) in the dark theme or not.
+    bool steamvr_overlay = 12;
+    string position = 13;
+    bool dark = 14;
+}
+
+// Discord Rich Presence (Discord.SetAssets); active false clears it.
+message DiscordPresence {
+    bool active = 1;
+    string details = 2;
+    string state = 3;
+    string large_image_key = 4;
+    string large_image_text = 5;
+    string small_image_key = 6;
+    string small_image_text = 7;
+    // Unix milliseconds; 0 leaves them out.
+    int64 start_time = 8;
+    int64 end_time = 9;
+    string party_id = 10;
+    int32 party_size = 11;
+    int32 party_max = 12;
+    string button_text = 13;
+    string button_url = 14;
+    string app_id = 15;
+    // The world's page, linked from the details line; empty for none.
+    string details_url = 16;
+    // Discord's activity type: 0 playing, 2 listening, 3 watching, 5 competing.
+    int32 activity_type = 17;
+    // Which line Discord shows as the status: 0 the app's name, 1 state, 2 details.
+    int32 status_display_type = 18;
+}
+
+// Opens an .ics with the PC's calendar app (OpenCalendarFile).
+message OpenCalendarFile {
+    string ics = 1;
+}
+
+// The agent's own behaviour, set in the web client's settings and kept by the agent.
+message AgentSettings {
+    // The app launcher (AutoAppLaunchManager): start the shortcuts in its folder with VRChat.
+    bool app_launcher_enabled = 1;
+    bool app_launcher_kill_on_exit = 2;
+    bool app_launcher_run_once = 3;
+    // Start VRChat again when it closes without quitting (relaunch after crash).
+    bool relaunch_after_crash = 4;
+    // Sweep VRChat's cache when it closes (auto cache management).
+    bool auto_sweep_cache = 5;
+    // The UGC photos folder override; empty means VRChat's own.
+    string ugc_folder = 6;
+    // OpenVR (the original's SetVR): on while SteamVR runs and VRChat runs in VR, or always.
+    bool open_vr = 7;
+    bool open_vr_always = 8;
+    bool wrist_overlay = 9;
+    // The wrist overlay shows while this controller button is held: menu, else grip (A/X on Oculus).
+    bool overlay_menu_button = 10;
+    // 0 either hand, 1 left, 2 right.
+    int32 overlay_hand = 11;
+}
+
+// What plays in the game's instance (the original's nowPlayingUpdate): the wrist overlay's now
+// playing row, and the HMD overlay's progress pie when `pie` is set. The agent turns the clock into
+// the share played.
+message NowPlayingPie {
+    // False when nothing plays.
+    bool active = 1;
+    // Seconds into the video at logged_at.
+    double position = 2;
+    // Unix seconds.
+    double logged_at = 3;
+    double length = 4;
+    double speed = 5;
+    bool paused = 6;
+    string name = 7;
+    // progressPie, and with progressPieFilter a dance world.
+    bool pie = 8;
+}
+
+// The HMD overlay's Photon HUDs (the original's addEntryHudFeed and updateHudTimeout): new events,
+// newest first, already through the HUD filters, and the timeout list when it changed.
+message HudFeed {
+    repeated HudEntry added = 1;
+    // How long an event line stays (photonOverlayMessageTimeout).
+    int32 message_timeout_ms = 2;
+    bool timeouts_set = 3;
+    repeated HudTimeout timeouts = 4;
+}
+
+message HudEntry {
+    string display_name = 1;
+    // What happened, as the HUD line reads after the name.
+    string text = 2;
+    // "yellow" for the lines the original drew yellow.
+    string color = 3;
+    bool master = 4;
+    bool moderator = 5;
+    bool friend = 6;
+    bool favorite = 7;
+    // The name's custom tag colour, or empty.
+    string colour = 8;
+}
+
+message HudTimeout {
+    string display_name = 1;
+    // Seconds since the player was last heard from.
+    int32 seconds = 2;
+}
+
+// The wrist overlay's feed (the original's wristFeedUpdate): the newest rows first, already passed
+// through the wrist feed filters, with how the overlay is drawn.
+message WristFeed {
+    repeated WristRow rows = 1;
+    // VRCX_vrBackgroundEnabled: a dark panel behind the feed.
+    bool background = 2;
+    // VRCX_hideDevicesFromFeed.
+    bool hide_devices = 3;
+    // The player count with friends in brackets, as the bottom bar's first row starts.
+    string status = 4;
+    // When the game joined this instance and when it started (0 when unknown or hidden by
+    // hideUptimeFromFeed), for the bottom bar's timers; Unix milliseconds.
+    int64 location_since_ms = 5;
+    int64 online_since_ms = 6;
+    // pcUptimeOnFeed and vrOverlayCpuUsage: the agent adds its own PC's uptime and CPU load.
+    bool pc_uptime = 7;
+    bool cpu_usage = 8;
+    // minimalFeed: the bottom bar without its labels.
+    bool minimal = 9;
+    int32 online_friends = 10;
+    // The bottom bar's labels in the page's language: Timer, Players, CPU, Online.
+    string timer_label = 11;
+    string players_label = 12;
+    string cpu_label = 13;
+    string online_label = 14;
+    // The clock in 12-hour time (dtHour12).
+    bool hour12 = 15;
+}
+
+message WristRow {
+    // HH:MM, in the browser's locale.
+    string time = 1;
+    string name = 2;
+    string text = 3;
+    bool friend = 4;
+    bool favorite = 5;
+    // The name's custom tag colour, or empty.
+    string colour = 6;
+}
+
 // Hands an instance to the VRChat already running on this PC.
 message OpenInstanceInGame {
     string launch_url = 1;
@@ -281,7 +676,37 @@ message ServerEvent {
         AccountContentRefreshed content_refresh = 22;
         NowPlayingPosition now_playing_position = 23;
         CustomTagChanged custom_tag = 24;
+        AgentAlert agent_alert = 25;
+        PhotonUpdated photon = 26;
+        NowPlayingSpec now_playing_spec = 27;
     }
+}
+
+// The PC's Photon lobby changed: pages showing it fetch it again. Notys carries what the original
+// notified about without storing it (ChatBoxMessage, AvatarChange, Blocked, Muted and the rest),
+// as a JSON array of { type, created_at, userId, displayName, text, ... }.
+message PhotonUpdated {
+    string account_id = 1;
+    string notys_json = 2;
+}
+
+// Something the PC's agent did, or could not do, that the original told the user about in a
+// dialog (runCheckVRChatDebugLoggingFlow).
+message AgentAlert {
+    string account_id = 1;
+    AgentAlertKind kind = 2;
+    // What it is about: for SAVE_MEDIA_BLOCKED, "print", "sticker" or "emoji".
+    string detail = 3;
+}
+
+enum AgentAlertKind {
+    AGENT_ALERT_KIND_UNSPECIFIED = 0;
+    // VRChat's debug logging was off and the agent turned it back on.
+    AGENT_ALERT_KIND_DEBUG_LOGGING_ENABLED = 1;
+    // It was off and could not be turned on: the user has to.
+    AGENT_ALERT_KIND_DEBUG_LOGGING_FAILED = 2;
+    // Windows kept the agent from writing a saved print, sticker or emoji (handleFileSaveError).
+    AGENT_ALERT_KIND_SAVE_MEDIA_BLOCKED = 3;
 }
 
 // Another program on the account's PC set or removed a user's custom tag over the named pipe, or
@@ -304,6 +729,23 @@ message NowPlayingPosition {
     double video_pos = 3;
     double video_length = 4;
     google.protobuf.Timestamp logged_at = 5;
+}
+
+// What a world's ProTV "nowplaying" producers say plays (the original's nowPlayingSpec): the
+// followed producer's media and timing, or cleared. Not stored; the play itself is a VideoPlay row.
+message NowPlayingSpec {
+    string account_id = 1;
+    bool cleared = 2;
+    string video_url = 3;
+    string name = 4;
+    string thumbnail_url = 5;
+    double length = 6;
+    double speed = 7;
+    bool paused = 8;
+    // The position at logged_at.
+    double position = 9;
+    google.protobuf.Timestamp logged_at = 10;
+    bool url_hidden = 11;
 }
 
 // VRChat's content-refresh pipeline event: the account's icons, gallery, emoji, prints or inventory

@@ -85,8 +85,41 @@ export const desktop = $state({
 	lastGameStartedAt: null as string | null,
 	lastGameStoppedAt: null as string | null,
 	/** VRChat last started in desktop mode on that PC (the original's isGameNoVR). */
-	gameNoVr: false
+	gameNoVr: false,
+	/** SteamVR runs on that PC (the original's isSteamVRRunning). */
+	steamVrRunning: false,
+	/** Nobody wears the headset (the agent's OpenVR, the original's isHmdAfk). */
+	hmdAfk: false,
+	/** What that PC's agent does (see AgentCapability); an older agent declares nothing. */
+	capabilities: [] as AgentCapability[],
+	os: null as string | null,
+	/** Where VRChat keeps its files on that PC. */
+	folders: null as AgentFolders | null
 });
+
+/** The ClientAction families an agent declares, as the server names them. */
+export type AgentCapability =
+	| 'launch'
+	| 'open_instance'
+	| 'screenshots'
+	| 'ipc'
+	| 'folders'
+	| 'pick_path'
+	| 'vrchat_config'
+	| 'registry'
+	| 'local_moderations'
+	| 'cache'
+	| 'save_media'
+	| 'notifications'
+	| 'discord'
+	| 'calendar'
+	| 'settings'
+	| 'openvr';
+
+export type AgentFolders = { appData: string; photos: string; screenshots: string; cache: string; ugcPhotos: string; crashDumps: string };
+
+/** Whether the account's PC is connected and its agent does this. */
+export const agentCan = (capability: AgentCapability): boolean => desktop.connected && desktop.capabilities.includes(capability);
 
 export async function refreshDesktop(): Promise<void> {
 	const owner = vrchatAuth.ownerUserId;
@@ -100,6 +133,11 @@ export async function refreshDesktop(): Promise<void> {
 			lastGameStartedAt?: string | null;
 			lastGameStoppedAt?: string | null;
 			gameNoVr?: boolean;
+			steamVrRunning?: boolean;
+			hmdAfk?: boolean;
+			capabilities?: string[];
+			os?: string | null;
+			folders?: AgentFolders | null;
 		}>(accountPath(owner, '/desktop'));
 		desktop.connected = status.connected;
 		desktop.gameRunning = status.gameRunning;
@@ -108,9 +146,17 @@ export async function refreshDesktop(): Promise<void> {
 		desktop.lastGameStartedAt = status.lastGameStartedAt ?? null;
 		desktop.lastGameStoppedAt = status.lastGameStoppedAt ?? null;
 		desktop.gameNoVr = status.gameNoVr ?? false;
+		desktop.steamVrRunning = status.steamVrRunning ?? false;
+		desktop.hmdAfk = status.hmdAfk ?? false;
+		desktop.capabilities = (status.capabilities ?? []) as AgentCapability[];
+		desktop.os = status.os ?? null;
+		desktop.folders = status.folders ?? null;
 	} catch {
 		desktop.connected = false;
 		desktop.gameRunning = false;
+		desktop.steamVrRunning = false;
+		desktop.hmdAfk = false;
+		desktop.capabilities = [];
 	}
 }
 

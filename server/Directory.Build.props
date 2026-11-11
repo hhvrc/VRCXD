@@ -5,7 +5,7 @@
     <Version>2.0.0</Version>
     <Authors>hhvrc</Authors>
     <Description>VRCX server: owns the VRChat API session, the Postgres model and the business logic, so the clients only render.</Description>
-    <RepositoryUrl>https://github.com/hhvrc/vrcxd</RepositoryUrl>
+    <RepositoryUrl>https://github.com/hhvrc/VRCXD</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 

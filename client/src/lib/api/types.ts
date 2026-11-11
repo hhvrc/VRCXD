@@ -387,6 +387,52 @@ export type AccountSettings = {
 	autoAcceptInviteStatuses: string[];
 	autoDeclineFriendRequests: boolean;
 	autoDeleteOldPrints: boolean;
+	relaunchVrchatAfterCrash: boolean;
+	autoSweepVrchatCache: boolean;
+	selfInviteOverride: boolean;
+	ugcFolderPath: string;
+	saveInstancePrints: boolean;
+	cropInstancePrints: boolean;
+	saveInstanceStickers: boolean;
+	saveInstanceEmoji: boolean;
+	vrcRegistryAutoBackup: boolean;
+	vrcRegistryAskRestore: boolean;
+	enableAppLauncher: boolean;
+	enableAppLauncherAutoClose: boolean;
+	enableAppLauncherRunProcessOnce: boolean;
+	discordActive: boolean;
+	discordInstance: boolean;
+	discordHideInvite: boolean;
+	discordJoinButton: boolean;
+	discordHideImage: boolean;
+	discordShowPlatform: boolean;
+	discordWorldIntegration: boolean;
+	discordWorldNameAsDiscordStatus: boolean;
+	discordMediaImage: boolean;
+	/** The Photon lobby's timeout threshold in ms (VRCX_photonLobbyTimeoutThreshold). */
+	photonLobbyTimeoutThreshold: number;
+	/** Users whose chatbox messages are hidden, by id with their name. */
+	chatboxUserBlacklist: Record<string, string>;
+	chatboxBlacklist: string[];
+	photonEventTypeFilter: string[];
+	/** The Photon event and timeout HUDs on the agent's SteamVR overlay. */
+	photonEventOverlay: boolean;
+	photonEventOverlayFilter: string;
+	photonEventTypeOverlayFilter: string[];
+	/** ms */
+	photonOverlayMessageTimeout: number;
+	timeoutHudOverlay: boolean;
+	timeoutHudOverlayFilter: string;
+	/** The video progress pie on the agent's SteamVR overlay, only in dance worlds when filtered. */
+	progressPie: boolean;
+	progressPieFilter: boolean;
+	/** OpenVR on the PC (the original's openVR), and whether it also runs with VRChat closed. */
+	openVr: boolean;
+	openVrAlways: boolean;
+	overlayWrist: boolean;
+	overlayButton: boolean;
+	/** 0 either hand, 1 left, 2 right. */
+	overlayHand: number;
 	favoriteFriendGroups: string[];
 	/** The original's VRCX_avatarAutoCleanup: Off, 30, 90, 180 or 365 days. */
 	avatarAutoCleanup: string;

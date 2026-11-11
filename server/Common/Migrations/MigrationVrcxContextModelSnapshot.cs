@@ -17,7 +17,7 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261110173358_SavedCredentials";
+    public override string LastMigrationId => "20261110204704_VrchatRegistryBackups";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -2264,6 +2264,46 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                 b.ToTable("video_plays");
             });
 
+        modelBuilder.Entity("VRCX.Common.VrcxDb.VrchatRegistryBackup", b =>
+            {
+                var id = b.Property<long>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("bigint")
+                    .HasColumnName("id");
+
+                NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(id);
+
+                b.Property<string>("AccountId")
+                    .IsRequired()
+                    .HasColumnType("text")
+                    .HasColumnName("account_id");
+
+                b.Property<DateTimeOffset>("CreatedAt")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("created_at");
+
+                b.Property<JsonDocument>("Data")
+                    .IsRequired()
+                    .HasColumnType("jsonb")
+                    .HasColumnName("data");
+
+                b.Property<string>("Name")
+                    .IsRequired()
+                    .HasColumnType("text")
+                    .HasColumnName("name");
+
+                b.Property<bool>("RestoreOffered")
+                    .HasColumnType("boolean")
+                    .HasColumnName("restore_offered");
+
+                b.HasKey("Id")
+                    .HasName("vrchat_registry_backups_pkey");
+
+                b.HasIndex("AccountId", "CreatedAt");
+
+                b.ToTable("vrchat_registry_backups");
+            });
+
         modelBuilder.Entity("VRCX.Common.VrcxDb.World", b =>
             {
                 b.Property<string>("Id")
@@ -3057,6 +3097,18 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                 b.Navigation("Instance");
 
                 b.Navigation("User");
+            });
+
+        modelBuilder.Entity("VRCX.Common.VrcxDb.VrchatRegistryBackup", b =>
+            {
+                b.HasOne("VRCX.Common.VrcxDb.Account", "Account")
+                    .WithMany()
+                    .HasForeignKey("AccountId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired()
+                    .HasConstraintName("fk_vrchat_registry_backups_account_id");
+
+                b.Navigation("Account");
             });
 
         modelBuilder.Entity("VRCX.Common.VrcxDb.World", b =>

@@ -101,6 +101,34 @@ public sealed partial class AccountsController
         }
     }
 
+    /// <summary>Opens the event's .ics with the calendar app on the account's PC (the original's Export to Calendar, OpenCalendarFile).</summary>
+    /// <response code="204">Opened</response>
+    /// <response code="409">No live session, or no PC that can</response>
+    [HttpPost("{accountId}/calendar/{groupId}/{eventId}/open-on-pc")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [MapToApiVersion("1")]
+    public async Task<IActionResult> OpenCalendarEventOnPc([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, [FromServices] VRCX.Common.Services.Live.DesktopClients desktops, CancellationToken cancellationToken)
+    {
+        if (_sessions.Get(accountId) is not { } client) return Problem(AccountError.NoLiveSession);
+        string ics;
+        try
+        {
+            ics = await client.GetCalendarEventIcsAsync(groupId, eventId, cancellationToken);
+        }
+        catch (VrchatUnauthorizedException)
+        {
+            await _sessions.InvalidateAsync(accountId, HttpContext.RequestAborted);
+            return Problem(VrchatError.SessionExpired);
+        }
+        catch (VrchatApiException ex)
+        {
+            return VrchatProblem(ex);
+        }
+        return await AgentActionAsync(accountId, VRCX.Common.Live.Capability.Calendar, desktops, new VRCX.Common.Live.ClientAction { OpenCalendarFile = new VRCX.Common.Live.OpenCalendarFile { Ics = ics } }, cancellationToken);
+    }
+
     /// <summary>VRChat's info push items: help articles, quick menu banners and loading screens. The shape varies by item, so it is passed through.</summary>
     /// <response code="200">The items</response>
     /// <response code="409">No live session</response>

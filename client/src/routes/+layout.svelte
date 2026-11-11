@@ -22,6 +22,8 @@
 	import YouTubeBotErrorPrompt from '#lib/components/dialogs/youtube-bot-error-prompt.svelte';
 	import ErrorReportingPrompt from '#lib/components/dialogs/error-reporting-prompt.svelte';
 	import SpotlightDialog from '#lib/components/dialogs/spotlight-dialog.svelte';
+	import RegistryRestorePrompt from '#lib/components/tools/registry-restore-prompt.svelte';
+	import AgentAlertPrompt from '#lib/components/dialogs/agent-alert-prompt.svelte';
 	import RightSidebar from '#lib/components/sidebar/right-sidebar.svelte';
 	import * as Resizable from '#lib/components/ui/resizable/index.js';
 	import * as Sidebar from '#lib/components/ui/sidebar/index.js';
@@ -213,4 +215,6 @@
 	<EditProfileDialog />
 	<GroupEditDialog />
 	<GroupEventEditDialog />
+	<RegistryRestorePrompt />
+	<AgentAlertPrompt />
 </Tooltip.Provider>

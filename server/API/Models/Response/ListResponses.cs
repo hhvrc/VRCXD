@@ -376,7 +376,19 @@ public sealed class DesktopStatusResponse
     public DateTimeOffset? LastGameStoppedAt { get; init; }
     /// <summary>VRChat last started in desktop mode on that PC (the original's isGameNoVR).</summary>
     public bool GameNoVr { get; init; }
+    /// <summary>Whether SteamVR runs on the connected PC (the original's isSteamVRRunning).</summary>
+    public bool SteamVrRunning { get; init; }
+    /// <summary>Nobody wears the headset (its proximity sensor), while the agent's OpenVR is active.</summary>
+    public bool HmdAfk { get; init; }
+    /// <summary>What the connected PC's agent does: launch, open_instance, folders, cache and so on.</summary>
+    public IReadOnlyList<string> Capabilities { get; init; } = [];
+    /// <summary>windows or linux.</summary>
+    public string? Os { get; init; }
+    /// <summary>Where VRChat keeps its files on the connected PC.</summary>
+    public DesktopFolders? Folders { get; init; }
 }
+
+public sealed record DesktopFolders(string AppData, string Photos, string Screenshots, string Cache, string UgcPhotos, string CrashDumps);
 
 public sealed class InstanceOptionsResponse
 {

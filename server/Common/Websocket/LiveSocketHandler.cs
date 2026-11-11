@@ -19,6 +19,14 @@ public sealed class LiveSocketHandler(
     IAccountSessionManager sessions,
     GameClientRegistry gameClients,
     DesktopClients desktops,
+    CrashRelaunch crashRelaunch,
+    AgentSettingsPush agentSettings,
+    RegistryBackups registryBackups,
+    DebugLoggingCheck debugLogging,
+    AutoCacheSweep cacheSweep,
+    MediaSaver mediaSaver,
+    DiscordPresenceService discordPresence,
+    VRCX.Common.Services.Live.Photon.PhotonService photon,
     IpcIngestor ipcIngestor,
     ILogger<LiveSocketHandler> logger)
 {
@@ -134,7 +142,7 @@ public sealed class LiveSocketHandler(
                                 if (desktopConnection is not null) desktops.Detach(session.ClientId, desktopConnection);
                             }
                             gameClients.Connected(message.Hello.ClientId);
-                            desktopConnection = desktops.Attach(message.Hello.ClientId, message.Hello.ClientName, async (action, token) =>
+                            desktopConnection = desktops.Attach(message.Hello, async (action, token) =>
                             {
                                 await sendLock.WaitAsync(token);
                                 try { await SendAsync(socket, new ServerMessage { Action = action }, token); }
@@ -146,8 +154,16 @@ public sealed class LiveSocketHandler(
                             if (session.LastEntryAt is { } last) resume.LastEntryAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(last);
                             reply = new ServerMessage { GameLogResume = resume };
                             // The original's IPCAnnounceStart once signed in: programs on the pipe learn VRCX is up.
+                            var helloActions = new List<ClientAction>();
                             if (sessions.ActiveAccountIds.Count > 0)
-                                actions = [new ClientAction { SendIpc = new SendIpc { Type = "VRCXLaunch", MsgType = "VRCXLaunch" } }];
+                                helloActions.Add(new ClientAction { SendIpc = new SendIpc { Type = "VRCXLaunch", MsgType = "VRCXLaunch" } });
+                            // What the agent does by itself (the app launcher, the UGC folder), from the account's settings.
+                            if (await agentSettings.OnConnectAsync(session.ClientId, session.AccountId, ct) is { } pushed) helloActions.Add(pushed);
+                            actions = helloActions;
+                            // Answers come back through this loop, so the backup cannot be awaited here.
+                            var (backupClient, backupAccount) = (session.ClientId, session.AccountId);
+                            _ = Task.Run(() => registryBackups.OnConnectAsync(backupClient, backupAccount, ct), CancellationToken.None);
+                            discordPresence.Changed(session.ClientId, session.AccountId, session.CurrentInstanceLocation);
                         }
                         muteEvents = message.Hello.MuteEvents;
                         logger.LogInformation("Live socket hello from {Client} ({Name})", session.ClientId, message.Hello.ClientName);
@@ -160,6 +176,12 @@ public sealed class LiveSocketHandler(
                         finally { ingestLock.Release(); }
                         if (session.GameRunning == false && session.CurrentInstanceLocation is not null) ScheduleQuietClose();
                         reply = new ServerMessage { GameLogAck = new GameLogAck { Accepted = batch.Accepted } };
+                        if (desktopConnection is not null)
+                        {
+                            mediaSaver.Queue(session.ClientId, session.AccountId, message.GameLog.Entries);
+                            photon.Track(session);
+                            discordPresence.Changed(session.ClientId, session.AccountId, session.CurrentInstanceLocation);
+                        }
                         actions = batch.Actions;
                         break;
                     case ClientMessage.MessageOneofCase.Ping:
@@ -185,12 +207,26 @@ public sealed class LiveSocketHandler(
                         await ingestLock.WaitAsync(ct);
                         try { await gameLog.GameStateAsync(session, message.GameState.Running, DateTimeOffset.UtcNow, ct); }
                         finally { ingestLock.Release(); }
-                        if (desktopConnection is not null) desktops.SetGameRunning(session.ClientId, desktopConnection, message.GameState.Running);
+                        if (desktopConnection is not null) desktops.SetGameState(session.ClientId, desktopConnection, message.GameState);
                         var wasRunning = session.GameRunning;
+                        // runCheckVRChatDebugLoggingFlow, a minute after the agent says how VRChat is and whenever it starts or stops.
+                        if (wasRunning != message.GameState.Running) debugLogging.Schedule(session.ClientId, session.AccountId);
                         session.GameRunning = message.GameState.Running;
+                        if (desktopConnection is not null) discordPresence.Changed(session.ClientId, session.AccountId, session.CurrentInstanceLocation);
                         quietClose?.Cancel();
                         stoppedAt = null;
                         if (message.GameState.Running) break;
+                        if (wasRunning == true)
+                        {
+                            var (sweepClient, sweepAccount) = (session.ClientId, session.AccountId);
+                            _ = Task.Run(() => cacheSweep.GameStoppedAsync(sweepClient, sweepAccount, CancellationToken.None), CancellationToken.None);
+                        }
+                        // Closed without logging its quit: maybe start it again where it was (decided after a wait).
+                        if (wasRunning == true && desktopConnection is not null && message.GameState is { HasClosedGracefully: true, ClosedGracefully: false })
+                        {
+                            var (crashedClient, crashedAccount, crashedAt) = (session.ClientId, session.AccountId, session.CurrentInstanceLocation);
+                            _ = Task.Run(() => crashRelaunch.GameCrashedAsync(crashedClient, crashedAccount, crashedAt, CancellationToken.None), CancellationToken.None);
+                        }
                         if (wasRunning == true && session.LastEntryAt is { } read && DateTimeOffset.UtcNow - read > CaughtUpWithin)
                         {
                             // Stopped while the app is still sending older log (after the server was down,

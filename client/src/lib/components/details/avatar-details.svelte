@@ -41,6 +41,8 @@
 	import { userHref, vrchatUrl } from '#lib/api/links.js';
 	import type { Avatar } from '#lib/api/types.js';
 	import { sdkUnityVersion } from '#lib/content/sdk-unity-version.svelte.js';
+	import { BundleCache } from '#lib/agent/bundle-cache.svelte.js';
+	import { desktop } from '#lib/instances/instance-launch.svelte.js';
 	import { authorTagsText, contentLabel, contentTagsOf, NONE, openPackage, platformPackage, platformText, SECTION, TAB_CONTENT, TAB_LIST, TAB_LIST_WRAP, TAB_TRIGGER, CARD, HEADER_CARD, RAIL, TITLE_BUTTON } from '#lib/details.js';
 	import { userDialog } from '#lib/people/user-dialog.svelte.js';
 	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
@@ -50,7 +52,7 @@
 
 	const RATINGS: Record<string, string> = { VeryPoor: 'Very Poor' };
 
-	type Package = { platform?: string; unityVersion?: string; unitySortNumber?: number; performanceRating?: string; variant?: string };
+	type Package = { platform?: string; unityVersion?: string; unitySortNumber?: number; performanceRating?: string; variant?: string; assetUrl?: string };
 	type LiveAvatar = {
 		id: string;
 		name: string;
@@ -107,6 +109,14 @@
 
 	// The original's fileAnalysis: each platform's bundle size, shown on its badge.
 	let fileAnalysis = $state<Record<string, FileAnalysis>>({});
+
+	// The original's avatar cache row: VRChat's cached bundle on the PC.
+	const bundle = new BundleCache();
+	$effect(() => {
+		const ref = avatar;
+		const sdk = sdkUnityVersion(owner);
+		bundle.refresh(ref, sdk);
+	});
 
 	async function load(id: string) {
 		if (!owner || !id) return;
@@ -213,6 +223,7 @@
 						{@render platformBadge('standalonewindows', 'pc', Monitor)}
 						{@render platformBadge('android', 'quest', Smartphone)}
 						{@render platformBadge('ios', 'ios', Apple)}
+						{#if bundle.inCache}<Badge variant="outline" class="mt-1.5 mr-1.5 cursor-pointer" onclick={() => bundle.open()}>{bundle.size}&nbsp;{m.dialog_avatar_tags_cache()}</Badge>{/if}
 						{#if avatar.styles?.primary || avatar.styles?.secondary}
 							<Badge variant="outline" class="mt-1.5 mr-1.5">
 								Styles
@@ -312,6 +323,9 @@
 								{/if}
 							</DropdownMenu.Content>
 						</DropdownMenu.Root>
+						{#if bundle.inCache}
+							<Button variant="outline" size="icon" class="col-start-1 row-start-2 rounded-lg" title={m.dialog_avatar_actions_delete_cache_tooltip()} aria-label={m.dialog_avatar_actions_delete_cache_tooltip()} disabled={desktop.gameRunning && bundle.locked} onclick={() => bundle.delete(avatar, sdkUnityVersion(owner))}><Trash2 /></Button>
+						{/if}
 						<Button
 							variant="outline"
 							size="icon"

@@ -754,6 +754,14 @@ public sealed class VrchatApiClient : IDisposable
     public Task DeleteProfileThemeAsync(string themeId, CancellationToken ct = default) =>
         SendNoContentAsync(HttpMethod.Delete, $"profile/theme/{Escape(themeId)}", ct);
 
+    /// <summary>GET prints/{id}: the original's getPrint.</summary>
+    public Task<VrchatPrint> GetPrintAsync(string printId, CancellationToken ct = default) =>
+        GetRequiredAsync<VrchatPrint>($"prints/{Escape(printId)}", ct);
+
+    /// <summary>GET user/{userId}/inventory/{inventoryId}: someone's inventory item, as the original's userInventoryItem query.</summary>
+    public Task<JsonElement> GetUserInventoryItemAsync(string userId, string inventoryId, CancellationToken ct = default) =>
+        GetRequiredAsync<JsonElement>($"user/{Escape(userId)}/inventory/{Escape(inventoryId)}", ct);
+
     public Task<List<VrchatPrint>> GetPrintsAsync(string userId, CancellationToken ct = default) =>
         GetRequiredAsync<List<VrchatPrint>>($"prints/user/{Escape(userId)}?n=100", ct);
 
@@ -859,6 +867,10 @@ public sealed class VrchatApiClient : IDisposable
         {
             ["location"] = location, ["title"] = title, ["message"] = message, ["imageId"] = imageId, ["imageVersion"] = imageVersion,
         }, ct);
+
+    /// <summary>GET instances/s/{shortName}: the instance a short name (a portal's, an invite link's) is for.</summary>
+    public Task<Instance?> GetInstanceFromShortNameAsync(string shortName, CancellationToken ct = default) =>
+        GetOrNullAsync<Instance>($"instances/s/{Escape(shortName)}", ct);
 
     /// <summary>GET instances/{location}/shortName, kept as VRChat sends it.</summary>
     public Task<JsonElement> GetInstanceShortNameAsync(string location, CancellationToken ct = default) =>

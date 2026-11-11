@@ -3,7 +3,24 @@ using VRCX.Common.Live;
 
 namespace VRCX.Common.Services.Live;
 
-public sealed record DesktopClient(string ClientId, string? ClientName, bool GameRunning);
+/// <summary>A connected PC: what its agent does (<see cref="Capabilities"/>, named as in the proto without the
+/// prefix, lowercase), its OS and folders, and whether VRChat and SteamVR run on it.</summary>
+public sealed record DesktopClient(
+    string ClientId,
+    string? ClientName,
+    bool GameRunning,
+    bool SteamVrRunning = false,
+    IReadOnlyList<string>? Capabilities = null,
+    string? Os = null,
+    AgentFolders? Folders = null,
+    int UtcOffsetMinutes = 0,
+    bool HmdAfk = false)
+{
+    public bool Can(Capability capability) => (Capabilities ?? []).Contains(CapabilityName(capability));
+
+    public static string CapabilityName(Capability capability) =>
+        string.Concat(capability.ToString().Select((c, i) => char.IsUpper(c) ? (i > 0 ? "_" : "") + char.ToLowerInvariant(c) : c.ToString()));
+}
 
 /// <summary>
 /// The desktop apps holding a live socket, and the way to ask one to do something on its PC.
@@ -13,11 +30,18 @@ public sealed class DesktopClients(ILiveEventBus bus)
 {
     private static readonly TimeSpan AnswerTimeout = TimeSpan.FromSeconds(10);
 
-    private sealed class Connection(string? name, Func<ClientAction, CancellationToken, Task> send)
+    private sealed class Connection(ClientHello hello, Func<ClientAction, CancellationToken, Task> send)
     {
-        public string? Name { get; } = name;
+        public string? Name { get; } = hello.ClientName;
+        public IReadOnlyList<string> Capabilities { get; } =
+            hello.Capabilities.Where(c => c != Capability.Unspecified).Select(DesktopClient.CapabilityName).Distinct().ToList();
+        public string? Os { get; } = string.IsNullOrEmpty(hello.Os) ? null : hello.Os;
+        public AgentFolders? Folders { get; } = hello.Folders;
+        public int UtcOffsetMinutes { get; } = hello.UtcOffsetMinutes;
         public Func<ClientAction, CancellationToken, Task> Send { get; } = send;
         public bool GameRunning { get; set; }
+        public bool SteamVrRunning { get; set; }
+        public bool HmdAfk { get; set; }
     }
 
     private sealed record Pending(string ClientId, TaskCompletionSource<ActionResult?> Answer);
@@ -27,9 +51,10 @@ public sealed class DesktopClients(ILiveEventBus bus)
 
     public IReadOnlyCollection<string> ConnectedIds => _connections.Keys.ToList();
 
-    public object Attach(string clientId, string? clientName, Func<ClientAction, CancellationToken, Task> send)
+    public object Attach(ClientHello hello, Func<ClientAction, CancellationToken, Task> send)
     {
-        var connection = new Connection(clientName, send);
+        var clientId = hello.ClientId;
+        var connection = new Connection(hello, send);
         _connections[clientId] = connection;
         bus.Publish(LiveEvents.Desktop(clientId, connected: true, gameRunning: false));
         return connection;
@@ -43,15 +68,19 @@ public sealed class DesktopClients(ILiveEventBus bus)
         bus.Publish(LiveEvents.Desktop(clientId, connected: false, gameRunning: false));
     }
 
-    public void SetGameRunning(string clientId, object connection, bool running)
+    public void SetGameState(string clientId, object connection, GameState state)
     {
         if (!_connections.TryGetValue(clientId, out var current) || !ReferenceEquals(current, connection)) return;
-        current.GameRunning = running;
-        bus.Publish(LiveEvents.Desktop(clientId, connected: true, running));
+        current.GameRunning = state.Running;
+        current.SteamVrRunning = state.SteamvrRunning;
+        current.HmdAfk = state.HmdAfk;
+        bus.Publish(LiveEvents.Desktop(clientId, connected: true, state.Running));
     }
 
     public DesktopClient? Get(string clientId) =>
-        _connections.TryGetValue(clientId, out var connection) ? new DesktopClient(clientId, connection.Name, connection.GameRunning) : null;
+        _connections.TryGetValue(clientId, out var c)
+            ? new DesktopClient(clientId, c.Name, c.GameRunning, c.SteamVrRunning, c.Capabilities, c.Os, c.Folders, c.UtcOffsetMinutes, c.HmdAfk)
+            : null;
 
     public void Complete(ActionResult result)
     {
@@ -75,7 +104,7 @@ public sealed class DesktopClients(ILiveEventBus bus)
     }
 
     /// <summary>Sends an action and waits for its result. Null when the app went away or never answered.</summary>
-    public async Task<ActionResult?> RequestAsync(string clientId, ClientAction action, CancellationToken ct)
+    public async Task<ActionResult?> RequestAsync(string clientId, ClientAction action, CancellationToken ct, TimeSpan? timeout = null)
     {
         if (!_connections.TryGetValue(clientId, out var connection)) return null;
         action.RequestId = Guid.NewGuid().ToString("N");
@@ -84,7 +113,7 @@ public sealed class DesktopClients(ILiveEventBus bus)
         try
         {
             await connection.Send(action, ct);
-            return await pending.Answer.Task.WaitAsync(AnswerTimeout, ct);
+            return await pending.Answer.Task.WaitAsync(timeout ?? AnswerTimeout, ct);
         }
         catch (TimeoutException)
         {

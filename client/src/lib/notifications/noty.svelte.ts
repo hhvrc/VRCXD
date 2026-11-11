@@ -1,20 +1,24 @@
 import { browser } from '$app/env';
 import { timestampDate } from '@bufbuild/protobuf/wkt';
 import { accountPath, api, type PagedResult } from '#lib/api/client.js';
-import type { Notification } from '#lib/api/types.js';
+import type { Notification, PlayerModeration } from '#lib/api/types.js';
 import type { GameLogRow } from '#lib/activity/game-log-sessions.js';
 import type { ServerEvent } from '#lib/gen/vrcx_live_pb.js';
-import { desktop } from '#lib/instances/instance-launch.svelte.js';
+import { agentCan, desktop } from '#lib/instances/instance-launch.svelte.js';
+import { ownPath } from '#lib/api/vrchat-auth.svelte.js';
 import { onLiveEvent } from '#lib/api/live.svelte.js';
 import { parseLocation } from '#lib/instances/location.js';
-import { AFK_DESKTOP_TOAST_KEY, afkMet, conditionMet, DESKTOP_TOAST_KEY, filterPasses, normalizeSharedFeedFilters, NOTIFICATION_TTS_KEY, NOTIFICATION_TTS_NICKNAME_KEY, NOTIFICATION_TTS_VOICE_KEY, notificationMessage, notificationText, notyMessage, notyName, SHARED_FEED_FILTERS_KEY, shouldPlay, type GameState, type Noty, type SharedFeedFilters } from '#lib/notifications/noty.js';
+import { AFK_DESKTOP_TOAST_KEY, afkMet, conditionMet, DESKTOP_TOAST_KEY, displayLocation, filterPasses, normalizeSharedFeedFilters, NOTIFICATION_TTS_KEY, NOTIFICATION_TTS_NICKNAME_KEY, NOTIFICATION_TTS_VOICE_KEY, notificationMessage, notificationText, notyImage, notyMessage, notyName, SHARED_FEED_FILTERS_KEY, type NotyUser, shouldPlay, type GameState, type Noty, type SharedFeedFilters } from '#lib/notifications/noty.js';
 import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
+import { appearance } from '#lib/settings/appearance.svelte.js';
+import { addWristEntry, wristFeedSettings, watchWristStatus, wristArrived, wristTravelling } from '#lib/notifications/wrist-feed.svelte.js';
 import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
 import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 
-// The original's notification store playNoty: desktop notifications (the browser's Notification API
-// in place of the Windows toast) and text-to-speech (speechSynthesis), for live events that pass the
-// Notification Filters and the When-to-show conditions. One tab plays them: the first to take the
+// The original's notification store playNoty: desktop notifications, XSOverlay and OVR Toolkit on the
+// PC through its agent (the browser's Notification API stands in for the toast when there is none),
+// and text-to-speech (speechSynthesis), for live events that pass the Notification Filters and the
+// When-to-show conditions. One tab plays them: the first to take the
 // "vrcx-noty" lock, so several open tabs don't all speak.
 
 const readString = (key: string, fallback: string) => {
@@ -30,6 +34,18 @@ class NotySettings {
 	/** The voice's index in speechSynthesis.getVoices(), stored as a string as the original does. */
 	ttsVoice = $state(Number(readString(NOTIFICATION_TTS_VOICE_KEY, '0')) || 0);
 	filters = $state<SharedFeedFilters>(normalizeSharedFeedFilters(readSharedFeedFilters()));
+	/** The VR tab: when XSOverlay and OVR Toolkit get them, and how they look. */
+	overlayToast = $state(readString('VRCX_overlayToast', 'Game Running'));
+	xsNotifications = $state(readSetting('VRCX_xsNotifications', true));
+	/** The agent's own SteamVR HMD overlay (VRCX_overlayNotifications), and where its toasts stack. */
+	overlayNotifications = $state(readSetting('VRCX_overlayNotifications', true));
+	notificationPosition = $state(readString('VRCX_notificationPosition', 'topCenter'));
+	ovrtHudNotifications = $state(readSetting('VRCX_ovrtHudNotifications', true));
+	ovrtWristNotifications = $state(readSetting('VRCX_ovrtWristNotifications', false));
+	imageNotifications = $state(readSetting('VRCX_imageNotifications', true));
+	/** Milliseconds, kept as text as the original does. */
+	notificationTimeout = $state(Number(readString('VRCX_notificationTimeout', '3000')) || 0);
+	notificationOpacity = $state(Number(readSetting<unknown>('VRCX_notificationOpacity', 100)) || 0);
 	voices = $state.raw<SpeechSynthesisVoice[]>([]);
 
 	setDesktopToast(value: string) {
@@ -68,6 +84,31 @@ class NotySettings {
 		this.speak(voice.name);
 	}
 
+	setNotificationPosition(value: string) {
+		this.notificationPosition = value;
+		storeSetting('VRCX_notificationPosition', value);
+	}
+
+	setOverlay(key: 'xsNotifications' | 'ovrtHudNotifications' | 'ovrtWristNotifications' | 'imageNotifications' | 'overlayNotifications', value: boolean) {
+		this[key] = value;
+		storeSetting(`VRCX_${key}`, value);
+	}
+
+	setOverlayToast(value: string) {
+		this.overlayToast = value;
+		storeSetting('VRCX_overlayToast', value);
+	}
+
+	setNotificationTimeout(seconds: number) {
+		this.notificationTimeout = Math.max(0, Math.trunc(seconds)) * 1000;
+		storeSetting('VRCX_notificationTimeout', String(this.notificationTimeout));
+	}
+
+	setNotificationOpacity(value: number) {
+		this.notificationOpacity = value;
+		storeSetting('VRCX_notificationOpacity', value);
+	}
+
 	saveFilters() {
 		storeSetting(SHARED_FEED_FILTERS_KEY, JSON.stringify(this.filters));
 	}
@@ -99,8 +140,8 @@ function readSharedFeedFilters(): unknown {
 
 export const notySettings = new NotySettings();
 
-/** What the desktop tells about the game: running, and desktop mode from its log. It does not report SteamVR or the headset yet, so those read as off. */
-const gameState = (): GameState => ({ gameRunning: desktop.gameRunning, steamVrRunning: false, noVr: desktop.gameNoVr, hmdAfk: false });
+/** What the PC tells about the game: running, SteamVR, and desktop mode from its log. It does not report the headset yet, so AFK reads as off. */
+const gameState = (): GameState => ({ gameRunning: desktop.gameRunning, steamVrRunning: desktop.steamVrRunning, noVr: desktop.gameNoVr, hmdAfk: desktop.hmdAfk });
 
 const seen = new Map<string, string>();
 
@@ -110,13 +151,6 @@ async function nickname(userId: string | undefined): Promise<string> {
 	return memo?.memo ? memo.memo.split('\n')[0] : '';
 }
 
-async function userImage(userId: string | undefined): Promise<string> {
-	if (!userId || userId.startsWith('grp_')) return '';
-	const friend = sidebarData.friends.find((f) => f.userId === userId);
-	if (friend?.thumbnailImageUrl) return friend.thumbnailImageUrl;
-	const user = await api.get<{ thumbnailImageUrl?: string | null }>(`/1/users/${encodeURIComponent(userId)}`).catch(() => null);
-	return user?.thumbnailImageUrl ?? '';
-}
 
 /** playNoty: busy and stale checks, then the desktop notification and the speech its conditions allow. */
 export async function playNoty(noty: Noty, options: { force?: boolean } = {}) {
@@ -133,12 +167,39 @@ export async function playNoty(noty: Noty, options: { force?: boolean } = {}) {
 		const msg = notificationMessage(noty, message, nick || notyName(noty));
 		if (msg) notySettings.speak(notificationText(msg.title, msg.body, noty.type));
 	}
-	if (toast && typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-		const msg = notificationMessage(noty, message);
-		if (!msg) return;
-		const icon = noty.imageUrl || (await userImage(noty.userId));
-		new Notification(msg.title || 'VRCXD', { body: msg.body, icon: icon || undefined, tag: `${noty.type},${notyName(noty)}` });
+	const onPc = agentCan('notifications');
+	const overlay = onPc && conditionMet(notySettings.overlayToast, game);
+	const xs = overlay && notySettings.xsNotifications && desktop.os !== 'linux';
+	const hud = overlay && notySettings.ovrtHudNotifications && desktop.os !== 'linux';
+	const wrist = overlay && notySettings.ovrtWristNotifications && desktop.os !== 'linux';
+	const steamvr = overlay && notySettings.overlayNotifications && agentCan('openvr');
+	const browserToast = toast && !onPc && typeof Notification !== 'undefined' && Notification.permission === 'granted';
+	if (!(toast && onPc) && !xs && !hud && !wrist && !steamvr && !browserToast) return;
+	const msg = notificationMessage(noty, message);
+	if (!msg) return;
+	// notySaveImage: only with Show User Icons on.
+	const image = notySettings.imageNotifications ? await notyImage(noty, (id) => api.get<NotyUser>(`/1/users/${encodeURIComponent(id)}`)) : '';
+	if (onPc) {
+		await api
+			.post<void>(ownPath('/agent/notify'), {
+				title: msg.title,
+				body: msg.body,
+				overlayText: notificationText(msg.title, msg.body, noty.type),
+				imageUrl: image || null,
+				desktop: toast,
+				xsoverlay: xs,
+				ovrtoolkitHud: hud,
+				ovrtoolkitWrist: wrist,
+				steamvrOverlay: steamvr,
+				position: notySettings.notificationPosition,
+				dark: appearance.isDarkMode,
+				timeout: Math.floor(notySettings.notificationTimeout / 1000),
+				opacity: notySettings.notificationOpacity / 100
+			})
+			.catch((err) => console.error('Failed to show the notification on the PC:', err));
+		return;
 	}
+	new Notification(msg.title || 'VRCXD', { body: msg.body, icon: image || undefined, tag: `${noty.type},${notyName(noty)}` });
 }
 
 /** The original's Send Test Notification. */
@@ -151,6 +212,9 @@ const isFavorite = (userId: string | undefined) => !!userId && sidebarData.vipId
 
 function queue(noty: Omit<Noty, 'isFriend' | 'isFavorite'>, source: 'notification' | 'other') {
 	const full: Noty = { ...noty, isFriend: isFriend(noty.userId), isFavorite: isFavorite(noty.userId) };
+	addWristEntry(full, source, notySettings.filters.wrist[full.type]);
+	// The original's queueFeedNoty: hidePrivateFromFeed drops private GPS from every notification.
+	if (wristFeedSettings.hidePrivateFromFeed && full.type === 'GPS' && full.location === 'private') return;
 	if (!filterPasses(notySettings.filters.noty[full.type], full, source)) return;
 	void playNoty(full);
 }
@@ -178,6 +242,19 @@ async function notificationDetails(account: string, id: string): Promise<Noty['d
 
 // When the account itself moves, the joins and leaves of that switch are not news (the original's
 // 30 seconds after arriving and 5 seconds after leaving).
+/** Your blocks and mutes (the original's cachedPlayerModerations), read again after a minute. */
+let moderations: { at: number; list: PlayerModeration[] } = { at: 0, list: [] };
+
+async function moderationsOf(userId: string): Promise<('Blocked' | 'Muted')[]> {
+	if (Date.now() - moderations.at > 60_000) {
+		const list = await api.get<PlayerModeration[]>(ownPath('/moderations')).catch(() => null);
+		moderations = { at: Date.now(), list: list ?? moderations.list };
+	}
+	return moderations.list
+		.filter((m) => m.targetUserId === userId && (m.type === 'block' || m.type === 'mute'))
+		.map((m) => (m.type === 'block' ? 'Blocked' : 'Muted'));
+}
+
 let ownJoinedAt = 0;
 let ownLeftAt = 0;
 const lastGameLog = new Map<string, string>();
@@ -191,6 +268,7 @@ async function onEvent(event: ServerEvent) {
 		case 'presence': {
 			const p = e.value;
 			if (!isFriend(p.userId)) return;
+			if (p.kind !== 'location' || p.location !== 'traveling') wristArrived(p.userId);
 			if (p.kind === 'online') {
 				const name = p.location ? await worldName(p.location) : '';
 				queue({ type: 'Online', createdAt, userId: p.userId, displayName: p.displayName, location: p.location, worldName: name || undefined }, 'other');
@@ -198,8 +276,18 @@ async function onEvent(event: ServerEvent) {
 			else if (p.kind === 'location' && p.location === 'traveling') {
 				// The original's onPlayerTraveling: a friend on the way to the instance the game is in.
 				const here = sidebarData.gameInstance;
-				if (desktop.gameRunning && p.travelingToLocation && here.location === p.travelingToLocation && p.userId !== account && !here.playerIds.has(p.userId))
+				const toHere = desktop.gameRunning && !!p.travelingToLocation && here.location === p.travelingToLocation;
+				if (toHere && p.userId !== account && !here.playerIds.has(p.userId))
 					queue({ type: 'OnPlayerJoining', createdAt, userId: p.userId, displayName: p.displayName }, 'other');
+				if (p.userId !== account && !(toHere && here.playerIds.has(p.userId))) {
+					const destination = p.travelingToLocation ? displayLocation(p.travelingToLocation, await worldName(p.travelingToLocation)) : '';
+					wristTravelling(
+						{ type: 'OnPlayerJoining', createdAt, userId: p.userId, displayName: p.displayName, isFriend: true, isFavorite: isFavorite(p.userId) },
+						toHere,
+						destination,
+						notySettings.filters.wrist.OnPlayerJoining
+					);
+				}
 			} else if (p.kind === 'location' && p.location && p.location !== 'traveling') {
 				queue({ type: 'GPS', createdAt, userId: p.userId, displayName: p.displayName, location: p.location, worldName: await worldName(p.location) }, 'other');
 			}
@@ -253,11 +341,35 @@ async function onEvent(event: ServerEvent) {
 			if (v.userId === account) {
 				if (v.joined) ownJoinedAt = now;
 				else ownLeftAt = now;
+				// The original's Location entry for the wrist's Self Location rows.
+				if (v.joined && v.instanceLocation)
+					queue({ type: 'Location', createdAt, location: v.instanceLocation, worldName: (await worldName(v.instanceLocation)) || undefined }, 'other');
 				return;
 			}
 			if (v.joined && now <= ownJoinedAt + 30_000) return;
 			if (!v.joined && now <= ownLeftAt + 5_000) return;
-			queue({ type: v.joined ? 'OnPlayerJoined' : 'OnPlayerLeft', createdAt, userId: v.userId || undefined, displayName: v.displayName }, 'other');
+			const type = v.joined ? 'OnPlayerJoined' : 'OnPlayerLeft';
+			if (v.joined) wristArrived(v.userId);
+			queue({ type, createdAt, userId: v.userId || undefined, displayName: v.displayName }, 'other');
+			// The original's moderationAgainstCheck: someone you blocked or muted came or went.
+			for (const kind of v.userId ? await moderationsOf(v.userId) : []) {
+				queue({ type: `${kind}${type}`, createdAt, userId: v.userId, displayName: v.displayName }, 'other');
+			}
+			return;
+		}
+		case 'photon': {
+			// What the original notified about from the Photon stream without storing it.
+			const p = e.value;
+			if (p.accountId !== account || !p.notysJson) return;
+			let notys: { type: string; created_at?: string; userId?: string | null; displayName?: string | null; text?: string | null }[] = [];
+			try {
+				notys = JSON.parse(p.notysJson);
+			} catch {
+				return;
+			}
+			for (const n of notys) {
+				queue({ type: n.type, createdAt: n.created_at ?? createdAt, userId: n.userId ?? undefined, displayName: n.displayName ?? undefined, text: n.text ?? undefined }, 'other');
+			}
 			return;
 		}
 		case 'gameLog': {
@@ -298,6 +410,7 @@ export function startNoty() {
 	if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged', () => notySettings.updateVoices());
 	const run = () => {
 		onLiveEvent((event) => void onEvent(event));
+		watchWristStatus(() => notySettings.filters.wrist);
 		return new Promise<void>(() => {});
 	};
 	if (navigator.locks) void navigator.locks.request('vrcx-noty', run);

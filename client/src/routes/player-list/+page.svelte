@@ -23,10 +23,19 @@
 	import { languageClass, languagesOf, trustInfo } from '#lib/people/user-display.js';
 	import { userDialog } from '#lib/people/user-dialog.svelte.js';
 	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
+	import { BundleCache } from '#lib/agent/bundle-cache.svelte.js';
+	import { sdkUnityVersion } from '#lib/content/sdk-unity-version.svelte.js';
+	import { agentCan } from '#lib/instances/instance-launch.svelte.js';
+	import type { CacheRef } from '#lib/agent/cache.js';
+	import type { AccountSettings } from '#lib/api/types.js';
+	import { ownPath } from '#lib/api/vrchat-auth.svelte.js';
+	import PhotonEventTable from '#lib/components/photon/photon-event-table.svelte';
+	import ChatboxBlacklistDialog from '#lib/components/photon/chatbox-blacklist-dialog.svelte';
+	import { PhotonLobby, photonMarks, type PhotonMarks } from '#lib/photon/photon.svelte.js';
 
 	// The original's PlayerList over GET /1/accounts/{id}/player-list: the current world and who the
-	// game log says is in the instance. Photon columns and the event table need the game mod's data,
-	// which nothing here receives.
+	// game log says is in the instance, with the Photon lobby (master, moderators, timeouts, Photon
+	// ids and the event table) when the PC runs the Photon logger.
 	type Player = {
 		userId: string;
 		displayName: string;
@@ -73,10 +82,58 @@
 	const now = $derived(clock(1000).now);
 
 	const account = $derived(vrchatAuth.ownerUserId);
+
+	// The original's currentInstanceWorld cache badge: the live world's bundle on the PC.
+	const bundle = new BundleCache();
+	const worldId = $derived(data.world?.id ?? '');
+	$effect(() => {
+		const id = worldId;
+		const owner = account;
+		const sdk = sdkUnityVersion(owner);
+		if (!id || !owner || !agentCan('cache')) return bundle.reset();
+		api.get<CacheRef | null>(`${accountPath(owner)}/worlds/${encodeURIComponent(id)}/live`)
+			.then((live) => {
+				if (id === worldId) bundle.refresh(live ?? undefined, sdk);
+			})
+			.catch(() => bundle.reset());
+	});
 	const friendCount = $derived(data.players.filter((player) => player.isFriend).length);
+
+	const lobby = new PhotonLobby();
+	$effect(() => {
+		if (!account) return;
+		return lobby.watch(account);
+	});
+	const photon = $derived(lobby.snapshot);
+	const marks = $derived(new Map<string, PhotonMarks>(data.players.map((p) => [p.userId, photonMarks(photon, p.userId, p.displayName)])));
+	const markOf = (player: Player) => marks.get(player.userId);
+
+	// The Photon options kept with the account's settings (VRCX_chatboxUserBlacklist and the rest).
+	let settings = $state<AccountSettings | undefined>();
+	$effect(() => {
+		if (!account) return;
+		api.get<AccountSettings>(ownPath('/settings')).then((s) => (settings = s)).catch(() => {});
+	});
+	async function saveSettings(patch: Partial<AccountSettings>) {
+		if (!settings) return;
+		settings = await api.put<AccountSettings>(ownPath('/settings'), { ...settings, ...patch });
+	}
+	const chatboxUsers = $derived(settings?.chatboxUserBlacklist ?? {});
+	function blockChatbox(player: Player) {
+		void saveSettings({ chatboxUserBlacklist: { ...chatboxUsers, [player.userId]: player.displayName } });
+	}
+	function unblockChatbox(userId: string) {
+		const next = { ...chatboxUsers };
+		delete next[userId];
+		void saveSettings({ chatboxUserBlacklist: next });
+	}
+	let chatboxOpen = $state(false);
 
 	function iconWeight(player: Player): number {
 		let value = 0;
+		const mark = markOf(player);
+		if (mark?.isMaster) value += 1000;
+		if (mark?.isModerator) value += 500;
 		if (player.isFriend) value += 200;
 		if (player.isBlocked) value -= 100;
 		if (player.isMuted) value -= 50;
@@ -108,10 +165,11 @@
 
 	const elapsed = (from: string | null | undefined) => (from ? timeToText(Math.max(0, now - Date.parse(from)), true) : '');
 
-	const columns: Column<Player>[] = [
+	const allColumns: Column<Player>[] = [
 		{ id: 'avatar', get label() { return m.table_playerList_avatar(); }, size: 70, cell: avatarCell },
 		{ id: 'timer', get label() { return m.table_playerList_timer(); }, size: 90, sortable: true, compare: (a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt), cell: timerCell },
 		{ id: 'displayName', get label() { return m.table_playerList_displayName(); }, size: 200, sortable: true, compare: (a, b) => a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase()), cell: nameCell },
+		{ id: 'photonId', get label() { return m.table_playerList_photonId(); }, size: 110, sortable: true, compare: (a, b) => (markOf(a)?.photonId ?? 0) - (markOf(b)?.photonId ?? 0), cell: photonIdCell },
 		{ id: 'rank', get label() { return m.table_playerList_rank(); }, size: 110, sortable: true, compare: (a, b) => trustInfo(a.tags, a.developerType).sortNum - trustInfo(b.tags, b.developerType).sortNum, cell: rankCell },
 		{ id: 'status', get label() { return m.table_import_status(); }, size: 200, minSize: 100, stretch: true, cell: statusCell },
 		{ id: 'icon', get label() { return m.dialog_group_edit_icon(); }, size: 90, class: 'text-center', sortable: true, descFirst: true, compare: (a, b) => iconWeight(a) - iconWeight(b), cell: iconCell },
@@ -121,6 +179,8 @@
 		{ id: 'note', get label() { return m.table_import_note(); }, size: 150, minSize: 20, stretch: true, cell: noteCell },
 		{ id: 'memo', get label() { return m.dialog_user_info_memo(); }, size: 150, minSize: 20, stretch: true, cell: memoCell }
 	];
+	// The original showed the Photon id column only while the Photon logger runs.
+	const columns = $derived(photon.enabled ? allColumns : allColumns.filter((c) => c.id !== 'photonId'));
 </script>
 
 {#snippet avatarCell(row: Player)}
@@ -139,6 +199,22 @@
 
 {#snippet nameCell(row: Player)}
 	<a href={userHref(row.userId)}>{row.displayName || row.userId}</a>
+{/snippet}
+
+{#snippet photonIdCell(row: Player)}
+	{@const blocked = row.userId in chatboxUsers}
+	<div class="flex items-center">
+		<button
+			type="button"
+			class={['mr-1 cursor-pointer text-xs underline', blocked && 'text-destructive']}
+			onclick={(event) => {
+				event.stopPropagation();
+				if (blocked) unblockChatbox(row.userId);
+				else blockChatbox(row);
+			}}>{blocked ? 'Unblock' : 'Block'}</button
+		>
+		<span>{markOf(row)?.photonId ?? ''}</span>
+	</div>
 {/snippet}
 
 {#snippet rankCell(row: Player)}
@@ -161,11 +237,15 @@
 {/snippet}
 
 {#snippet iconCell(row: Player)}
+	{@const photonMark = markOf(row)}
 	<div class="flex items-center justify-center gap-1">
+		{#if photonMark?.isMaster}{@render mark('Instance Master', '👑')}{/if}
+		{#if photonMark?.isModerator}{@render mark('Moderator', '⚔️')}{/if}
 		{#if row.isFriend}{@render mark('Friend', '💚')}{/if}
 		{#if row.isBlocked}{@render mark('Blocked', '⛔', 'text-destructive')}{/if}
 		{#if row.isMuted}{@render mark('Muted', '🔇', 'text-muted-foreground')}{/if}
 		{#if row.isAvatarInteractionDisabled}{@render mark('Avatar Interaction Disabled', '🚫', 'text-muted-foreground')}{/if}
+		{#if photonMark?.timeoutTime}{@render mark('Timeout', `🔴${photonMark.timeoutTime}s`, 'text-destructive')}{/if}
 		{#if row.ageVerified}
 			<Tooltip.Root>
 				<Tooltip.Trigger><IdCard class="x-tag-age-verification h-4 w-4" /></Tooltip.Trigger>
@@ -280,6 +360,7 @@
 							{#if world.platforms.includes('android')}<Badge class="mr-1.5 border-platform-quest! text-platform-quest" variant="outline" title={m.dialog_group_event_edit_platform_values_android()}><Smartphone class="h-4 w-4" /></Badge>{/if}
 							{#if world.platforms.includes('ios')}<Badge class="mr-1.5 border-platform-ios text-platform-ios" variant="outline" title={m.dialog_group_event_edit_platform_values_ios()}><Apple class="h-4 w-4" /></Badge>{/if}
 							{#if world.tags.includes('feature_avatar_scaling_disabled')}<Badge class="mt-1.5 mr-1.5" variant="outline">{m.dialog_world_tags_avatar_scaling_disabled()}</Badge>{/if}
+							{#if bundle.inCache}<Badge class="mr-1.5" variant="outline"><span>{bundle.size} {m.dialog_world_tags_cache()}</span></Badge>{/if}
 						</div>
 						<div class="mt-1.5 flex items-center">
 							<LocationWorld class="w-fit" location={data.location ?? ""} currentUserId={vrchatAuth.ownerUserId} />
@@ -301,6 +382,17 @@
 					</div>
 				</div>
 			{/if}
+			{#if photon.enabled}
+				<div class="mb-2">
+					<PhotonEventTable
+						events={photon.events}
+						previousEvents={photon.previousEvents}
+						typeFilter={settings?.photonEventTypeFilter ?? []}
+						onTypeFilter={(types) => saveSettings({ photonEventTypeFilter: types })}
+						onShowChatboxBlacklist={() => (chatboxOpen = true)}
+					/>
+				</div>
+			{/if}
 			<div class="flex min-h-0 min-w-0 flex-1">
 				<DataTable
 					class="[&_td]:px-2.5! [&_td]:py-0.75! [&_th]:px-2.5! [&_th]:py-0.75! [&_tr]:h-7!"
@@ -316,3 +408,11 @@
 		</div>
 	{/if}
 </Tooltip.Provider>
+
+<ChatboxBlacklistDialog
+	bind:open={chatboxOpen}
+	keywords={settings?.chatboxBlacklist ?? []}
+	users={chatboxUsers}
+	onKeywords={(chatboxBlacklist) => saveSettings({ chatboxBlacklist })}
+	onRemoveUser={unblockChatbox}
+/>

@@ -9,6 +9,8 @@
 	import { onItemChanged } from '#lib/api/live.svelte.js';
 	import PreviousInstancesDialog from '#lib/components/instance/previous-instances-dialog.svelte';
 	import FavoriteButton from '#lib/components/favorites/favorite-button.svelte';
+	import { BundleCache } from '#lib/agent/bundle-cache.svelte.js';
+	import { desktop } from '#lib/instances/instance-launch.svelte.js';
 	import { Tabs as TabsPrimitive } from 'bits-ui';
 	import Apple from '@lucide/svelte/icons/apple';
 	import Eye from '@lucide/svelte/icons/eye';
@@ -96,7 +98,8 @@
 		created_at?: string;
 		updated_at?: string;
 		instances?: [string, number][];
-		unityPackages?: { platform?: string; unityVersion?: string; unitySortNumber?: number; variant?: string; created_at?: string }[];
+		unityPackages?: { platform?: string; unityVersion?: string; unitySortNumber?: number; variant?: string; created_at?: string; assetUrl?: string }[];
+		assetUrl?: string;
 		urlList?: string[] | null;
 		disabledPropAbilities?: string[] | null;
 		storeId?: string | null;
@@ -182,6 +185,14 @@
 
 	// The original's fileAnalysis: each platform's bundle size, shown on its badge.
 	let fileAnalysis = $state<Record<string, FileAnalysis>>({});
+
+	// The original's world cache row: VRChat's cached bundle on the PC.
+	const bundle = new BundleCache();
+	$effect(() => {
+		const ref = world;
+		const sdk = sdkUnityVersion(owner);
+		bundle.refresh(ref, sdk);
+	});
 
 	async function load(id: string) {
 		if (!owner || !id) return;
@@ -315,6 +326,9 @@
 								<a class="flex max-w-30 cursor-pointer flex-wrap font-mono text-xs text-muted-foreground" href={userHref(world.authorId)}>{world.authorName || world.authorId}</a>
 							{/if}
 						</div>
+						{#if bundle.inCache}
+							<Button variant="outline" size="icon" class="flex-none self-start rounded-lg" title={m.dialog_world_actions_delete_cache_tooltip()} aria-label={m.dialog_world_actions_delete_cache_tooltip()} disabled={desktop.gameRunning && bundle.locked} onclick={() => bundle.delete(world, sdkUnityVersion(owner))}><Trash2 /></Button>
+						{/if}
 						<FavoriteButton type="world" targetId={worldId} class="flex-none self-start" />
 						<DropdownMenu.Root>
 							<DropdownMenu.Trigger>
@@ -416,6 +430,7 @@
 						{#if tags.includes('feature_avatar_scaling_disabled')}<Badge variant="outline">{m.dialog_world_tags_avatar_scaling_disabled()}</Badge>{/if}
 						{#if tags.includes('feature_focus_view_disabled')}<Badge variant="outline">{m.dialog_world_tags_focus_view_disabled()}</Badge>{/if}
 						{#if world.unityPackageUrl}<Badge variant="outline">{m.dialog_world_tags_future_proofing()}</Badge>{/if}
+						{#if bundle.inCache}<Badge variant="outline" class="cursor-pointer" onclick={() => bundle.open()}>{bundle.size} | {m.dialog_world_tags_cache()}</Badge>{/if}
 					</div>
 					{#if contentTags.length}
 						<div class="mt-1 flex flex-wrap gap-1">
