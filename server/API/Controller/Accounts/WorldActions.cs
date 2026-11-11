@@ -89,7 +89,10 @@ public sealed partial class AccountsController
         ReadLiveAsync(accountId, client => client.GetWorldRatingAsync(worldId, cancellationToken));
 
     /// <summary>Like or dislike a world.</summary>
+    /// <param name="accountId">The account to rate as</param>
+    /// <param name="worldId">The world to rate</param>
     /// <param name="value">like or dislike</param>
+    /// <param name="cancellationToken">Cancels the request</param>
     /// <response code="200">The rating VRChat now has</response>
     /// <response code="409">No live session</response>
     /// <response code="502">VRChat refused</response>

@@ -22,6 +22,6 @@ public sealed class RepresentedGroupTests
 
         app.Vrchat.Json("users/usr_member/groups/represented", """{"groupId":"grp_b","name":"B","isRepresenting":true}""");
         var one = (await app.GetJsonAsync(app.AccountPath("users/usr_member/groups"))).EnumerateArray().ToList();
-        await Assert.That(one.Where(g => g.GetProperty("isRepresenting").GetBoolean()).Select(g => g.GetProperty("groupId").GetString())).IsEquivalentTo(new[] { "grp_b" });
+        await Assert.That(one.Where(g => g.GetProperty("isRepresenting").GetBoolean()).Select(g => g.GetProperty("groupId").GetString()!)).IsEquivalentTo(new[] { "grp_b" });
     }
 }

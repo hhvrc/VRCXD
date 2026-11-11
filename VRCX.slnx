@@ -3,14 +3,13 @@
     <Platform Name="x64" />
     <Platform Name="ARM64" />
   </Configurations>
-  <Project Path="Dotnet/DBMerger/DBMerger.csproj">
-    <Platform Project="x64" />
-  </Project>
-  <Project Path="Dotnet/VRCX-Cef.csproj">
-    <Platform Project="x64" />
-  </Project>
-  <Project Path="Dotnet/VRCX-Electron.csproj">
-    <Platform Solution="*|ARM64" Project="ARM64" />
-    <Platform Solution="*|x64" Project="x64" />
-  </Project>
+  <Project Path="Server/Vrchat/Vrchat.csproj" Type="C#" />
+  <Project Path="Server/Common/Common.csproj" Type="C#" />
+  <Project Path="Server/Common.Tests/Common.Tests.csproj" Type="C#" />
+  <Project Path="Server/API/API.csproj" Type="C#" />
+  <Project Path="Server/API.IntegrationTests/API.IntegrationTests.csproj" Type="C#" />
+  <Project Path="Server/MigrationHelper/MigrationHelper.csproj" Type="C#" />
+  <Project Path="Server/LegacyImport/LegacyImport.csproj" Type="C#" />
+  <Project Path="Server/Testing/Testing.csproj" Type="C#" />
+  <Project Path="Server/Testing.E2EHost/Testing.E2EHost.csproj" Type="C#" />
 </Solution>

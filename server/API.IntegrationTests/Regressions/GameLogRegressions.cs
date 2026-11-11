@@ -177,7 +177,7 @@ public sealed class GameLogRegressions
 
         var game = await app.GetJsonAsync(app.AccountPath("game/instance"));
         await Assert.That(game.GetProperty("location").GetString()).IsEqualTo(Here);
-        await Assert.That(game.GetProperty("playerIds").EnumerateArray().Select(p => p.GetString())).IsEquivalentTo(new[] { hidden.Id });
+        await Assert.That(game.GetProperty("playerIds").EnumerateArray().Select(p => p.GetString()!)).IsEquivalentTo(new[] { hidden.Id });
         // When the game joined, for the wrist overlay's timer.
         await Assert.That(Math.Abs((game.GetProperty("joinedAt").GetDateTimeOffset() - t0).TotalMilliseconds)).IsLessThan(1);
     }
