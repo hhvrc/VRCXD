@@ -36,7 +36,8 @@ fn starts_with(path: &Path, header: &[u8]) -> bool {
     std::fs::File::open(path).and_then(|mut f| f.read_exact(&mut head)).is_ok() && head == header
 }
 
-/// FindShortcutFiles: the .lnk-style shortcuts, and the app ids of Steam shortcuts.
+/// FindShortcutFiles: the .lnk-style shortcuts (on Linux also `.desktop` files and executables),
+/// and the app ids of Steam shortcuts.
 pub fn shortcuts_in(dir: &Path) -> (Vec<PathBuf>, Vec<String>) {
     let (mut files, mut steam) = (Vec::new(), Vec::new());
     let Ok(entries) = std::fs::read_dir(dir) else { return (files, steam) };
@@ -50,6 +51,13 @@ pub fn shortcuts_in(dir: &Path) -> (Vec<PathBuf>, Vec<String>) {
             if let Some(id) = text.lines().find_map(|l| l.strip_prefix("URL=steam://rungameid/")) {
                 steam.push(id.trim().to_string());
             }
+        } else {
+            // Ok: a program to start; Err: a Steam app id.
+            match proc::shortcut(&path) {
+                Some(Ok(())) => files.push(path),
+                Some(Err(id)) => steam.push(id),
+                None => {}
+            }
         }
     }
     (files, steam)
@@ -60,14 +68,21 @@ fn quoted(line: &str) -> Vec<&str> {
     line.split('"').skip(1).step_by(2).collect()
 }
 
+/// The `steamapps` folders of Steam's libraries, from `config/libraryfolders.vdf`.
+pub fn steam_libraries(steam: &Path) -> Vec<PathBuf> {
+    let vdf = std::fs::read_to_string(steam.join("config").join("libraryfolders.vdf")).unwrap_or_default();
+    vdf.lines()
+        .filter_map(|line| match quoted(line).as_slice() {
+            ["path", path] => Some(PathBuf::from(path.replace("\\\\", "\\")).join("steamapps")),
+            _ => None,
+        })
+        .filter(|l| l.is_dir())
+        .collect()
+}
+
 /// GetPathWithAppId: `<library>/steamapps/common/<installdir>` of an installed Steam app.
 pub fn steam_app_dir(steam: &Path, app_id: &str) -> Option<PathBuf> {
-    let vdf = std::fs::read_to_string(steam.join("config").join("libraryfolders.vdf")).ok()?;
-    let libraries = vdf.lines().filter_map(|line| match quoted(line).as_slice() {
-        ["path", path] => Some(PathBuf::from(path.replace("\\\\", "\\")).join("steamapps")),
-        _ => None,
-    });
-    for library in libraries.filter(|l| l.is_dir()) {
+    for library in steam_libraries(steam) {
         let Ok(acf) = std::fs::read_to_string(library.join(format!("appmanifest_{app_id}.acf"))) else { continue };
         let value = |key: &str| {
             acf.lines()
@@ -244,11 +259,7 @@ mod proc {
     use windows_sys::Win32::UI::Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW};
     use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-    pub struct Entry {
-        pub pid: u32,
-        pub parent: u32,
-        pub name: String,
-    }
+    pub use super::{Entry, children, kill_tree};
 
     pub fn table() -> Vec<Entry> {
         let mut out = Vec::new();
@@ -275,23 +286,9 @@ mod proc {
         out
     }
 
-    /// FindChildProcesses.
-    pub fn children(table: &[Entry], pid: u32, recursive: bool) -> Vec<u32> {
-        let mut found = Vec::new();
-        for e in table.iter().filter(|e| e.parent == pid && e.pid != pid) {
-            found.push(e.pid);
-            if recursive {
-                found.extend(children(table, e.pid, true));
-            }
-        }
-        found
-    }
-
-    /// KillProcessTree: the children, then the process.
-    pub fn kill_tree(table: &[Entry], pid: u32) {
-        for child in children(table, pid, true).into_iter().chain([pid]) {
-            let _ = crate::platform::terminate(child);
-        }
+    /// Only .lnk and .url shortcuts.
+    pub fn shortcut(_path: &Path) -> Option<Result<(), String>> {
+        None
     }
 
     /// IsProcessRunning: any process named like the shortcut.
@@ -345,35 +342,155 @@ mod proc {
     }
 }
 
-/// The app launcher is the original's on Windows only.
+/// A running process: its id, its parent's, and its program's name.
+pub struct Entry {
+    pub pid: u32,
+    pub parent: u32,
+    pub name: String,
+}
+
+/// FindChildProcesses.
+pub fn children(table: &[Entry], pid: u32, recursive: bool) -> Vec<u32> {
+    let mut found = Vec::new();
+    for e in table.iter().filter(|e| e.parent == pid && e.pid != pid) {
+        found.push(e.pid);
+        if recursive {
+            found.extend(children(table, e.pid, true));
+        }
+    }
+    found
+}
+
+/// KillProcessTree: the children, then the process.
+pub fn kill_tree(table: &[Entry], pid: u32) {
+    for child in children(table, pid, true).into_iter().chain([pid]) {
+        let _ = crate::platform::terminate(child);
+    }
+}
+
+#[cfg(any(not(windows), test))]
+/// A `.desktop` file's command line, its field codes dropped (none apply to a plain start).
+pub fn desktop_exec(text: &str) -> Option<String> {
+    let mut in_entry = false;
+    for line in text.lines().map(str::trim) {
+        if line.starts_with('[') {
+            in_entry = line == "[Desktop Entry]";
+        } else if let Some(exec) = line.strip_prefix("Exec=").filter(|_| in_entry) {
+            let mut out = String::new();
+            let mut chars = exec.chars();
+            while let Some(c) = chars.next() {
+                if c != '%' {
+                    out.push(c);
+                } else if chars.next() == Some('%') {
+                    out.push('%');
+                }
+            }
+            return Some(out.split_whitespace().collect::<Vec<_>>().join(" "));
+        }
+    }
+    None
+}
+
+#[cfg(any(not(windows), test))]
+/// The app id a Steam shortcut's command line starts (`steam steam://rungameid/<id>`).
+fn steam_id_in(command: &str) -> Option<String> {
+    let id = command.split("steam://rungameid/").nth(1)?;
+    let id: String = id.chars().take_while(char::is_ascii_digit).collect();
+    (!id.is_empty()).then_some(id)
+}
+
+/// On Linux: `.desktop` files and executables.
 #[cfg(not(windows))]
 mod proc {
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
+    use std::process::Command;
 
-    pub struct Entry {
-        pub pid: u32,
+    pub use super::{Entry, children, kill_tree};
+
+    /// `/proc/<pid>/stat`: the name in parentheses, then the state and the parent's id.
+    fn stat(pid: u32) -> Option<Entry> {
+        let stat = std::fs::read_to_string(format!("/proc/{pid}/stat")).ok()?;
+        let (head, tail) = stat.rsplit_once(')')?;
+        let name = head.split_once('(')?.1.to_owned();
+        let mut fields = tail.split_whitespace();
+        let state = fields.next()?;
+        let parent = fields.next()?.parse().ok()?;
+        (state != "Z").then_some(Entry { pid, parent, name })
     }
 
     pub fn table() -> Vec<Entry> {
-        Vec::new()
+        let Ok(dir) = std::fs::read_dir("/proc") else { return Vec::new() };
+        dir.filter_map(Result::ok).filter_map(|e| e.file_name().to_str()?.parse().ok()).filter_map(stat).collect()
     }
 
-    pub fn children(_table: &[Entry], _pid: u32, _recursive: bool) -> Vec<u32> {
-        Vec::new()
+    /// The kernel keeps 15 bytes of a process's name.
+    fn same_name(comm: &str, name: &str) -> bool {
+        let name = name.get(..15).unwrap_or(name);
+        comm.eq_ignore_ascii_case(name)
     }
 
-    pub fn kill_tree(_table: &[Entry], _pid: u32) {}
-
-    pub fn running_named(_stem: &str) -> bool {
-        false
+    pub fn running_named(stem: &str) -> bool {
+        let exe = format!("{stem}.exe");
+        table().iter().any(|e| same_name(&e.name, stem) || same_name(&e.name, &exe))
     }
 
-    pub fn running_under(_dir: &Path) -> Option<(u32, String)> {
-        None
+    /// The program of a process: its executable, or for a Wine program its Windows path
+    /// (`Z:\home\...` is the Linux root).
+    fn programs(pid: u32) -> Vec<PathBuf> {
+        let mut out: Vec<PathBuf> = std::fs::read_link(format!("/proc/{pid}/exe")).into_iter().collect();
+        let cmdline = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
+        if let Some(first) = cmdline.split(|&b| b == 0).next() {
+            let first = String::from_utf8_lossy(first);
+            match first.get(..2) {
+                Some(drive) if drive.eq_ignore_ascii_case("z:") => out.push(first[2..].replace('\\', "/").into()),
+                _ => out.push(PathBuf::from(&*first)),
+            }
+        }
+        out
     }
 
-    pub fn start(_path: &Path) -> Option<u32> {
-        None
+    pub fn running_under(dir: &Path) -> Option<(u32, String)> {
+        table().into_iter().find_map(|e| {
+            let program = programs(e.pid).into_iter().find(|p| p.starts_with(dir))?;
+            Some((e.pid, program.display().to_string()))
+        })
+    }
+
+    /// Starts the shortcut on its own; a thread waits for it so it does not linger as a zombie.
+    pub fn start(path: &Path) -> Option<u32> {
+        let mut command = if path.extension().is_some_and(|e| e == "desktop") {
+            let text = std::fs::read_to_string(path).ok()?;
+            let exec = super::desktop_exec(&text)?;
+            let mut command = Command::new("sh");
+            command.arg("-c").arg(format!("exec {exec}"));
+            let dir = text.lines().find_map(|l| l.trim().strip_prefix("Path=").map(PathBuf::from));
+            if let Some(dir) = dir.filter(|d| d.is_dir()) {
+                command.current_dir(dir);
+            }
+            command
+        } else {
+            let mut command = Command::new(path);
+            if let Some(dir) = path.parent() {
+                command.current_dir(dir);
+            }
+            command
+        };
+        crate::platform::detach(&mut command);
+        let mut child = command.spawn().ok()?;
+        let pid = child.id();
+        std::thread::spawn(move || child.wait());
+        Some(pid)
+    }
+
+    /// A `.desktop` file (its Steam app id if it starts a Steam game) or an executable.
+    pub fn shortcut(path: &Path) -> Option<Result<(), String>> {
+        use std::os::unix::fs::PermissionsExt;
+        if path.extension().is_some_and(|e| e == "desktop") {
+            let exec = super::desktop_exec(&std::fs::read_to_string(path).ok()?)?;
+            return Some(super::steam_id_in(&exec).map_or(Ok(()), Err));
+        }
+        let executable = std::fs::metadata(path).is_ok_and(|m| m.permissions().mode() & 0o111 != 0);
+        executable.then_some(Ok(()))
     }
 }
 
@@ -416,5 +533,55 @@ mod tests {
         .unwrap();
         assert_eq!(steam_app_dir(&steam, "438100"), Some(library.join("steamapps").join("common").join("VRChat")));
         assert_eq!(steam_app_dir(&steam, "1"), None);
+    }
+
+    #[test]
+    fn desktop_files_give_their_command_without_field_codes() {
+        let text = "[Desktop Action x]\nExec=nope\n[Desktop Entry]\nName=OBS\nExec=obs --minimize-to-tray %U 100%%\n";
+        assert_eq!(desktop_exec(text).as_deref(), Some("obs --minimize-to-tray 100%"));
+        assert_eq!(desktop_exec("[Desktop Entry]\nName=x\n"), None);
+        assert_eq!(steam_id_in("steam steam://rungameid/1009850").as_deref(), Some("1009850"));
+        assert_eq!(steam_id_in("obs"), None);
+    }
+
+    #[test]
+    fn a_process_tree_is_followed_down() {
+        let entry = |pid, parent| Entry { pid, parent, name: String::new() };
+        let table = [entry(1, 0), entry(2, 1), entry(3, 2), entry(4, 1), entry(5, 9)];
+        assert_eq!(children(&table, 1, false), vec![2, 4]);
+        assert_eq!(children(&table, 1, true), vec![2, 3, 4]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn linux_shortcuts_are_desktop_files_and_programs() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.desktop"), "[Desktop Entry]\nExec=true\n").unwrap();
+        std::fs::write(dir.path().join("game.desktop"), "[Desktop Entry]\nExec=steam steam://rungameid/42\n").unwrap();
+        let script = dir.path().join("run.sh");
+        std::fs::write(&script, "#!/bin/sh\n").unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
+        let (files, steam) = shortcuts_in(dir.path());
+        assert_eq!(files, vec![dir.path().join("a.desktop"), script]);
+        assert_eq!(steam, vec!["42".to_string()]);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn started_programs_are_found_in_the_process_table() {
+        let me = std::process::id();
+        let table = proc::table();
+        let parent = table.iter().find(|e| e.pid == me).map(|e| e.parent).unwrap();
+        assert!(children(&table, parent, false).contains(&me));
+        let dir = tempfile::tempdir().unwrap();
+        let desktop = dir.path().join("sleep.desktop");
+        std::fs::write(&desktop, "[Desktop Entry]\nExec=sleep 30\n").unwrap();
+        let pid = proc::start(&desktop).unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(proc::table().iter().any(|e| e.pid == pid && e.name == "sleep"));
+        kill_tree(&proc::table(), pid);
+        assert!(crate::platform::wait_for_exit(pid, Duration::from_secs(5)));
     }
 }

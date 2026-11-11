@@ -68,9 +68,7 @@ pub fn capabilities() -> Vec<Capability> {
     caps.extend(notify::CAPABILITIES);
     caps.extend(crate::discord::CAPABILITIES);
     caps.push(Capability::Openvr);
-    if cfg!(windows) {
-        caps.extend(registry::CAPABILITIES);
-    }
+    caps.extend(registry::CAPABILITIES);
     caps
 }
 

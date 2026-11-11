@@ -412,13 +412,35 @@ mod imp {
     }
 
     fn unit_path() -> PathBuf {
-        let config = std::env::var_os("XDG_CONFIG_HOME")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"));
-        config.join("systemd/user/vrcxd-agent.service")
+        config_home().join("systemd/user/vrcxd-agent.service")
     }
 
-    /// A `systemd --user` unit started at login.
+    fn config_home() -> PathBuf {
+        std::env::var_os("XDG_CONFIG_HOME")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".config"))
+    }
+
+    fn desktop_path() -> PathBuf {
+        let data = std::env::var_os("XDG_DATA_HOME")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(std::env::var_os("HOME").unwrap_or_default()).join(".local/share"));
+        data.join("applications").join(DESKTOP_FILE)
+    }
+
+    const DESKTOP_FILE: &str = "vrcxd-agent.desktop";
+
+    /// The `.desktop` file that makes the agent open `vrcx://` links.
+    pub fn desktop_entry(exe: &Path) -> String {
+        let exe = exe.display().to_string().replace('\\', "\\\\").replace('"', "\\\"");
+        format!(
+            "[Desktop Entry]\nType=Application\nName=VRCXD agent\nComment=Opens vrcx:// links in the VRCXD web client\nExec=\"{exe}\" open-url %u\nMimeType=x-scheme-handler/vrcx;\nNoDisplay=true\nTerminal=false\n"
+        )
+    }
+
+    /// A `systemd --user` unit started at login, and a `.desktop` handler for `vrcx://` links.
     pub fn install() -> io::Result<Vec<String>> {
         let exe = current_exe()?;
         let unit = unit_path();
@@ -434,7 +456,23 @@ mod imp {
         if !status.success() {
             return Err(io::Error::other(format!("systemctl exited with {status}")));
         }
-        Ok(vec![format!("{}: enabled and started", unit.display())])
+        let mut done = vec![format!("{}: enabled and started", unit.display())];
+
+        let desktop = desktop_path();
+        std::fs::create_dir_all(desktop.parent().unwrap())?;
+        std::fs::write(&desktop, desktop_entry(&exe))?;
+        // Neither tool is everywhere; the file alone is enough for desktops that read MimeType.
+        let _ = Command::new("update-desktop-database").arg(desktop.parent().unwrap()).status();
+        let linked = Command::new("xdg-mime")
+            .args(["default", DESKTOP_FILE, "x-scheme-handler/vrcx"])
+            .status()
+            .is_ok_and(|s| s.success());
+        done.push(format!(
+            "{}: vrcx:// links open the web client's launch page{}",
+            desktop.display(),
+            if linked { "" } else { " (xdg-mime was not found; set it as the vrcx handler by hand)" }
+        ));
+        Ok(done)
     }
 
     pub fn uninstall() -> io::Result<Vec<String>> {
@@ -443,10 +481,25 @@ mod imp {
         if unit.exists() {
             std::fs::remove_file(&unit)?;
         }
-        Ok(vec![format!("{}: disabled and removed", unit.display())])
+        let desktop = desktop_path();
+        if desktop.exists() {
+            std::fs::remove_file(&desktop)?;
+            let _ = Command::new("update-desktop-database").arg(desktop.parent().unwrap()).status();
+        }
+        Ok(vec![format!("{}: disabled and removed", unit.display()), format!("{}: removed", desktop.display())])
     }
 
     pub fn installed() -> bool {
         unit_path().exists()
+    }
+}
+
+#[cfg(all(test, not(windows)))]
+mod tests {
+    #[test]
+    fn the_desktop_entry_hands_links_to_open_url() {
+        let entry = super::desktop_entry(std::path::Path::new("/opt/my agent/vrcxd-agent"));
+        assert!(entry.contains("Exec=\"/opt/my agent/vrcxd-agent\" open-url %u\n"));
+        assert!(entry.contains("MimeType=x-scheme-handler/vrcx;\n"));
     }
 }

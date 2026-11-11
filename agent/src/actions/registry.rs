@@ -1,22 +1,20 @@
 //! VRChat's PlayerPrefs in `HKCU\SOFTWARE\VRChat\VRChat` (the original's `RegistryPlayerPrefs.cs`).
 //! Unity names each value `<key>_h<hash>`, keeps strings as REG_BINARY and floats as 8-byte REG_DWORD
 //! values; the JSON here is the original's: {"<key>": {"data": .., "type": 3 | 4 | 100}}, 100 being
-//! such a float. The conversions are plain functions; only Windows has the registry itself.
+//! such a float. The conversions are plain functions; Windows has the registry itself, and on Linux
+//! the key is a section of the Proton prefix's `user.reg`.
 
-// The value conversions are only called from the Windows registry code (and the tests).
-#![cfg_attr(not(windows), allow(dead_code))]
+use serde_json::{Map, Value, json};
 
-#[cfg(windows)]
-use serde_json::Map;
-use serde_json::{Value, json};
-
-use super::Answer;
-#[cfg(windows)]
-use super::blocking;
-#[cfg_attr(not(windows), allow(unused_imports))]
+use super::{Answer, blocking};
 use crate::proto::{
     ActionStatus, Capability, Confirm, ReadVrchatRegistryKey, SetVrchatRegistryKey, WriteVrchatRegistry,
 };
+
+#[cfg(windows)]
+use win as store;
+#[cfg(not(windows))]
+use wine as store;
 
 pub const CAPABILITIES: [Capability; 1] = [Capability::Registry];
 
@@ -236,6 +234,11 @@ mod win {
             Ok(Some((kind, data)))
         }
 
+        /// Registry writes land as they are made.
+        pub fn save(&self) -> std::io::Result<()> {
+            Ok(())
+        }
+
         pub fn set(&self, name: &str, kind: u32, bytes: &[u8]) -> std::io::Result<()> {
             // SAFETY: the name is NUL-terminated and the data as long as passed.
             let status =
@@ -245,9 +248,275 @@ mod win {
     }
 }
 
-#[cfg(windows)]
+/// VRChat under Proton: the `[Software\\VRChat\\VRChat]` section of the prefix's `user.reg`.
+/// wineserver loads the file when the prefix starts and writes it back while it runs, so the
+/// file is read as last saved and written only while VRChat is closed.
+#[cfg(any(not(windows), test))]
+// On Windows only its parser is built, for the tests.
+#[cfg_attr(windows, allow(dead_code))]
+mod wine {
+    use std::cell::RefCell;
+    use std::io;
+    use std::path::{Path, PathBuf};
+
+    /// The section's name as `user.reg` writes it, backslashes escaped.
+    const SECTION: &str = r"Software\\VRChat\\VRChat";
+
+    /// The prefix's `user.reg`: beside the configured log folder's `drive_c`, else VRChat's
+    /// compatdata in any Steam library.
+    fn user_reg() -> Option<PathBuf> {
+        let from_logs = crate::config::Config::load().log_dir().and_then(|dir| {
+            let drive_c = dir.ancestors().find(|a| a.file_name().is_some_and(|n| n == "drive_c"))?;
+            Some(drive_c.parent()?.join("user.reg"))
+        });
+        let steam = crate::platform::steam_install_dir();
+        let libraries = steam.iter().flat_map(|s| crate::launcher::steam_libraries(s));
+        let from_steam =
+            libraries.map(|l| l.join("compatdata").join(crate::game::VRCHAT_STEAM_APP_ID).join("pfx/user.reg"));
+        from_logs.into_iter().chain(from_steam).find(|p| p.is_file())
+    }
+
+    pub struct Key {
+        path: PathBuf,
+        file: RefCell<File>,
+    }
+
+    /// `user.reg` around VRChat's section: the section's header and `#` lines are kept as they
+    /// were, its values as (name, the text after `=`).
+    #[derive(Debug, Default, Clone, PartialEq)]
+    pub struct File {
+        before: String,
+        header: Vec<String>,
+        values: Vec<(String, String)>,
+        after: String,
+        found: bool,
+    }
+
+    fn is_header(line: &str) -> bool {
+        line.strip_prefix('[')
+            .and_then(|l| l.split_once(']'))
+            .is_some_and(|(name, _)| name.eq_ignore_ascii_case(SECTION))
+    }
+
+    /// A quoted name from the start of `text` and what follows it.
+    fn unquote(text: &str) -> Option<(String, &str)> {
+        let mut chars = text.strip_prefix('"')?.char_indices();
+        let mut out = String::new();
+        while let Some((i, c)) = chars.next() {
+            match c {
+                '"' => return Some((out, &text[i + 2..])),
+                '\\' => match chars.next()?.1 {
+                    'n' => out.push('\n'),
+                    'r' => out.push('\r'),
+                    't' => out.push('\t'),
+                    '0' => out.push('\0'),
+                    'x' => {
+                        let rest = &text[i + 3..];
+                        let len = rest.chars().take(4).take_while(char::is_ascii_hexdigit).count();
+                        out.push(char::from_u32(u32::from_str_radix(&rest[..len], 16).ok()?)?);
+                        for _ in 0..len {
+                            chars.next();
+                        }
+                    }
+                    other => out.push(other),
+                },
+                c => out.push(c),
+            }
+        }
+        None
+    }
+
+    fn quote(name: &str) -> String {
+        let mut out = String::from('"');
+        for c in name.chars() {
+            match c {
+                '"' | '\\' => {
+                    out.push('\\');
+                    out.push(c);
+                }
+                ' '..='~' => out.push(c),
+                c => {
+                    for unit in c.encode_utf16(&mut [0; 2]) {
+                        out.push_str(&format!("\\x{unit:04x}"));
+                    }
+                }
+            }
+        }
+        out.push('"');
+        out
+    }
+
+    impl File {
+        pub fn parse(text: &str) -> Self {
+            let mut file = File::default();
+            let mut lines = text.split_inclusive('\n').peekable();
+            for line in lines.by_ref() {
+                if is_header(line) {
+                    file.found = true;
+                    file.header.push(line.trim_end().to_owned());
+                    break;
+                }
+                file.before.push_str(line);
+            }
+            if !file.found {
+                return file;
+            }
+            while let Some(line) = lines.next_if(|l| !l.starts_with('[')) {
+                let mut line = line.trim_end().to_owned();
+                // A value continues on the next line after a trailing backslash.
+                while line.ends_with('\\') && lines.peek().is_some_and(|l| !l.starts_with('[')) {
+                    line.pop();
+                    line.push_str(lines.next().unwrap_or_default().trim());
+                }
+                if line.starts_with('#') {
+                    file.header.push(line);
+                } else if let Some((name, data)) =
+                    unquote(&line).and_then(|(n, rest)| Some((n, rest.strip_prefix('=')?)))
+                {
+                    file.values.push((name, data.to_owned()));
+                }
+            }
+            file.after = lines.collect();
+            file
+        }
+
+        pub fn render(&self) -> String {
+            let mut out = self.before.clone();
+            if self.found {
+                for line in &self.header {
+                    out.push_str(line);
+                    out.push('\n');
+                }
+                for (name, data) in &self.values {
+                    out.push_str(&format!("{}={data}\n", quote(name)));
+                }
+                out.push('\n');
+            }
+            out.push_str(&self.after);
+            out
+        }
+
+        /// Adds VRChat's section, stamped now as wineserver stamps it.
+        pub fn add_section(&mut self) {
+            if self.found {
+                return;
+            }
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default();
+            // FILETIME: 100 ns since 1601.
+            let filetime = (now.as_secs() + 11_644_473_600) * 10_000_000 + u64::from(now.subsec_nanos() / 100);
+            if !self.before.is_empty() && !self.before.ends_with("\n\n") {
+                self.before.push('\n');
+            }
+            self.header = vec![format!("[{SECTION}] {}", now.as_secs()), format!("#time={filetime:x}")];
+            self.found = true;
+        }
+
+        pub fn remove_section(&mut self) {
+            *self = File { before: std::mem::take(&mut self.before) + &self.after, ..File::default() };
+        }
+
+        pub fn values(&self) -> Vec<(String, u32, Vec<u8>)> {
+            self.values.iter().filter_map(|(n, d)| decode(d).map(|(k, b)| (n.clone(), k, b))).collect()
+        }
+
+        pub fn value(&self, name: &str) -> Option<(u32, Vec<u8>)> {
+            self.values.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).and_then(|(_, d)| decode(d))
+        }
+
+        pub fn set(&mut self, name: &str, kind: u32, bytes: &[u8]) {
+            let data = encode(kind, bytes);
+            match self.values.iter_mut().find(|(n, _)| n.eq_ignore_ascii_case(name)) {
+                Some(entry) => entry.1 = data,
+                None => self.values.push((name.to_owned(), data)),
+            }
+        }
+    }
+
+    /// A value's text as (kind, bytes): `dword:`, `hex:` and `hex(<kind>):`; strings are not
+    /// read, as VRChat writes none.
+    fn decode(data: &str) -> Option<(u32, Vec<u8>)> {
+        if let Some(hex) = data.strip_prefix("dword:") {
+            return Some((super::REG_DWORD, u32::from_str_radix(hex.trim(), 16).ok()?.to_le_bytes().to_vec()));
+        }
+        let (kind, bytes) = if let Some(bytes) = data.strip_prefix("hex:") {
+            (super::REG_BINARY, bytes)
+        } else {
+            let (kind, bytes) = data.strip_prefix("hex(")?.split_once("):")?;
+            (u32::from_str_radix(kind, 16).ok()?, bytes)
+        };
+        let bytes = bytes.split(',').map(str::trim).filter(|b| !b.is_empty());
+        Some((kind, bytes.map(|b| u8::from_str_radix(b, 16).ok()).collect::<Option<_>>()?))
+    }
+
+    fn encode(kind: u32, bytes: &[u8]) -> String {
+        if kind == super::REG_DWORD && bytes.len() == 4 {
+            return format!("dword:{:08x}", u32::from_le_bytes(bytes.try_into().unwrap_or_default()));
+        }
+        let hex: Vec<String> = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        let prefix = if kind == super::REG_BINARY { "hex:".to_owned() } else { format!("hex({kind:x}):") };
+        prefix + &hex.join(",")
+    }
+
+    fn load(path: &Path) -> io::Result<File> {
+        Ok(File::parse(&std::fs::read_to_string(path)?))
+    }
+
+    fn no_prefix() -> io::Error {
+        io::Error::new(io::ErrorKind::NotFound, "no Proton prefix for VRChat on this PC")
+    }
+
+    /// The VRChat key; None when there is no prefix or VRChat never ran in it.
+    pub fn open(_write: bool) -> io::Result<Option<Key>> {
+        let Some(path) = user_reg() else { return Ok(None) };
+        let file = load(&path)?;
+        Ok(file.found.then(|| Key { path, file: RefCell::new(file) }))
+    }
+
+    pub fn create() -> io::Result<Key> {
+        let path = user_reg().ok_or_else(no_prefix)?;
+        let mut file = load(&path)?;
+        file.add_section();
+        Ok(Key { path, file: RefCell::new(file) })
+    }
+
+    pub fn delete() -> io::Result<bool> {
+        let Some(key) = open(true)? else { return Ok(false) };
+        key.file.borrow_mut().remove_section();
+        key.save().map(|()| true)
+    }
+
+    impl Key {
+        pub fn values(&self) -> io::Result<Vec<(String, u32, Vec<u8>)>> {
+            Ok(self.file.borrow().values())
+        }
+
+        pub fn value(&self, name: &str) -> io::Result<Option<(u32, Vec<u8>)>> {
+            Ok(self.file.borrow().value(name))
+        }
+
+        pub fn set(&self, name: &str, kind: u32, bytes: &[u8]) -> io::Result<()> {
+            self.file.borrow_mut().set(name, kind, bytes);
+            Ok(())
+        }
+
+        /// Writes the file back through a temporary file beside it.
+        pub fn save(&self) -> io::Result<()> {
+            let temp = self.path.with_extension("reg.vrcxd");
+            std::fs::write(&temp, self.file.borrow().render())?;
+            std::fs::rename(&temp, &self.path)
+        }
+    }
+}
+
+/// Under Proton, wineserver writes the registry back while VRChat runs, which would undo a write.
+fn refuse_write() -> Option<Answer> {
+    (!cfg!(windows) && !crate::platform::processes_named("VRChat.exe").is_empty()).then(|| {
+        Answer::status(ActionStatus::GameRunning, "Close VRChat first: Proton writes its registry back as it runs")
+    })
+}
+
 fn read_all() -> std::io::Result<Option<Map<String, Value>>> {
-    let Some(key) = win::open(false)? else { return Ok(None) };
+    let Some(key) = store::open(false)? else { return Ok(None) };
     let mut out = Map::new();
     for (name, kind, bytes) in key.values()? {
         if let (Some(key), Some((data, kind))) = (key_of(&name), decode(kind, &bytes)) {
@@ -259,15 +528,12 @@ fn read_all() -> std::io::Result<Option<Map<String, Value>>> {
 
 /// GetVRChatRegistry: the whole key as JSON; NOT_FOUND when VRChat has none (HasVRChatRegistryFolder).
 pub async fn read() -> Answer {
-    #[cfg(windows)]
-    return blocking(|| match read_all() {
+    blocking(|| match read_all() {
         Ok(Some(map)) => Answer::json(Value::Object(map)),
         Ok(None) => Answer::status(ActionStatus::NotFound, "VRChat has no registry key on this PC"),
         Err(e) => Answer::failed(e.to_string()),
     })
-    .await;
-    #[cfg(not(windows))]
-    Answer::unsupported()
+    .await
 }
 
 /// SetVRChatRegistry: restores a backup, creating the key if VRChat has none.
@@ -279,9 +545,11 @@ pub async fn write(write: WriteVrchatRegistry) -> Answer {
         Ok(entries) => entries,
         Err(e) => return Answer::failed(e),
     };
-    #[cfg(windows)]
-    return blocking(move || {
-        let key = match win::create() {
+    blocking(move || {
+        if let Some(refused) = refuse_write() {
+            return refused;
+        }
+        let key = match store::create() {
             Ok(key) => key,
             Err(e) => return Answer::failed(e.to_string()),
         };
@@ -293,14 +561,9 @@ pub async fn write(write: WriteVrchatRegistry) -> Answer {
                 return Answer::failed(e);
             }
         }
-        Answer::ok()
+        key.save().map(|()| Answer::ok()).into()
     })
-    .await;
-    #[cfg(not(windows))]
-    {
-        drop(entries);
-        Answer::unsupported()
-    }
+    .await
 }
 
 /// DeleteVRChatRegistryFolder.
@@ -308,17 +571,13 @@ pub async fn delete(confirm: Confirm) -> Answer {
     if !confirm.confirm {
         return Answer::not_confirmed();
     }
-    #[cfg(windows)]
-    return blocking(|| win::delete().map(|_| Answer::ok()).into()).await;
-    #[cfg(not(windows))]
-    Answer::unsupported()
+    blocking(|| refuse_write().unwrap_or_else(|| store::delete().map(|_| Answer::ok()).into())).await
 }
 
 /// GetVRChatRegistryKey: {"value": <the value or null>}.
 pub async fn read_key(read: ReadVrchatRegistryKey) -> Answer {
-    #[cfg(windows)]
-    return blocking(move || {
-        let value = win::open(false).and_then(|key| match key {
+    blocking(move || {
+        let value = store::open(false).and_then(|key| match key {
             Some(key) => key.value(&hashed_name(&read.key)),
             None => Ok(None),
         });
@@ -329,12 +588,7 @@ pub async fn read_key(read: ReadVrchatRegistryKey) -> Answer {
             Err(e) => Answer::failed(e.to_string()),
         }
     })
-    .await;
-    #[cfg(not(windows))]
-    {
-        drop(read);
-        Answer::unsupported()
-    }
+    .await
 }
 
 /// SetVRChatRegistryKey: only into an existing key, as the original (false when VRChat has none).
@@ -347,18 +601,19 @@ pub async fn set_key(set: SetVrchatRegistryKey) -> Answer {
         Ok(encoded) => encoded,
         Err(e) => return Answer::failed(e),
     };
-    #[cfg(windows)]
-    return blocking(move || match win::open(true) {
-        Ok(Some(key)) => key.set(&hashed_name(&set.key), kind, &bytes).map(|()| Answer::ok()).into(),
-        Ok(None) => Answer::status(ActionStatus::NotFound, "VRChat has no registry key on this PC"),
-        Err(e) => Answer::failed(e.to_string()),
+    blocking(move || {
+        if let Some(refused) = refuse_write() {
+            return refused;
+        }
+        match store::open(true) {
+            Ok(Some(key)) => {
+                key.set(&hashed_name(&set.key), kind, &bytes).and_then(|()| key.save()).map(|()| Answer::ok()).into()
+            }
+            Ok(None) => Answer::status(ActionStatus::NotFound, "VRChat has no registry key on this PC"),
+            Err(e) => Answer::failed(e.to_string()),
+        }
     })
-    .await;
-    #[cfg(not(windows))]
-    {
-        drop((kind, bytes, set));
-        Answer::unsupported()
-    }
+    .await
 }
 
 #[cfg(test)]
@@ -405,5 +660,57 @@ mod tests {
         assert!(parse_backup(r#"{"A":{"data":1}}"#).is_err());
         assert!(parse_backup("[]").is_err());
         assert!(parse_backup("nope").is_err());
+    }
+
+    #[test]
+    fn protons_user_reg_round_trips_around_vrchats_section() {
+        let text = "WINE REGISTRY Version 2\n;; All keys relative to \\\\User\\\\S-1-5-21-0-0-0-1000\n\n#arch=win64\n\n\
+[Software\\\\Valve] 1700000000\n#time=1da0000\n\"A\"=dword:00000001\n\n\
+[Software\\\\VRChat\\\\VRChat] 1700000001\n#time=1da0001\n\"LOGGING_ENABLED_h123\"=dword:00000001\n\
+\"name_h1\"=hex:68,69,\\\n  00\n\"f_h2\"=hex(4):00,00,00,00,00,00,e8,3f\n\"we\\\"ird_h3\"=hex:\n\n\
+[Software\\\\Wine] 1700000002\n\"B\"=\"x\"\n";
+        let file = wine::File::parse(text);
+        assert_eq!(
+            file.values(),
+            vec![
+                ("LOGGING_ENABLED_h123".to_owned(), REG_DWORD, 1u32.to_le_bytes().to_vec()),
+                ("name_h1".to_owned(), REG_BINARY, b"hi\0".to_vec()),
+                ("f_h2".to_owned(), REG_DWORD, 0.75f64.to_le_bytes().to_vec()),
+                ("we\"ird_h3".to_owned(), REG_BINARY, vec![]),
+            ]
+        );
+        assert_eq!(file.value("LOGGING_ENABLED_H123").unwrap().1, 1u32.to_le_bytes().to_vec());
+
+        // Untouched values come back as they were, apart from the joined continuation line.
+        let rendered = file.render();
+        assert!(rendered.starts_with(&text[..text.find("[Software\\\\VRChat").unwrap()]));
+        assert!(rendered.contains("\"name_h1\"=hex:68,69,00\n"));
+        assert!(rendered.ends_with("\n\n[Software\\\\Wine] 1700000002\n\"B\"=\"x\"\n"));
+        assert_eq!(wine::File::parse(&rendered), file);
+
+        let mut file = file;
+        file.set("new_h9", REG_DWORD, &(-1i32).to_le_bytes());
+        file.set("f_h2", REG_DWORD, &1.5f64.to_le_bytes());
+        let again = wine::File::parse(&file.render());
+        assert_eq!(again.value("new_h9"), Some((REG_DWORD, (-1i32).to_le_bytes().to_vec())));
+        assert_eq!(again.value("f_h2"), Some((REG_DWORD, 1.5f64.to_le_bytes().to_vec())));
+        assert!(file.render().contains("\"new_h9\"=dword:ffffffff\n"));
+
+        let mut removed = again.clone();
+        removed.remove_section();
+        assert!(!removed.render().contains("VRChat"));
+        assert!(removed.render().contains("[Software\\\\Wine]"));
+        assert!(wine::File::parse(&removed.render()).values().is_empty());
+    }
+
+    #[test]
+    fn a_prefix_without_vrchat_gets_its_section() {
+        let mut file = wine::File::parse("WINE REGISTRY Version 2\n\n[Software\\\\Wine] 1\n\"B\"=\"x\"\n");
+        assert!(file.values().is_empty());
+        file.add_section();
+        file.set("a_h1", REG_BINARY, b"x");
+        let text = file.render();
+        assert!(text.contains("\"B\"=\"x\"\n\n[Software\\\\VRChat\\\\VRChat] "));
+        assert_eq!(wine::File::parse(&text).value("a_h1"), Some((REG_BINARY, b"x".to_vec())));
     }
 }

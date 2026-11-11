@@ -14,7 +14,7 @@ use crate::config::Config;
 use crate::platform;
 use crate::proto::{ActionStatus, LaunchVrchat};
 
-const VRCHAT_STEAM_APP_ID: &str = "438100";
+pub const VRCHAT_STEAM_APP_ID: &str = "438100";
 pub const GAME_PROCESS: &str = "VRChat.exe";
 
 /// A `vrchat://launch` link and nothing else. The server checks this too, but the agent is what

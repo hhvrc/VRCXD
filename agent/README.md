@@ -36,8 +36,12 @@ within 30 seconds. `uninstall` undoes `install`.
 | `vrcx://` links | `HKCU\Software\Classes\vrcx` |
 
 On Linux the settings are in `$XDG_CONFIG_HOME/vrcx/`, the logs in `$XDG_STATE_HOME/vrcxd/`, and
-`install` adds a `systemd --user` unit. The log folder defaults to Steam's Proton prefix for
-VRChat. The named pipe and the game's URL pipe are Windows only.
+`install` adds a `systemd --user` unit and a `vrcxd-agent.desktop` handler for `vrcx://` links. The
+log folder defaults to Steam's Proton prefix for VRChat, and VRChat's registry is the
+`[Software\\VRChat\\VRChat]` section of that prefix's `user.reg` (written only while VRChat is
+closed, as wineserver writes the file back while it runs). The app launcher starts `.desktop` files
+and executables from its folder, and Steam games from `.desktop` or `.url` shortcuts. The VRCX
+named pipe and the game's URL pipe live inside Wine, so those two stay Windows only.
 
 `VRCXD_LOG=debug` makes the logs more detailed.
 
