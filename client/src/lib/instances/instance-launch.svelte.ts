@@ -20,6 +20,12 @@ export const closedInstances = new SvelteMap<string, string>();
  */
 export const instanceOwners = new SvelteMap<string, string>();
 
+/**
+ * The category and vibes a live fetch of an instance reported: what the original's InstanceCategory
+ * reads from its cachedInstances, so the icon beside a location never fetches on its own (upstream 27e9acf9).
+ */
+export const instanceTags = new SvelteMap<string, { categoryId: string; vibeIds: string[] }>();
+
 /** The instance's creator: the tag's user, else the owner a fetch of the instance reported. */
 export function instanceCreator(location: string, tagUserId?: string | null): string | undefined {
 	return tagUserId || instanceOwners.get(location) || undefined;
@@ -269,7 +275,10 @@ export function canInvite(location: string, ownUserId: string, currentLocation?:
 export const instanceCatalog = $state<{ categories: InstanceCategory[]; vibes: InstanceVibe[] }>({ categories: [], vibes: [] });
 let catalogFor = '';
 
-/** The original's loadInstanceCategoriesAndVibes: each list is fetched until one fetch of it succeeds. */
+/**
+ * The original's loadInstanceCategoriesAndVibes: both lists in one instanceOptions fetch (upstream
+ * fd9fff94), tried again until both have loaded.
+ */
 export async function loadInstanceCategoriesAndVibes(): Promise<void> {
 	const owner = vrchatAuth.ownerUserId;
 	if (!owner) return;
@@ -278,12 +287,15 @@ export async function loadInstanceCategoriesAndVibes(): Promise<void> {
 		instanceCatalog.categories = [];
 		instanceCatalog.vibes = [];
 	}
-	const loads: Promise<void>[] = [];
-	if (instanceCatalog.categories.length === 0)
-		loads.push(api.get<InstanceCategory[]>(accountPath(owner, '/instances/categories')).then((list) => { if (catalogFor === owner) instanceCatalog.categories = usableCategories(list); }, () => {}));
-	if (instanceCatalog.vibes.length === 0)
-		loads.push(api.get<InstanceVibe[]>(accountPath(owner, '/instances/vibes')).then((list) => { if (catalogFor === owner) instanceCatalog.vibes = usableVibes(list); }, () => {}));
-	await Promise.all(loads);
+	if (instanceCatalog.categories.length > 0 && instanceCatalog.vibes.length > 0) return;
+	try {
+		const catalog = await api.get<{ categories?: InstanceCategory[]; vibes?: InstanceVibe[] }>(accountPath(owner, '/instances/catalog'));
+		if (catalogFor !== owner) return;
+		instanceCatalog.categories = usableCategories(catalog?.categories);
+		instanceCatalog.vibes = usableVibes(catalog?.vibes);
+	} catch {
+		// Tried again the next time a list is needed.
+	}
 }
 
 export const instanceDialogs = $state<{

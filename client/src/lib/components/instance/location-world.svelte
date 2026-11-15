@@ -6,7 +6,8 @@
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { formatDateFilter } from '#lib/helpers/format.js';
 	import { closedInstances, instanceDialogs } from '#lib/instances/instance-launch.svelte.js';
-	import { parseLocation, resolveRegion } from '#lib/instances/location.js';
+	import { parseLocation, regionName, resolveRegion } from '#lib/instances/location.js';
+	import InstanceCategory from '#lib/components/instance/instance-category.svelte';
 	import { groupNames } from '#lib/people/names.svelte.js';
 	import { userDialog } from '#lib/people/user-dialog.svelte.js';
 	import { cn } from '#lib/utils.js';
@@ -65,7 +66,8 @@
 </script>
 
 <div class={cn('flex min-w-0 items-center gap-2 overflow-hidden rounded-full border border-muted-foreground/10 px-2 py-0.5 text-muted-foreground', className)}>
-	<span class={cn('flags inline-block shrink-0', region)}></span>
+	{#if L.isRealInstance}<InstanceCategory {location} />{/if}
+	<span class={cn('flags inline-block shrink-0', region)} title={regionName(region)}></span>
 	<button
 		type="button"
 		class={cn('min-w-0 flex-1 cursor-pointer truncate text-left text-muted-foreground', bold && 'font-bold')}

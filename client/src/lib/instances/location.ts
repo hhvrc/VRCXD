@@ -1,6 +1,7 @@
 // A port of the original's locationParser.js: VRChat location tags ("wrld_x:123~private(usr_y)~region(eu)")
 // and the sentinels offline / private / traveling, plus the text, region and access-type label the
 // Location component shows.
+import { m } from '#lib/paraglide/messages.js';
 
 export type ParsedLocation = {
 	tag: string;
@@ -120,6 +121,22 @@ export function resolveRegion(L: ParsedLocation): string {
 	if (L.region) return L.region;
 	if (L.instanceId) return 'us';
 	return '';
+}
+
+/** The original's regionLocaleKeyMap: a region flag's title (upstream a805e9c8). */
+export function regionName(region: string): string {
+	switch (region) {
+		case 'us':
+			return m.dialog_new_instance_region_usw();
+		case 'use':
+			return m.dialog_new_instance_region_use();
+		case 'eu':
+			return m.dialog_new_instance_region_eu();
+		case 'jp':
+			return m.dialog_new_instance_region_jp();
+		default:
+			return '';
+	}
 }
 
 const accessTypeLabels: Record<string, string> = {

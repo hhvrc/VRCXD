@@ -10,7 +10,8 @@
 	import { groupHref, worldHref } from '#lib/api/links.js';
 	import { groupNames, worldNames } from '#lib/people/names.svelte.js';
 	import { cn } from '#lib/utils.js';
-	import { locationText, parseLocation, resolveRegion } from '#lib/instances/location.js';
+	import { locationText, parseLocation, regionName, resolveRegion } from '#lib/instances/location.js';
+	import InstanceCategory from '#lib/components/instance/instance-category.svelte';
 	import { openShortName } from '#lib/nav/direct-access.svelte.js';
 
 	// The original's Location.vue: region flag, "World · Access" text, the group name in
@@ -73,8 +74,9 @@
 					<Tooltip.Content side="top">{m.dialog_user_info_instance_age_restricted_tooltip()}</Tooltip.Content>
 				</Tooltip.Root>
 			{:else}
+				{#if L.isRealInstance}<InstanceCategory location={instanceId} />{/if}
 				{#if region}
-					<div class={cn('flags shrink-0', region)}></div>
+					<div class={cn('flags shrink-0', region)} title={regionName(region)}></div>
 				{/if}
 				<div class="inline-flex min-w-0 items-center gap-1">
 					<Tooltip.Root delayDuration={300} disabled={tooltipDisabled}>

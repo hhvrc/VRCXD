@@ -837,13 +837,9 @@ public sealed class VrchatApiClient : IDisposable
     public Task<Instance> CreateInstanceAsync(IReadOnlyDictionary<string, object> request, CancellationToken ct = default) =>
         SendJsonAsync<Instance>(HttpMethod.Post, "instances", request, ct);
 
-    /// <summary>GET instanceCategories: the categories an instance creator can pick, kept as VRChat sends them.</summary>
-    public Task<JsonElement> GetInstanceCategoriesAsync(CancellationToken ct = default) =>
-        GetRequiredAsync<JsonElement>("instanceCategories", ct);
-
-    /// <summary>GET instanceVibes: the vibes an instance creator can pick, kept as VRChat sends them.</summary>
-    public Task<JsonElement> GetInstanceVibesAsync(CancellationToken ct = default) =>
-        GetRequiredAsync<JsonElement>("instanceVibes", ct);
+    /// <summary>GET instanceOptions: the categories and vibes an instance creator can pick ({ categories, vibes }), kept as VRChat sends them.</summary>
+    public Task<JsonElement> GetInstanceCatalogAsync(CancellationToken ct = default) =>
+        GetRequiredAsync<JsonElement>("instanceOptions", ct);
 
     /// <summary>GET instances/{location}, kept as VRChat sends it (platform counts, languages, queue, content settings, hype train).</summary>
     public Task<JsonElement> GetInstanceJsonAsync(string location, CancellationToken ct = default) =>

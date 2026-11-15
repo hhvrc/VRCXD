@@ -193,15 +193,12 @@ public sealed class InstanceTests
     [Test]
     public async Task Instance_categories_and_vibes_come_back_as_vrchat_sends_them()
     {
-        Factory.Vrchat
-            .Json("instanceCategories", """[{"id":"icat_hangout","name":"Hangout","iconUrl":"vrchat://category_hangout","order":1,"deleted":false}]""")
-            .Json("instanceVibes", """[{"id":"ivib_chill","title":"Chill","deleted":false}]""");
+        Factory.Vrchat.Json("instanceOptions", """{"categories":[{"id":"icat_hangout","name":"Hangout","iconUrl":"vrchat://category_hangout","order":1,"deleted":false}],"vibes":[{"id":"ivib_chill","title":"Chill","deleted":false}]}""");
         using var client = await LoginAsync();
 
-        var categories = await client.GetFromJsonAsync<JsonElement>($"/1/accounts/{Account}/instances/categories");
-        var vibes = await client.GetFromJsonAsync<JsonElement>($"/1/accounts/{Account}/instances/vibes");
+        var catalog = await client.GetFromJsonAsync<JsonElement>($"/1/accounts/{Account}/instances/catalog");
 
-        await Assert.That(categories[0].GetProperty("iconUrl").GetString()).IsEqualTo("vrchat://category_hangout");
-        await Assert.That(vibes[0].GetProperty("title").GetString()).IsEqualTo("Chill");
+        await Assert.That(catalog.GetProperty("categories")[0].GetProperty("iconUrl").GetString()).IsEqualTo("vrchat://category_hangout");
+        await Assert.That(catalog.GetProperty("vibes")[0].GetProperty("title").GetString()).IsEqualTo("Chill");
     }
 }

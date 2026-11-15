@@ -82,8 +82,7 @@
 	import * as HoverCard from '#lib/components/ui/hover-card/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { hasPermission } from '#lib/groups/group-moderation.svelte.js';
-	import { closedInstances, instanceCatalog, instanceOwners, loadInstanceCategoriesAndVibes } from '#lib/instances/instance-launch.svelte.js';
-	import { INSTANCE_CATEGORY_ICONS } from '#lib/instances/instance-create.js';
+	import { closedInstances, instanceOwners, instanceTags, loadInstanceCategoriesAndVibes } from '#lib/instances/instance-launch.svelte.js';
 	import { instanceDescription, instanceLanguageList } from '#lib/instances/instance-details.js';
 	import { languageOptions } from '#lib/groups/group-dialog.svelte.js';
 	import { isRealInstance } from '#lib/instances/location.js';
@@ -92,8 +91,8 @@
 	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 
 	// The info half of the original's InstanceActionBar: Rename and Close beside the other buttons,
-	// players against capacity with the instance's details on hover (description, platforms, category,
-	// vibes, languages, game version, queue, disabled content), then friends here, queue size, age gate,
+	// players against capacity with the instance's details on hover (description, platforms,
+	// languages, game version, queue, disabled content), then friends here, queue size, age gate,
 	// role restriction, calendar event, hype train and the minimum avatar performance.
 	// showRefresh: the original's Refresh Instance Info button, which the user and group pop-ups show (upstream issue 1394).
 	let { location, friendCount = 0, showRefresh = false, class: className = '' }: { location: string; friendCount?: number; showRefresh?: boolean; class?: string } = $props();
@@ -119,6 +118,7 @@
 		if (result?.instance.closedAt) closedInstances.set(location, result.instance.closedAt);
 		const owner = result?.instance.ownerId;
 		if (owner && !owner.startsWith('grp_')) instanceOwners.set(location, owner);
+		if (result) instanceTags.set(location, { categoryId: result.instance.categoryId ?? '', vibeIds: result.instance.vibeIds ?? [] });
 	}
 
 	const instance = $derived(live?.instance);
@@ -158,15 +158,11 @@
 		});
 	});
 	const description = $derived(instanceDescription(instance));
-	const category = $derived.by(() => {
-		const found = instanceCatalog.categories.find((c) => c.id === instance?.categoryId);
-		return found ? { name: found.name, icon: found.iconUrl ? INSTANCE_CATEGORY_ICONS[found.iconUrl] : undefined } : null;
-	});
-	const vibeTitles = $derived.by(() => {
-		const byId = new Map(instanceCatalog.vibes.map((v) => [v.id, v.title]));
-		return (instance?.vibeIds ?? []).map((id) => byId.get(id) ?? id).join(', ');
-	});
-	// The names come from lists loaded at sign-in; a failed load is tried again here.
+	// The original's hasInstanceDetails: the hover card stays shut with nothing to show (upstream 2e7cb09d).
+	const hasDetails = $derived(
+		Boolean(description || instance?.platforms?.standalonewindows || instance?.platforms?.android || instance?.platforms?.ios || languages.length || instance?.gameServerVersion || instance?.queueEnabled || disabled)
+	);
+	// The category icon's names come from lists loaded at sign-in; a failed load is tried again here.
 	$effect(() => {
 		if (instance?.categoryId || instance?.vibeIds?.length) void loadInstanceCategoriesAndVibes();
 	});
@@ -291,47 +287,41 @@
 					</span>
 				{/snippet}
 			</HoverCard.Trigger>
-			<HoverCard.Content side="top" class="w-auto max-w-80 text-xs">
-				<div class="flex flex-col flex-wrap gap-x-6 gap-y-2">
-					{#if description}
-						<div class="flex flex-col gap-1">
-							<span>{m.dialog_user_info_instance_description()}</span>
-							<span class="max-w-80 break-words whitespace-pre-wrap">{description}</span>
-						</div>
-					{/if}
-					{#if instance.platforms?.standalonewindows || instance.platforms?.android || instance.platforms?.ios}
-						<div class="flex flex-col gap-1">
-							{#if instance.platforms.standalonewindows}<span><span class="text-platform-pc">PC: </span>{instance.platforms.standalonewindows}</span>{/if}
-							{#if instance.platforms.android}<span><span class="text-platform-quest">Android: </span>{instance.platforms.android}</span>{/if}
-							{#if instance.platforms.ios}<span><span class="text-platform-ios">iOS: </span>{instance.platforms.ios}</span>{/if}
-						</div>
-					{/if}
-					{#if instance.categoryId}
-						<span class="flex items-center gap-1">
-							{m.dialog_user_info_instance_category()}
-							{#if category?.icon}<i class={['translate-y-px leading-none', category.icon]}></i>{/if}
-							{category?.name ?? instance.categoryId}
-						</span>
-					{/if}
-					{#if instance.vibeIds?.length}<span>{m.dialog_user_info_instance_vibes()} {vibeTitles}</span>{/if}
-					{#if languages.length}
-						<div class="flex flex-col gap-1">
-							<span>{m.dialog_user_info_instance_languages()}</span>
-							{#each languages as lang (lang.code)}
-								<span class="flex items-center gap-1.5">
-									<span class={['flags inline-block', languageClass(lang.key)]}></span>
-									{lang.name}
-									{#if lang.percent !== null}<span class="text-muted-foreground">{lang.percent}%</span>{/if}
-									{#if lang.isCreationLanguage}<span title={m.dialog_user_info_instance_creation_language()}><Star class="size-3 text-yellow-500" /></span>{/if}
-								</span>
-							{/each}
-						</div>
-					{/if}
-					{#if instance.gameServerVersion}<span>Game Version: {instance.gameServerVersion}</span>{/if}
-					{#if instance.queueEnabled}<span class="font-medium text-yellow-500">{m.dialog_user_info_instance_queuing_enabled()}</span>{/if}
-					{#if disabled}<span>Disabled Content: {disabled}</span>{/if}
-				</div>
-			</HoverCard.Content>
+			{#if hasDetails}
+				<HoverCard.Content side="top" class="w-auto max-w-80 text-xs">
+					<div class="flex flex-col flex-wrap gap-x-6 gap-y-2">
+						{#if description}
+							<div class="flex flex-col gap-1">
+								<span>{m.dialog_user_info_instance_description()}</span>
+								<span class="max-w-80 break-words whitespace-pre-wrap">{description}</span>
+							</div>
+						{/if}
+						{#if instance.platforms?.standalonewindows || instance.platforms?.android || instance.platforms?.ios}
+							<div class="flex flex-col gap-1">
+								{#if instance.platforms.standalonewindows}<span><span class="text-platform-pc">PC: </span>{instance.platforms.standalonewindows}</span>{/if}
+								{#if instance.platforms.android}<span><span class="text-platform-quest">Android: </span>{instance.platforms.android}</span>{/if}
+								{#if instance.platforms.ios}<span><span class="text-platform-ios">iOS: </span>{instance.platforms.ios}</span>{/if}
+							</div>
+						{/if}
+						{#if languages.length}
+							<div class="flex flex-col gap-1">
+								<span>{m.dialog_user_info_instance_languages()}</span>
+								{#each languages as lang (lang.code)}
+									<span class="flex items-center gap-1.5">
+										<span class={['flags inline-block', languageClass(lang.key)]}></span>
+										{lang.name}
+										{#if lang.percent !== null}<span class="text-muted-foreground">{lang.percent}%</span>{/if}
+										{#if lang.isCreationLanguage}<span title={m.dialog_user_info_instance_creation_language()}><Star class="size-3 text-yellow-500" /></span>{/if}
+									</span>
+								{/each}
+							</div>
+						{/if}
+						{#if instance.gameServerVersion}<span>Game Version: {instance.gameServerVersion}</span>{/if}
+						{#if instance.queueEnabled}<span class="font-medium text-yellow-500">{m.dialog_user_info_instance_queuing_enabled()}</span>{/if}
+						{#if disabled}<span>Disabled Content: {disabled}</span>{/if}
+					</div>
+				</HoverCard.Content>
+			{/if}
 		</HoverCard.Root>
 
 		{#if friendCount}

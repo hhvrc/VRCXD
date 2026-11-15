@@ -29,8 +29,7 @@
 	import Pencil from '@lucide/svelte/icons/pencil';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
 	import Smartphone from '@lucide/svelte/icons/smartphone';
-	import ThumbsDown from '@lucide/svelte/icons/thumbs-down';
-	import ThumbsUp from '@lucide/svelte/icons/thumbs-up';
+	import WorldRating from '#lib/components/details/world-rating.svelte';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Upload from '@lucide/svelte/icons/upload';
 	import Wand2 from '@lucide/svelte/icons/wand-sparkles';
@@ -107,16 +106,12 @@
 	};
 	type Stats = { visitCount: number; lastVisit?: string; timeSpentMs: number };
 	type Room = { location: string; occupants: number; friends: Friend[]; shortName?: string };
-	type WorldRatingValue = 'like' | 'dislike';
-	type WorldRating = { value: WorldRatingValue | null };
 
 	let world = $state<LiveWorld | undefined>();
 	let stats = $state<Stats | undefined>();
 	let friends = $state<Friend[]>([]);
 	let homeLocation = $state('');
 	let hasPersistData = $state(false);
-	// This account's like or dislike of the world.
-	let rating = $state<WorldRatingValue | null>(null);
 	let loadError = $state('');
 	let refreshing = $state(false);
 	let previousOpen = $state(false);
@@ -204,9 +199,6 @@
 				throw err;
 			});
 			const path = `${accountPath(owner)}/worlds/${encodeURIComponent(id)}`;
-			api.get<WorldRating>(`${path}/rating`)
-				.then((found) => id === worldId && (rating = found?.value ?? null))
-				.catch((err) => console.error('Failed to load world rating:', err));
 			const [live, nextStats, nextFriends, accounts, persist] = await Promise.all([
 				api.get<LiveWorld | null>(`${path}/live`).catch(() => null),
 				api.get<Stats>(`${path}/stats`).catch(() => undefined),
@@ -239,7 +231,6 @@
 		if (owner && id) {
 			world = undefined;
 			stats = undefined;
-			rating = null;
 			fileAnalysis = {};
 			actions.reset();
 			activeTab = 'instances';
@@ -248,14 +239,6 @@
 		}
 	});
 
-
-	// Clicking the active one clears it, the other one sets it.
-	function setRating(value: WorldRatingValue) {
-		const id = worldId;
-		const path = `${base}/rating`;
-		const req = rating === value ? api.delete<WorldRating>(path) : api.put<WorldRating>(`${path}?value=${value}`);
-		req.then((result) => id === worldId && (rating = result?.value ?? null)).catch(toastError);
-	}
 
 	function promptSave(title: string, description: string, errorMessage: string, field: string, value: string, done: string, options: { multiline?: boolean; numeric?: boolean } = {}) {
 		actions.prompting = {
@@ -384,36 +367,6 @@
 								{/if}
 							</DropdownMenu.Content>
 						</DropdownMenu.Root>
-						<div class="flex size-9 flex-none flex-col self-start">
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									{#snippet child({ props })}
-										<Button
-											{...props}
-											class="h-1/2 w-full rounded-t-lg rounded-b-none border p-0 has-[>svg]:px-0 {rating === 'like' ? 'border-primary' : ''}"
-											variant={rating === 'like' ? 'default' : 'outline'}
-											aria-label={m.dialog_world_actions_like()}
-											onclick={() => setRating('like')}><ThumbsUp class="text-xs" /></Button
-										>
-									{/snippet}
-								</Tooltip.Trigger>
-								<Tooltip.Content side="top">{m.dialog_world_actions_like()}</Tooltip.Content>
-							</Tooltip.Root>
-							<Tooltip.Root>
-								<Tooltip.Trigger>
-									{#snippet child({ props })}
-										<Button
-											{...props}
-											class="h-1/2 w-full rounded-t-none rounded-b-lg border-t-0 border p-0 has-[>svg]:px-0 {rating === 'dislike' ? 'border-primary' : ''}"
-											variant={rating === 'dislike' ? 'default' : 'outline'}
-											aria-label={m.dialog_world_actions_dislike()}
-											onclick={() => setRating('dislike')}><ThumbsDown class="text-xs" /></Button
-										>
-									{/snippet}
-								</Tooltip.Trigger>
-								<Tooltip.Content side="bottom">{m.dialog_world_actions_dislike()}</Tooltip.Content>
-							</Tooltip.Root>
-						</div>
 					</div>
 
 					<div class="mt-2 flex flex-wrap items-center gap-1">
@@ -518,6 +471,7 @@
 						{#if world.storeId}<TabsPrimitive.Trigger value="store" class={TAB_TRIGGER}>{m.dialog_world_store_header()}</TabsPrimitive.Trigger>{/if}
 						<TabsPrimitive.Trigger value="json" class={TAB_TRIGGER}>{m.dialog_world_json_header()}</TabsPrimitive.Trigger>
 					</TabsPrimitive.List>
+					{#if owner}<WorldRating path={base} />{/if}
 				</div>
 
 				<TabsPrimitive.Content value="instances" class={TAB_CONTENT}>

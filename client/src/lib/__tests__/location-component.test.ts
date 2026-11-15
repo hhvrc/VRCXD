@@ -8,7 +8,7 @@ import type { Component } from 'svelte';
 import { appearance } from '../settings/appearance.svelte.js';
 import Location from '../components/instance/location.svelte';
 import LocationWorld from '../components/instance/location-world.svelte';
-import { closedInstances } from '../instances/instance-launch.svelte.js';
+import { closedInstances, instanceCatalog, instanceTags } from '../instances/instance-launch.svelte.js';
 import Host from './fixtures/tooltip-render-host.svelte';
 
 // The original's Location.vue and LocationWorld.vue tests, as server renders of the port's
@@ -25,6 +25,9 @@ beforeEach(() => {
 	get.mockReset();
 	get.mockRejectedValue(new Error('unknown'));
 	closedInstances.clear();
+	instanceTags.clear();
+	instanceCatalog.categories = [];
+	instanceCatalog.vibes = [];
 	appearance.isAgeGatedInstancesVisible.value = false;
 	appearance.showInstanceIdInLocation.value = false;
 });
@@ -68,6 +71,12 @@ describe('location', () => {
 	test('the region flag, us when the tag has none', () => {
 		expect(location({ location: 'wrld_12345:67890~region(eu)' })).toContain('class="flags shrink-0 eu"');
 		expect(location({ location: 'wrld_12345:67890' })).toContain('class="flags shrink-0 us"');
+	});
+
+	test('the region flag is titled with the region name', () => {
+		expect(location({ location: 'wrld_12345:67890~region(eu)' })).toContain('title="Europe"');
+		expect(location({ location: 'wrld_12345:67890~region(jp)' })).toContain('title="Japan"');
+		expect(location({ location: 'wrld_12345:67890' })).toContain('title="US West"');
 	});
 
 	test('the group hint is shown in parentheses', () => {
@@ -143,5 +152,28 @@ describe('location world pill', () => {
 		expect(text(body)).toContain('#Resolved Name');
 		expect(body).toContain('lucide-triangle-alert');
 		expect(body).toContain('lucide-lock ');
+	});
+});
+
+// Upstream 27e9acf9: the category icon before a location, from what a fetch of the instance said.
+describe('instance category icon', () => {
+	test('none until a fetch of the instance has given a category or vibes', () => {
+		expect(location({ location: 'wrld_12345:67890' })).not.toContain('ri-');
+		instanceTags.set('wrld_12345:67890', { categoryId: '', vibeIds: [] });
+		expect(location({ location: 'wrld_12345:67890' })).not.toContain('ri-');
+	});
+
+	test("the category's icon, in the location and in the world pill", () => {
+		instanceCatalog.categories = [{ id: 'icat_music', name: 'Music', iconUrl: 'vrchat://category_music_shows' }];
+		instanceTags.set('wrld_12345:67890', { categoryId: 'icat_music', vibeIds: [] });
+		expect(location({ location: 'wrld_12345:67890' })).toContain('ri-music-2-line');
+		expect(pill({ location: 'wrld_12345:67890' })).toContain('ri-music-2-line');
+	});
+
+	test('the fallback icon for an unknown category or vibes alone', () => {
+		instanceTags.set('wrld_12345:67890', { categoryId: 'icat_unknown', vibeIds: [] });
+		expect(location({ location: 'wrld_12345:67890' })).toContain('ri-apps-2-line');
+		instanceTags.set('wrld_12345:67890', { categoryId: '', vibeIds: ['ivib_chill'] });
+		expect(location({ location: 'wrld_12345:67890' })).toContain('ri-apps-2-line');
 	});
 });

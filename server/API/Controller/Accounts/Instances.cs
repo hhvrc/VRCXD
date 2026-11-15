@@ -145,27 +145,16 @@ public sealed partial class AccountsController
             return await client.CreateInstanceAsync(request, cancellationToken);
         });
 
-    /// <summary>The instance categories VRChat offers (instanceCategories), for New Instance and the instance tooltip.</summary>
-    /// <response code="200">The categories, kept as VRChat sends them</response>
+    /// <summary>The instance categories and vibes VRChat offers (instanceOptions, upstream fd9fff94), for New Instance and the category icon.</summary>
+    /// <response code="200">{ categories, vibes }, kept as VRChat sends them</response>
     /// <response code="409">No live session</response>
-    [HttpGet("{accountId}/instances/categories")]
+    [HttpGet("{accountId}/instances/catalog")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> GetInstanceCategories([FromRoute] string accountId, CancellationToken cancellationToken) =>
-        ReadLiveAsync(accountId, client => client.GetInstanceCategoriesAsync(cancellationToken));
-
-    /// <summary>The instance vibes VRChat offers (instanceVibes), for New Instance and the instance tooltip.</summary>
-    /// <response code="200">The vibes, kept as VRChat sends them</response>
-    /// <response code="409">No live session</response>
-    [HttpGet("{accountId}/instances/vibes")]
-    [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
-    [MapToApiVersion("1")]
-    public Task<IActionResult> GetInstanceVibes([FromRoute] string accountId, CancellationToken cancellationToken) =>
-        ReadLiveAsync(accountId, client => client.GetInstanceVibesAsync(cancellationToken));
+    public Task<IActionResult> GetInstanceCatalog([FromRoute] string accountId, CancellationToken cancellationToken) =>
+        ReadLiveAsync(accountId, client => client.GetInstanceCatalogAsync(cancellationToken));
 
     /// <summary>An instance's short and secure names, which a launch link needs for a closed instance.</summary>
     /// <response code="200">The names, kept as VRChat sends them</response>
