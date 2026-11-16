@@ -1,7 +1,7 @@
 import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
 
 // The original's useRecentActions: when invites, invite requests and friend requests were last sent to
-// someone, so the user menu can mark them with a clock for a while (Settings > Social > Recent Action
+// someone, so the user menu and the friends list can mark them with a clock for a while (Settings > Social > Recent Action
 // Icon). Same storage names as the original.
 
 export type RecentAction =
@@ -13,15 +13,36 @@ export type RecentAction =
 	| 'Request Invite Photo'
 	| 'Request Invite Message';
 
+/** The invite and invite-request actions, the ones the friends list marks. */
+export const INVITE_ACTIONS: RecentAction[] = ['Invite', 'Invite Photo', 'Invite Message', 'Request Invite', 'Request Invite Photo', 'Request Invite Message'];
+
+/** The actions still inside the cooldown; the same object when nothing expired. */
+export function pruneRecentActions(actions: Record<string, number>, cooldownMs: number, now: number): Record<string, number> {
+	const kept = Object.entries(actions).filter(([, at]) => !!at && now - at < cooldownMs);
+	return kept.length === Object.keys(actions).length ? actions : Object.fromEntries(kept);
+}
+
 class RecentActions {
 	#actions = $state<Record<string, number>>(readSetting('VRCX_recentActions', {}));
 	#enabled = $state(readSetting('VRCX_recentActionCooldownEnabled', false));
 	#minutes = $state(readSetting('VRCX_recentActionCooldownMinutes', 60));
-	/** Re-read once a minute so markers expire on screen. */
+	/** Re-read twice a minute so markers expire on screen. */
 	#tick = $state(0);
 
 	constructor() {
-		if (typeof window !== 'undefined') setInterval(() => (this.#tick += 1), 60_000);
+		if (typeof window === 'undefined') return;
+		setInterval(() => {
+			this.#purge();
+			this.#tick += 1;
+		}, 30_000);
+	}
+
+	/** The original's purgeExpiredRecentActions: entries past the cooldown leave storage. */
+	#purge() {
+		const kept = pruneRecentActions(this.#actions, this.#minutes * 60_000, Date.now());
+		if (kept === this.#actions) return;
+		this.#actions = kept;
+		storeSetting('VRCX_recentActions', kept);
 	}
 
 	get enabled() {

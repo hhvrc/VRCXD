@@ -5,6 +5,8 @@
 	import { sidebarSettings } from '#lib/settings/sidebar-settings.svelte.js';
 	import Location from '#lib/components/instance/location.svelte';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
+	import Clock from '@lucide/svelte/icons/clock';
+	import { INVITE_ACTIONS, recentActions } from '#lib/api/recent-actions.svelte.js';
 	import type { Friend } from '#lib/api/types.js';
 	import { iconSrc } from '#lib/api/links.js';
 	import { timeToText } from '#lib/helpers/format.js';
@@ -21,6 +23,7 @@
 	const traveling = $derived(friend.location === 'traveling');
 	const colour = $derived(userColour(friend, dark));
 	const activeOrOffline = $derived(friend.state === 'active' || friend.state === 'offline');
+	const recentInvite = $derived(recentActions.isRecent(friend.userId, ...INVITE_ACTIONS));
 </script>
 
 <div
@@ -34,9 +37,9 @@
 	<PersonAvatar src={iconSrc(friend.thumbnailImageUrl)} statusClass={userStatusClass(friend, friend.pendingOffline)} iconFrame={friend.iconFrame} frameEnabled={sidebarSettings.cosmetics.value} fallbackClass="size-5" />
 	<div class="flex h-9 flex-1 flex-col justify-between overflow-hidden">
 		{#if !hideNicknames && friend.nickname}
-			<span class={PERSON_NAME} style="color: {colour}">{friend.displayName} ({friend.nickname})</span>
+			<span class={PERSON_NAME} style="color: {colour}">{#if recentInvite}<Clock class="mr-1 inline size-3.5 text-muted-foreground" />{/if}{friend.displayName} ({friend.nickname})</span>
 		{:else}
-			<span class={PERSON_NAME} style="color: {colour}">{friend.displayName}{groupByInstance && favorite ? ' ⭐' : ''}</span>
+			<span class={PERSON_NAME} style="color: {colour}">{#if recentInvite}<Clock class="mr-1 inline size-3.5 text-muted-foreground" />{/if}{friend.displayName}{groupByInstance && favorite ? ' ⭐' : ''}</span>
 		{/if}
 		{#if activeOrOffline}
 			<span class={PERSON_SUBTEXT}>{friend.statusDescription}</span>

@@ -8,7 +8,7 @@ import { agentCan, desktop } from '#lib/instances/instance-launch.svelte.js';
 import { ownPath } from '#lib/api/vrchat-auth.svelte.js';
 import { onLiveEvent } from '#lib/api/live.svelte.js';
 import { parseLocation } from '#lib/instances/location.js';
-import { AFK_DESKTOP_TOAST_KEY, afkMet, conditionMet, DESKTOP_TOAST_KEY, displayLocation, filterPasses, normalizeSharedFeedFilters, NOTIFICATION_TTS_KEY, NOTIFICATION_TTS_NICKNAME_KEY, NOTIFICATION_TTS_VOICE_KEY, notificationMessage, notificationText, notyImage, notyMessage, notyName, SHARED_FEED_FILTERS_KEY, type NotyUser, shouldPlay, type GameState, type Noty, type SharedFeedFilters } from '#lib/notifications/noty.js';
+import { AFK_DESKTOP_TOAST_KEY, afkMet, conditionMet, DESKTOP_TOAST_KEY, displayLocation, filterPasses, normalizeSharedFeedFilters, NOTIFICATION_TTS_KEY, NOTIFICATION_TTS_NICKNAME_KEY, NOTIFICATION_TTS_VOICE_KEY, QUEUE_READY_ALARM_KEY, notificationMessage, notificationText, notyImage, notyMessage, notyName, SHARED_FEED_FILTERS_KEY, type NotyUser, shouldPlay, type GameState, type Noty, type SharedFeedFilters } from '#lib/notifications/noty.js';
 import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
 import { appearance } from '#lib/settings/appearance.svelte.js';
 import { addWristEntry, wristFeedSettings, watchWristStatus, wristArrived, wristTravelling } from '#lib/notifications/wrist-feed.svelte.js';
@@ -29,6 +29,8 @@ const readString = (key: string, fallback: string) => {
 class NotySettings {
 	desktopToast = $state(readString(DESKTOP_TOAST_KEY, 'Never'));
 	afkDesktopToast = $state(readSetting(AFK_DESKTOP_TOAST_KEY, false));
+	/** Off by default: a chime when a queued instance is ready, whatever the conditions below say. */
+	queueReadyAlarm = $state(readSetting(QUEUE_READY_ALARM_KEY, false));
 	notificationTTS = $state(readString(NOTIFICATION_TTS_KEY, 'Never'));
 	notificationTTSNickName = $state(readSetting(NOTIFICATION_TTS_NICKNAME_KEY, false));
 	/** The voice's index in speechSynthesis.getVoices(), stored as a string as the original does. */
@@ -59,6 +61,13 @@ class NotySettings {
 		this.afkDesktopToast = value;
 		storeSetting(AFK_DESKTOP_TOAST_KEY, value);
 		if (value && typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission();
+	}
+
+	setQueueReadyAlarm(value: boolean) {
+		this.queueReadyAlarm = value;
+		storeSetting(QUEUE_READY_ALARM_KEY, value);
+		// Doubles as a preview, and the click lets the browser play sound from this tab later.
+		if (value) playQueueReadyChime();
 	}
 
 	setNotificationTTS(value: string) {
@@ -139,6 +148,29 @@ function readSharedFeedFilters(): unknown {
 }
 
 export const notySettings = new NotySettings();
+
+/** The original's playQueueReadyChime: a short two-tone chime when a queued instance is ready. */
+export function playQueueReadyChime() {
+	if (!browser || typeof AudioContext === 'undefined') return;
+	try {
+		const ctx = new AudioContext();
+		const gain = ctx.createGain();
+		gain.connect(ctx.destination);
+		[880, 1320].forEach((frequency, i) => {
+			const start = ctx.currentTime + i * 0.15;
+			const osc = ctx.createOscillator();
+			osc.frequency.value = frequency;
+			osc.connect(gain);
+			gain.gain.setValueAtTime(0.3, start);
+			gain.gain.exponentialRampToValueAtTime(0.001, start + 0.15);
+			osc.start(start);
+			osc.stop(start + 0.15);
+			if (i === 1) osc.onended = () => void ctx.close();
+		});
+	} catch (err) {
+		console.error('Failed to play the queue ready chime:', err);
+	}
+}
 
 /** What the PC tells about the game: running, SteamVR, and desktop mode from its log. It does not report the headset yet, so AFK reads as off. */
 const gameState = (): GameState => ({ gameRunning: desktop.gameRunning, steamVrRunning: desktop.steamVrRunning, noVr: desktop.gameNoVr, hmdAfk: desktop.hmdAfk });
@@ -316,6 +348,8 @@ async function onEvent(event: ServerEvent) {
 		case 'notification': {
 			const n = e.value;
 			if (n.ownerUserId !== account) return;
+			// The original's queue ready alarm: regardless of Busy, the filters and the toast and speech settings.
+			if (n.type === 'group.queueReady' && notySettings.queueReadyAlarm) playQueueReadyChime();
 			const needsDetails = ['invite', 'requestInvite', 'inviteResponse', 'requestInviteResponse'].includes(n.type);
 			const details = needsDetails ? await notificationDetails(account, n.notificationId) : undefined;
 			queue(

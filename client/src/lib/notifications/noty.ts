@@ -12,6 +12,7 @@ export type SharedFeedFilters = { noty: Record<string, FilterValue>; wrist: Reco
 export const SHARED_FEED_FILTERS_KEY = 'sharedFeedFilters';
 export const DESKTOP_TOAST_KEY = 'VRCX_desktopToast';
 export const AFK_DESKTOP_TOAST_KEY = 'VRCX_afkDesktopToast';
+export const QUEUE_READY_ALARM_KEY = 'VRCX_queueReadyAlarm';
 export const NOTIFICATION_TTS_KEY = 'VRCX_notificationTTS';
 export const NOTIFICATION_TTS_NICKNAME_KEY = 'VRCX_notificationTTSNickName';
 export const NOTIFICATION_TTS_VOICE_KEY = 'VRCX_notificationTTSVoice';

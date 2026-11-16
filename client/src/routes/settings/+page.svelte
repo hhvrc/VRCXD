@@ -512,6 +512,9 @@
 					<SettingsItem label={m.view_settings_notifications_notifications_desktop_notifications_desktop_notification_while_afk()} toggle>
 						<Switch checked={notySettings.afkDesktopToast} aria-label={m.view_settings_notifications_notifications_desktop_notifications_desktop_notification_while_afk()} onCheckedChange={(v) => notySettings.setAfkDesktopToast(v)} />
 					</SettingsItem>
+					<SettingsItem label={m.view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm()} description={m.view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm_description()} toggle>
+						<Switch checked={notySettings.queueReadyAlarm} aria-label={m.view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm()} onCheckedChange={(v) => notySettings.setQueueReadyAlarm(v)} />
+					</SettingsItem>
 				</SettingsGroup>
 				<SettingsGroup title={m.view_settings_notifications_notifications_text_to_speech_header()}>
 					<SettingsItem label={m.view_settings_notifications_notifications_text_to_speech_when_to_play()}>

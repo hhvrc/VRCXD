@@ -2817,5 +2817,7 @@
 	"view_tools_marketplace_search_placeholder": "Search store",
 	"view_tools_marketplace_header": "Marketplace",
 	"dialog_user_info_instance_creation_language": "Set by instance creator",
-	"dialog_world_actions_like": "Like"
+	"dialog_world_actions_like": "Like",
+	"view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm": "Queue Ready Alarm",
+	"view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm_description": "Play a chime in this browser when a queued instance is ready, even while Busy"
 }
