@@ -213,7 +213,7 @@
 		confirm = {
 			get title() { return m.confirm_title(); },
 			description: `Continue? Select Avatar\n${item.avatar.name}`,
-			onConfirm: () => call(() => api.post(ownPath(`/avatars/${encodeURIComponent(item.avatar.id)}/select`)), 'Avatar changed')
+			onConfirm: () => call(() => api.post(ownPath(`/avatars/${encodeURIComponent(item.avatar.id)}/select`)), m.message_avatar_selected())
 		};
 	}
 

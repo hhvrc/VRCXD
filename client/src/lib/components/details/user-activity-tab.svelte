@@ -398,7 +398,7 @@
 							<div class="flex items-center gap-2">
 								<span class="text-sm text-muted-foreground">{m.side_panel_settings_sort_primary()}</span>
 								<Select.Root type="single" value={topWorldsSortBy} onValueChange={setSort} disabled={topWorldsLoading}>
-									<Select.Trigger size="sm" class="w-32">{topWorldsSortBy === 'time' ? 'By Time' : 'By Visits'}</Select.Trigger>
+									<Select.Trigger size="sm" class="w-32">{topWorldsSortBy === 'time' ? m.dialog_user_activity_most_visited_worlds_sort_by_time() : m.dialog_user_activity_most_visited_worlds_sort_by_count()}</Select.Trigger>
 									<Select.Content>
 										<Select.Item value="time" label={m.dialog_user_activity_most_visited_worlds_sort_by_time()} />
 										<Select.Item value="count" label={m.dialog_user_activity_most_visited_worlds_sort_by_count()} />

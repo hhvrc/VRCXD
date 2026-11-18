@@ -22,6 +22,7 @@
 	import ActionDialogs from '#lib/components/dialogs/action-dialogs.svelte';
 	import { DetailActions } from '#lib/helpers/detail-actions.svelte.js';
 	import AvatarInfo from '#lib/components/details/avatar-info.svelte';
+	import Info from '@lucide/svelte/icons/info';
 	import ViewableImage from '#lib/components/common/viewable-image.svelte';
 	import { NONE, TAB_CONTENT, TAB_LIST, TAB_LIST_WRAP, TAB_TRIGGER, PANEL, PROFILE_SECTION, TITLE_BUTTON } from '#lib/details.js';
 	import { Tabs as TabsPrimitive } from 'bits-ui';
@@ -94,8 +95,8 @@
 	let { userId }: { userId: string } = $props();
 
 	// The original's getUserStatusText: anything else reads as Offline.
-	const STATUSES: Record<string, string> = { active: 'Active', 'join me': 'Join Me', 'ask me': 'Ask Me', busy: 'Do Not Disturb' };
-	const statusText = (status: string) => STATUSES[status] ?? 'Offline';
+	const STATUSES: Record<string, () => string> = { active: m.dialog_user_status_active, 'join me': m.dialog_user_status_join_me, 'ask me': m.dialog_user_status_ask_me, busy: m.dialog_user_status_busy };
+	const statusText = (status: string) => (STATUSES[status] ?? m.dialog_user_status_offline)();
 	const PADDED_TAB = `${TAB_CONTENT} pt-2`;
 
 	let user = $state<User | undefined>();
@@ -158,7 +159,7 @@
 	const stateText = $derived.by(() => {
 		if (!user) return '';
 		if (user.state !== 'active' && user.state !== 'offline') return statusText(user.status);
-		const state = user.state === 'active' ? 'Active' : 'Offline';
+		const state = user.state === 'active' ? m.dialog_user_status_active() : m.dialog_user_status_offline();
 		return user.status && user.status !== 'active' ? `${state} (${statusText(user.status)})` : state;
 	});
 	// The original's $isModerator: a developer type, or the admin_moderator tag.
@@ -170,10 +171,10 @@
 	const canInvite = $derived(!!ownLocation && parseLocation(ownLocation).isRealInstance);
 	// Turning one on is destructive and not offered against moderators, as in the original.
 	const MODERATIONS = [
-		{ type: 'block', on: 'Block', off: 'Unblock' },
-		{ type: 'mute', on: 'Mute', off: 'Unmute' },
-		{ type: 'muteChat', on: 'Mute Chatbox', off: 'Unmute Chatbox' },
-		{ type: 'interactOff', on: 'Disable Avatar Interaction', off: 'Enable Avatar Interaction' }
+		{ type: 'block', on: m.dialog_user_actions_moderation_block, off: m.dialog_user_actions_moderation_unblock },
+		{ type: 'mute', on: m.dialog_user_actions_moderation_mute, off: m.dialog_user_actions_moderation_unmute },
+		{ type: 'muteChat', on: m.dialog_user_actions_moderation_disable_chatbox, off: m.dialog_user_actions_moderation_enable_chatbox },
+		{ type: 'interactOff', on: m.dialog_user_actions_moderation_disable_avatar_interaction, off: m.dialog_user_actions_moderation_enable_avatar_interaction }
 	];
 	// The original's setPlayerModeration: Hide and Show Avatar toggle, through the PC's agent.
 	async function setLocalAvatar(type: number) {
@@ -194,7 +195,7 @@
 	}
 
 	function moderate(type: string, label: string, on: boolean) {
-		actions.confirming = { command: label, get title() { return m.dialog_user_note_memo_confirm(); }, destructive: !on, run: () => actions.act(() => setModeration(type, !on), 'User moderated') };
+		actions.confirming = { command: label, get title() { return m.dialog_user_note_memo_confirm(); }, destructive: !on, run: () => actions.act(() => setModeration(type, !on), m.message_user_moderated()) };
 	}
 
 	async function load(id: string, refresh = false) {
@@ -428,7 +429,7 @@
 	<div class="flex flex-col items-start gap-2 p-1.5">
 		<p class="text-sm text-destructive">{loadError}</p>
 		<CopyId id={userId} />
-		<Button variant="outline" size="sm" disabled={refreshing} onclick={refresh}>{refreshing ? 'Fetching…' : 'Refresh'}</Button>
+		<Button variant="outline" size="sm" disabled={refreshing} onclick={refresh}>{refreshing ? 'Fetching…' : m.common_actions_refresh()}</Button>
 	</div>
 {:else if !user}
 	<div class="flex h-40 items-center justify-center"><Spinner /></div>
@@ -470,16 +471,16 @@
 							<div class="flex flex-wrap items-center gap-x-1 leading-snug">
 								{#if history?.displayNames.length}
 									<Tooltip.Root>
-										<Tooltip.Trigger aria-label="Previous Display Names"><ChevronDown class="inline-block size-4" /></Tooltip.Trigger>
+										<Tooltip.Trigger aria-label={m.dialog_user_previous_display_names()}><ChevronDown class="inline-block size-4" /></Tooltip.Trigger>
 										<Tooltip.Content side="bottom">
-											<span>Previous Display Names</span>
+											<span>{m.dialog_user_previous_display_names()}</span>
 											{#each history.displayNames as change, index (`${change.changedAt}:${index}`)}
 												<div><span>{change.previousDisplayName}</span> &horbar; {formatDateFilter(change.changedAt, 'long')}</div>
 											{/each}
 										</Tooltip.Content>
 									</Tooltip.Root>
 								{/if}
-								<button type="button" class={TITLE_BUTTON} title={user.displayName} onclick={() => actions.copy(user?.displayName ?? '', 'User DisplayName copied to clipboard')}>
+								<button type="button" class={TITLE_BUTTON} title={user.displayName} onclick={() => actions.copy(user?.displayName ?? '', m.message_user_display_name_copied())}>
 									{user.displayName || userId}
 								</button>
 								{#if userDialog.profileOf(userId)?.isEconomyCreator}
@@ -505,9 +506,9 @@
 								<DropdownMenu.Sub>
 									<DropdownMenu.SubTrigger><Share2 class="size-4" /> {m.dialog_user_actions_share()}</DropdownMenu.SubTrigger>
 									<DropdownMenu.SubContent class="w-auto whitespace-nowrap">
-										<DropdownMenu.Item onSelect={() => actions.copy(vrchatUrl('user', userId), 'User URL copied to clipboard')}>{m.dialog_user_info_copy_url()}</DropdownMenu.Item>
-										<DropdownMenu.Item onSelect={() => actions.copy(user?.displayName ?? '', 'User DisplayName copied to clipboard')}>{m.dialog_user_info_copy_display_name()}</DropdownMenu.Item>
-										<DropdownMenu.Item onSelect={() => actions.copy(userId, 'User ID copied to clipboard')}>{m.dialog_user_info_copy_id()}</DropdownMenu.Item>
+										<DropdownMenu.Item onSelect={() => actions.copy(vrchatUrl('user', userId), m.message_user_url_copied())}>{m.dialog_user_info_copy_url()}</DropdownMenu.Item>
+										<DropdownMenu.Item onSelect={() => actions.copy(user?.displayName ?? '', m.message_user_display_name_copied())}>{m.dialog_user_info_copy_display_name()}</DropdownMenu.Item>
+										<DropdownMenu.Item onSelect={() => actions.copy(userId, m.message_user_id_copied())}>{m.dialog_user_info_copy_id()}</DropdownMenu.Item>
 									</DropdownMenu.SubContent>
 								</DropdownMenu.Sub>
 								{#if isSelf}
@@ -518,11 +519,11 @@
 								{:else}
 									<DropdownMenu.Separator />
 									{#if isFriend}
-										<DropdownMenu.Item onSelect={() => actions.act(() => api.post(`${userPath}/invite-requests/${encodedId}`), 'Request invite sent')}><Send class="size-4" /> Request Invite{#if recentActions.isRecent(userId, 'Request Invite')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
-										<DropdownMenu.Item onSelect={() => (requestMessageOpen = true)}><Send class="size-4" /> Request Invite With Message{#if recentActions.isRecent(userId, 'Request Invite Message', 'Request Invite Photo')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
+										<DropdownMenu.Item onSelect={() => actions.act(() => api.post(`${userPath}/invite-requests/${encodedId}`), m.message_user_request_invite_sent())}><Send class="size-4" /> {m.dialog_user_actions_request_invite()}{#if recentActions.isRecent(userId, 'Request Invite')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
+										<DropdownMenu.Item onSelect={() => (requestMessageOpen = true)}><Send class="size-4" /> {m.dialog_user_actions_request_invite_with_message()}{#if recentActions.isRecent(userId, 'Request Invite Message', 'Request Invite Photo')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
 										{#if canInvite}
-											<DropdownMenu.Item onSelect={() => actions.act(() => sendInvite(), 'Invite sent')}><MessageSquare class="size-4" /> Invite{#if recentActions.isRecent(userId, 'Invite')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
-											<DropdownMenu.Item onSelect={() => (inviteMessageOpen = true)}><MessageSquare class="size-4" /> Invite With Message{#if recentActions.isRecent(userId, 'Invite Message', 'Invite Photo')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
+											<DropdownMenu.Item onSelect={() => actions.act(() => sendInvite(), m.message_invite_sent())}><MessageSquare class="size-4" /> {m.dialog_user_actions_invite()}{#if recentActions.isRecent(userId, 'Invite')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
+											<DropdownMenu.Item onSelect={() => (inviteMessageOpen = true)}><MessageSquare class="size-4" /> {m.dialog_user_actions_invite_with_message()}{#if recentActions.isRecent(userId, 'Invite Message', 'Invite Photo')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
 										{/if}
 										<DropdownMenu.Item disabled={!sidebarData.me?.isBoopingEnabled} onSelect={() => (boopOpen = true)}><Hand class="size-4" /> {m.dialog_user_actions_send_boop()}</DropdownMenu.Item>
 									{:else if relationship?.incomingRequest}
@@ -531,7 +532,7 @@
 									{:else if relationship?.outgoingRequest}
 										<DropdownMenu.Item onSelect={() => actions.confirm(m.dialog_user_actions_cancel_friend_request(), () => friendAction('cancel'))}><XCircle class="size-4" /> {m.dialog_user_actions_cancel_friend_request()}</DropdownMenu.Item>
 									{:else}
-										<DropdownMenu.Item onSelect={() => actions.confirm(m.dialog_user_actions_send_friend_request(), () => friendAction('send'))}><UserPlus class="size-4" /> Send Friend Request{#if recentActions.isRecent(userId, 'Send Friend Request')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
+										<DropdownMenu.Item onSelect={() => actions.confirm(m.dialog_user_actions_send_friend_request(), () => friendAction('send'))}><UserPlus class="size-4" /> {m.dialog_user_actions_send_friend_request()}{#if recentActions.isRecent(userId, 'Send Friend Request')}<DropdownMenu.Shortcut><Clock class="size-3.5 text-muted-foreground" /></DropdownMenu.Shortcut>{/if}</DropdownMenu.Item>
 									{/if}
 									<DropdownMenu.Item onSelect={editNoteAndMemo}><Pencil class="size-4" /> {m.dialog_user_actions_edit_note_memo()}</DropdownMenu.Item>
 									<DropdownMenu.Separator />
@@ -542,7 +543,7 @@
 											<DropdownMenu.Separator />
 											{#each MODERATIONS as moderation (moderation.type)}
 												{@const on = hasModeration(moderation.type)}
-												{@const label = on ? moderation.off : moderation.on}
+												{@const label = (on ? moderation.off : moderation.on)()}
 												<DropdownMenu.Item disabled={!on && isModerator} onSelect={() => moderate(moderation.type, label, on)}>{label}</DropdownMenu.Item>
 											{/each}
 											{#if agentCan('local_moderations')}
@@ -562,7 +563,7 @@
 									<DropdownMenu.Item onSelect={() => (previousOpen = true)}><History class="size-4" /> {m.dialog_user_actions_show_previous_instances()}</DropdownMenu.Item>
 									{#if isFriend}
 										<DropdownMenu.Separator />
-										<DropdownMenu.Item variant="destructive" onSelect={() => (actions.confirming = { command: 'Unfriend', get title() { return m.dialog_user_note_memo_confirm(); }, destructive: true, run: () => actions.act(() => friendAction('unfriend'), 'Unfriended') })}><UserMinus class="size-4" /> {m.dialog_user_actions_unfriend()}</DropdownMenu.Item>
+										<DropdownMenu.Item variant="destructive" onSelect={() => (actions.confirming = { command: m.dialog_user_actions_unfriend(), get title() { return m.dialog_user_note_memo_confirm(); }, destructive: true, run: () => actions.act(() => friendAction('unfriend'), m.dialog_user_actions_unfriend_success_msg()) })}><UserMinus class="size-4" /> {m.dialog_user_actions_unfriend()}</DropdownMenu.Item>
 									{/if}
 								{/if}
 							</DropdownMenu.Content>
@@ -594,7 +595,7 @@
 							<Badge variant="outline" class="h-5 border-[#3b82f6]! px-1.5 text-2xs leading-none text-[#3b82f6]" title={m.dialog_user_tags_age_verified()}><IdCard class="h-2.5 w-2.5" />{#if user.ageVerificationStatus === '18+'} 18+{/if}</Badge>
 						{/if}
 						{#if friend}
-							<Badge variant="outline" class="h-5 border-amber-400! px-1.5 text-2xs leading-none text-amber-400"><UserPlus class="h-2.5 w-2.5" /> {friend.friendNumber || ''}</Badge>
+							<Badge variant="outline" class="h-5 border-amber-400! px-1.5 text-2xs leading-none text-amber-400" title={m.dialog_user_tags_friend_number()}><UserPlus class="h-2.5 w-2.5" /> {friend.friendNumber || ''}</Badge>
 						{/if}
 						{#if mutualCounts?.friends}
 							<Badge variant="outline" class="h-5 border-zinc-500/50! px-1.5 text-2xs leading-none" title={m.dialog_user_tags_mutual_friends()}><Users class="h-2.5 w-2.5" /> {mutualCounts.friends}</Badge>
@@ -666,7 +667,11 @@
 			</div>
 
 			<div class="mt-2 flex flex-col {PANEL}">
-				<div class="{PROFILE_SECTION} mb-2 border-b border-muted-foreground/20 pb-2">{m.dialog_user_info_avatar_info()}</div>
+				<div class="{PROFILE_SECTION} mb-2 flex items-center gap-1 border-b border-muted-foreground/20 pb-2">
+					{m.dialog_user_info_avatar_info()}
+					<!-- The original's hint beside the heading when there is no avatar to show. -->
+					{#if !avatarUrl}<span title={m.dialog_user_info_icon_hides_avatar()}><Info class="h-3 w-3 shrink-0" /></span>{/if}
+				</div>
 				<div class="flex justify-between gap-2 text-xs">
 					{#if avatarUrl}
 						<AvatarInfo imageUrl={user.currentAvatarImageUrl || avatarUrl} {userId} resolve />

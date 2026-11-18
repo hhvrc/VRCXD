@@ -224,18 +224,18 @@
 						{#if created}<span class="text-3xs whitespace-nowrap text-muted-foreground" title={formatDateFilter(created, 'long')}>{fromNow(created, center.now)}</span>{/if}
 						<div class="flex items-center gap-1">
 							{#if !expired}
-								{#if n.type === 'friendRequest'}{@render action('Accept', () => accept(n), Check)}{/if}
-								{#if n.type === 'invite'}{@render action('Decline with message', () => (inviteTarget = n.id), MessageCircle)}{/if}
+								{#if n.type === 'friendRequest'}{@render action(m.view_notification_actions_accept(), () => accept(n), Check)}{/if}
+								{#if n.type === 'invite'}{@render action(m.view_notification_actions_decline_with_message(), () => (inviteTarget = n.id), MessageCircle)}{/if}
 								{#if n.type === 'requestInvite'}
-									{#if canSendInvite}{@render action('Invite', () => sendInvite(n), Check)}{/if}
-									{@render action('Decline with message', () => (requestTarget = n.id), MessageCircle)}
+									{#if canSendInvite}{@render action(m.view_notification_actions_invite(), () => sendInvite(n), Check)}{/if}
+									{@render action(m.view_notification_actions_decline_with_message(), () => (requestTarget = n.id), MessageCircle)}
 								{/if}
 								{#each n.responses ?? [] as response (`${response.text}:${response.type}`)}
 									{@render action(response.text, () => respond(n, response), responseIcon(n, response))}
 								{/each}
-								{#if canDecline(n)}{@render action('Decline', () => (shiftKey.held ? act(() => api.post(path(n, '/hide'), {})) : decline(n)), X, true)}{/if}
+								{#if canDecline(n)}{@render action(m.view_notification_actions_decline(), () => (shiftKey.held ? act(() => api.post(path(n, '/hide'), {})) : decline(n)), X, true)}{/if}
 							{/if}
-							{#if n.type !== 'friendRequest' && n.type !== 'ignoredFriendRequest'}{@render action('Delete log', () => removeLog(n), Trash2, true)}{/if}
+							{#if n.type !== 'friendRequest' && n.type !== 'ignoredFriendRequest'}{@render action(m.view_notification_actions_delete_log(), () => removeLog(n), Trash2, true)}{/if}
 						</div>
 					</div>
 				</div>
@@ -275,7 +275,7 @@
 		<Tooltip.Provider>
 			<Tabs.Root bind:value={() => tab, (v) => (tab = v as Category)} class="flex min-h-0 flex-1 flex-col">
 				<Tabs.List class="mt-2 mr-4 ml-2 grid w-auto grid-cols-3">
-					{#each [['friend', 'Friend'], ['group', 'Group'], ['other', 'Other']] as [value, label] (value)}
+					{#each [['friend', m.side_panel_notification_center_tab_friend()], ['group', m.side_panel_notification_center_tab_group()], ['other', m.side_panel_notification_center_tab_other()]] as [value, label] (value)}
 						<Tabs.Trigger {value}>
 							{label}
 							{#if lists[value as Category].unseen.length}<span class="ml-1 text-xs text-muted-foreground">({lists[value as Category].unseen.length})</span>{/if}

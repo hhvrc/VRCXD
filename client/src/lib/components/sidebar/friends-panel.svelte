@@ -144,9 +144,9 @@
 			sameInstanceRows(list);
 		}
 		const sections: [string, string, Friend[], { value: boolean; toggle: () => void }][] = [
-			['online', 'ONLINE', onlineRest, onlineOpen],
-			['active', 'ACTIVE', active, activeOpen],
-			['offline', 'OFFLINE', offline, offlineOpen]
+			['online', m.side_panel_online(), onlineRest, onlineOpen],
+			['active', m.side_panel_active(), active, activeOpen],
+			['offline', m.side_panel_offline(), offline, offlineOpen]
 		];
 		for (const [key, label, friends, state] of sections) {
 			if (friends.length) list.push({ type: 'toggle', key: `${key}-header`, label, count: friends.length, expanded: state.value, onclick: state.toggle });
@@ -176,7 +176,7 @@
 		let location = sidebarData.currentLocation ?? '';
 		if (location === 'traveling') location = me?.travelingToLocation ?? '';
 		if (!location) return;
-		act(() => api.post(accountPath(account, `/invites/${encodeURIComponent(friend.userId)}`), { location, worldName: parseLocation(location).worldId }), 'Invite sent');
+		act(() => api.post(accountPath(account, `/invites/${encodeURIComponent(friend.userId)}`), { location, worldName: parseLocation(location).worldId }), m.message_invite_sent());
 	}
 
 	// The original's BackToTop for this list.
@@ -269,7 +269,7 @@
 								</ContextMenu.Trigger>
 								<ContextMenu.Content>
 									{#if friend.state === 'online'}
-										<ContextMenu.Item onSelect={() => act(() => api.post(accountPath(account, `/invite-requests/${encodeURIComponent(friend.userId)}`), {}), 'Request invite sent')}>{m.dialog_user_actions_request_invite()}</ContextMenu.Item>
+										<ContextMenu.Item onSelect={() => act(() => api.post(accountPath(account, `/invite-requests/${encodeURIComponent(friend.userId)}`), {}), m.message_user_request_invite_sent())}>{m.dialog_user_actions_request_invite()}</ContextMenu.Item>
 									{/if}
 									{#if desktop.gameRunning}
 										<ContextMenu.Item disabled={!sidebarData.currentLocation || !canInvite(sidebarData.currentLocation, account, sidebarData.currentLocation)} onSelect={() => invite(friend)}>{m.dialog_launch_invite()}</ContextMenu.Item>
@@ -284,7 +284,7 @@
 									{#if hasLocation}
 										<ContextMenu.Separator />
 										<ContextMenu.Item disabled={!canInviteSelf(where, account, friendIds)} onSelect={() => (instanceDialogs.launch = { location: where })}>{m.dialog_user_info_launch_invite_tooltip()}</ContextMenu.Item>
-										<ContextMenu.Item disabled={!canInviteSelf(where, account, friendIds)} onSelect={() => act(() => selfInvite(where), 'Self invite sent')}>{m.dialog_user_info_self_invite_tooltip()}</ContextMenu.Item>
+										<ContextMenu.Item disabled={!canInviteSelf(where, account, friendIds)} onSelect={() => act(() => selfInvite(where), m.message_invite_self_sent())}>{m.dialog_user_info_self_invite_tooltip()}</ContextMenu.Item>
 									{/if}
 								</ContextMenu.Content>
 							</ContextMenu.Root>

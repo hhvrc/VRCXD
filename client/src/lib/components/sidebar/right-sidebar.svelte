@@ -40,7 +40,7 @@
 	const groupOptions = $derived(sidebarData.groups.map((g, i, all) => ({ value: g.key, label: g.name, separator: g.key.startsWith('local:') && !all[i - 1]?.key.startsWith('local:') && i > 0 })));
 	const allKeys = $derived(groupOptions.map((g) => g.value));
 	const shownGroups = $derived(sidebarSettings.favoriteGroups.length ? sidebarSettings.favoriteGroups : allKeys);
-	const sortLabel = (value: string) => SORT_OPTIONS.find((o) => o.value === value)?.label ?? 'Sort Order';
+	const sortLabel = (value: string) => SORT_OPTIONS.find((o) => o.value === value)?.label ?? m.view_settings_appearance_side_panel_sorting_placeholder();
 
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId) return;
@@ -92,7 +92,7 @@
 {#snippet sortSelect(index: 0 | 1 | 2, disabled: boolean)}
 	{@const value = sidebarSettings.sortMethods[index] ?? ''}
 	<Select.Root type="single" value={value || (index ? NONE : '')} {disabled} onValueChange={(v) => sidebarSettings.setSort(index, v === NONE ? '' : v)}>
-		<Select.Trigger size="sm" class="w-full">{value ? sortLabel(value) : index ? 'None' : 'Sort Order'}</Select.Trigger>
+		<Select.Trigger size="sm" class="w-full">{value ? sortLabel(value) : index ? 'None' : m.view_settings_appearance_side_panel_sorting_placeholder()}</Select.Trigger>
 		<Select.Content>
 			{#if index}<Select.Item value={NONE} label={m.dialog_gallery_select_none()} />{/if}
 			{#each SORT_OPTIONS as option (option.value)}
@@ -153,13 +153,13 @@
 				<Popover.Content side="bottom" align="end" class="w-64 p-3" onOpenAutoFocus={(e) => e.preventDefault()}>
 					<div class="flex flex-col gap-2.5 text-xs">
 						<span class="text-2xs font-medium tracking-wide text-muted-foreground uppercase">{m.view_settings_appearance_display_header()}</span>
-						{@render toggle('Group by Instance', sidebarSettings.groupByInstance.value, (v) => (sidebarSettings.groupByInstance.value = v))}
+						{@render toggle(m.side_panel_settings_group_by_instance(), sidebarSettings.groupByInstance.value, (v) => (sidebarSettings.groupByInstance.value = v))}
 						{#if sidebarSettings.groupByInstance.value}
-							{@render toggle('Hide Grouped Friends', sidebarSettings.hideSameInstance.value, (v) => (sidebarSettings.hideSameInstance.value = v))}
-							{@render toggle('Prioritize Same Instance', sidebarSettings.sameInstanceAboveFavorites.value, (v) => (sidebarSettings.sameInstanceAboveFavorites.value = v))}
+							{@render toggle(m.side_panel_settings_hide_friends_in_same_instance(), sidebarSettings.hideSameInstance.value, (v) => (sidebarSettings.hideSameInstance.value = v))}
+							{@render toggle(m.side_panel_settings_same_instance_above_favorites(), sidebarSettings.sameInstanceAboveFavorites.value, (v) => (sidebarSettings.sameInstanceAboveFavorites.value = v))}
 						{/if}
-						{@render toggle('Show Favorite Groups', sidebarSettings.divideByFriendGroup.value, (v) => (sidebarSettings.divideByFriendGroup.value = v))}
-						{@render toggle('Show Cosmetics', sidebarSettings.cosmetics.value, (v) => (sidebarSettings.cosmetics.value = v))}
+						{@render toggle(m.side_panel_settings_split_favorite_friends(), sidebarSettings.divideByFriendGroup.value, (v) => (sidebarSettings.divideByFriendGroup.value = v))}
+						{@render toggle(m.view_settings_appearance_appearance_show_cosmetics(), sidebarSettings.cosmetics.value, (v) => (sidebarSettings.cosmetics.value = v))}
 						<Separator />
 						<button type="button" class="flex w-full cursor-pointer items-center justify-between py-0.5 text-2xs font-medium tracking-wide text-muted-foreground uppercase transition-colors hover:text-foreground" onclick={() => (advancedOpen = !advancedOpen)}>
 							{m.view_settings_category_advanced()}

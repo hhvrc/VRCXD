@@ -106,7 +106,7 @@
 			{/if}
 			{#if tab === 'worlds'}
 				<Select.Root type="single" bind:value={tabs.worldOrder}>
-					<Select.Trigger size="sm" class="mr-2">{tabs.worldOrder === 'descending' ? 'Descending' : 'Ascending'}</Select.Trigger>
+					<Select.Trigger size="sm" class="mr-2">{tabs.worldOrder === 'descending' ? m.dialog_user_worlds_order_descending() : m.dialog_user_worlds_order_ascending()}</Select.Trigger>
 					<Select.Content>
 						<Select.Item value="descending" label={m.dialog_user_worlds_order_descending()}>{m.dialog_user_worlds_order_descending()}</Select.Item>
 						<Select.Item value="ascending" label={m.dialog_user_worlds_order_ascending()}>{m.dialog_user_worlds_order_ascending()}</Select.Item>
@@ -151,7 +151,7 @@
 								<Select.Item value="leave">{m.dialog_user_groups_leave_group_tooltip()}</Select.Item>
 							</Select.Content>
 						</Select.Root>
-						<Button size="sm" variant="outline" onclick={() => tabs.selectAllGroups()}>{tabs.groupSelected.length === tabs.editGroups.length && tabs.editGroups.length ? 'Deselect All' : 'Select All'}</Button>
+						<Button size="sm" variant="outline" onclick={() => tabs.selectAllGroups()}>{tabs.groupSelected.length === tabs.editGroups.length && tabs.editGroups.length ? m.dialog_group_actions_deselect_all() : m.dialog_group_actions_select_all()}</Button>
 					</div>
 					{#each tabs.editGroups as row (row.id)}
 						{@const g = row.groupInfo!}
@@ -177,7 +177,7 @@
 									<span class={PERSON_NAME}>{row.name}</span>
 									<span class="flex items-center truncate text-xs">
 										{#if g.isRepresenting}<span title={m.dialog_group_members_representing()}><Tag class="mr-1.5 size-3.5" /></span>{/if}
-										{#if g.memberVisibility && g.memberVisibility !== 'visible'}<span title="Visibility: {g.memberVisibility}"><Eye class="mr-1.5 size-3.5" /></span>{/if}
+										{#if g.memberVisibility && g.memberVisibility !== 'visible'}<span title="{m.dialog_group_members_visibility()} {g.memberVisibility}"><Eye class="mr-1.5 size-3.5" /></span>{/if}
 										<span>({g.memberCount})</span>
 									</span>
 								</div>
@@ -186,7 +186,7 @@
 								<!-- VRChat fixes membership visibility on groups that aren't default privacy (upstream issue 1518). -->
 								<span title={g.privacy && g.privacy !== 'default' ? 'This group sets member visibility' : undefined}>
 									<Select.Root type="single" value={g.memberVisibility} disabled={!!g.privacy && g.privacy !== 'default'} onValueChange={(v) => v && v !== g.memberVisibility && tabs.setGroupVisibility(row.id, v)}>
-										<Select.Trigger size="sm">{g.memberVisibility === 'visible' ? 'Visible' : g.memberVisibility === 'friends' ? 'Friends' : g.memberVisibility === 'hidden' ? 'Hidden' : g.memberVisibility}</Select.Trigger>
+										<Select.Trigger size="sm">{g.memberVisibility === 'visible' ? m.dialog_group_tags_visible() : g.memberVisibility === 'friends' ? m.dialog_group_tags_friends() : g.memberVisibility === 'hidden' ? m.dialog_group_tags_hidden() : g.memberVisibility}</Select.Trigger>
 										<Select.Content>
 											<Select.Item value="visible">{m.dialog_group_actions_visibility_everyone()}</Select.Item>
 											<Select.Item value="friends">{m.dialog_group_actions_visibility_friends()}</Select.Item>
@@ -199,8 +199,8 @@
 								class={['ml-1.5 h-6 w-6 rounded-full', !shiftKey.held && 'text-red-600']}
 								size="icon-sm"
 								variant="outline"
-								title={sole ? 'Delete Group' : 'Leave Group'}
-								aria-label={sole ? 'Delete Group' : 'Leave Group'}
+								title={sole ? m.dialog_group_actions_delete() : m.dialog_group_actions_leave()}
+								aria-label={sole ? m.dialog_group_actions_delete() : m.dialog_group_actions_leave()}
 								onclick={() => tabs.leaveGroupPrompt(row.id)}
 							>
 								{#if sole}<Trash2 />{:else}<LogOut />{/if}
@@ -217,7 +217,7 @@
 					<div class="flex justify-between align-bottom">
 						<span class="text-base font-bold">{m.dialog_user_groups_own_groups()}<span class="ml-1.5 text-xs">{own.length}/{tabs.groupLimits.maxOwned}</span></span>
 						{#if isSelf}
-							{@const createBlocked = !sidebarData.me?.isVrcPlus ? 'Creating a group requires VRC+' : tabs.ownedGroups >= tabs.groupLimits.maxOwned ? 'You have reached the owned group limit' : ''}
+							{@const createBlocked = !sidebarData.me?.isVrcPlus ? m.dialog_user_groups_create_requires_vrc_plus() : tabs.ownedGroups >= tabs.groupLimits.maxOwned ? m.dialog_user_groups_create_limit_reached() : ''}
 							<span class="ml-2" title={createBlocked || undefined}>
 								<Button size="sm" variant="outline" disabled={state?.loading || !!createBlocked} onclick={() => groupEdit.showCreate()}><Plus /> {m.dialog_group_edit_create()}</Button>
 							</span>

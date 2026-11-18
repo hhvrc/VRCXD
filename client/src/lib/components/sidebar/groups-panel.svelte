@@ -33,7 +33,7 @@
 	async function invite(location: string) {
 		try {
 			await selfInvite(location);
-			notice = 'Self invite sent';
+			notice = m.message_invite_self_sent();
 		} catch (err) {
 			notice = ApiError.from(err).message;
 		}

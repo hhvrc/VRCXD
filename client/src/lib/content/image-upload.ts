@@ -1,6 +1,8 @@
 // What the original's desktop app did to an image before sending it to VRChat
 // (Dotnet/AppApi/Common/ImageSaving.cs), done in the browser so any client can upload.
 
+import { m } from '#lib/paraglide/messages.js';
+
 const MAX_SIDE = 2000;
 const MAX_BYTES = 10_000_000;
 export const MAX_INPUT_BYTES = 20_000_000;
@@ -15,7 +17,7 @@ function loadBitmap(blob: Blob): Promise<HTMLImageElement> {
 		};
 		image.onerror = () => {
 			URL.revokeObjectURL(url);
-			reject(new Error("File isn't an image"));
+			reject(new Error(m.message_file_not_image()));
 		};
 		image.src = url;
 	});

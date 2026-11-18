@@ -1,6 +1,9 @@
 <script lang="ts">
 	import '../app.css';
 	import favicon from '#lib/assets/favicon.svg';
+	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
+	import { Button } from '#lib/components/ui/button/index.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import AppSidebar from '#lib/components/layout/app-sidebar.svelte';
 	import ImageViewerHost from '#lib/components/dialogs/image-viewer-host.svelte';
 	import InstanceQueueToasts from '#lib/components/instance/instance-queue-toasts.svelte';
@@ -97,7 +100,9 @@
 	// window, so resizing the window leaves it alone (upstream issue 1636). Dragging the handle saves it.
 	const ASIDE_KEY = 'VRCX_rightSidebarWidth';
 	let asideGroup = $state<HTMLElement | null>(null);
-	let asidePane = $state<{ resize: (size: number) => void; isCollapsed: () => boolean } | undefined>();
+	let asidePane = $state<{ resize: (size: number) => void; isCollapsed: () => boolean; expand: () => void } | undefined>();
+	// The original's showAsideExpandButton: a way back once the sidebar is dragged shut.
+	let asideCollapsed = $state(false);
 	let asideDragging = false;
 	const readAsideWidth = () => {
 		const n = Number(readSetting<number>(ASIDE_KEY, 0));
@@ -105,6 +110,7 @@
 	};
 
 	function onAsideLayout(layout: number[]) {
+		asideCollapsed = layout.length >= 2 && layout[layout.length - 1] <= 1;
 		if (!asideDragging || !asideGroup || layout.length < 2 || !layout[1]) return;
 		storeSetting(ASIDE_KEY, Math.round((layout[1] / 100) * asideGroup.clientWidth));
 	}
@@ -184,11 +190,16 @@
 				</Resizable.Pane>
 				{#if showAside}
 					<Resizable.Handle class="z-20 opacity-0" onDraggingChange={(dragging) => (asideDragging = dragging)} />
-					<Resizable.Pane bind:this={asidePane} defaultSize={25} minSize={12} collapsedSize={0} collapsible order={2} style="max-width: 700px">
+					<Resizable.Pane bind:this={asidePane} defaultSize={25} minSize={12} collapsedSize={0} collapsible order={2} style="max-width: 700px" onCollapse={() => (asideCollapsed = true)} onExpand={() => (asideCollapsed = false)}>
 						<RightSidebar />
 					</Resizable.Pane>
 				{/if}
 			</Resizable.PaneGroup>
+			{#if showAside && asideCollapsed}
+				<Button variant="outline" size="icon-sm" class="absolute top-1/2 right-0 z-30 -translate-y-1/2 rounded-r-none" title={m.nav_tooltip_expand_sidebar()} aria-label={m.nav_tooltip_expand_sidebar()} onclick={() => asidePane?.expand()}>
+					<ChevronLeft />
+				</Button>
+			{/if}
 		</Sidebar.Inset>
 	</Sidebar.Provider>
 	<StatusBar />

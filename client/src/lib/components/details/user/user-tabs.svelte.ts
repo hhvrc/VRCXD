@@ -279,7 +279,7 @@ Translated by ${translation.providerLabel}`, translation.bioLanguage);
 		const g = this.editGroups.find((row) => row.id === groupId)?.groupInfo;
 		this.#actions.confirming = {
 			get title() { return m.dialog_user_note_memo_confirm(); },
-			description: soleOwner(g) ? `Continue? Delete Group ${g?.name}` : 'Are you sure you want to leave this group?',
+			description: soleOwner(g) ? `Continue? ${m.dialog_group_actions_delete()} ${g?.name}` : m.confirm_leave_group(),
 			destructive: true,
 			run: () => this.leaveGroup(groupId)
 		};

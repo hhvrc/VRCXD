@@ -92,13 +92,13 @@
 		const ownerUserId = vrchatAuth.ownerUserId;
 		if (!ownerUserId) return;
 		actions.confirming = {
-			command: 'Reset Home',
+			command: m.dialog_user_actions_reset_home(),
 			get title() { return m.dialog_user_note_memo_confirm(); },
 			run: () =>
 				actions.act(async () => {
 					await api.delete(accountPath(ownerUserId, '/home'));
 					await sidebarData.loadMe();
-				}, 'Home location reset')
+				}, m.message_user_home_reset())
 		};
 	}
 </script>
@@ -111,7 +111,7 @@
 	<div class="mb-2.5 flex flex-col gap-2.5">
 		<div class={PANEL}>
 			<div class="mb-2 flex items-center justify-between border-b border-muted-foreground/20 pb-1">
-				{@render sectionTitle('Current Instance')}
+				{@render sectionTitle(m.dialog_user_info_current_instance())}
 			</div>
 			{#if !user.location || where.isOffline}
 				<span class="text-sm text-muted-foreground">{m.dialog_user_status_offline()}</span>
@@ -139,7 +139,7 @@
 				{#if creatorId}
 					{@const creator = sidebarData.friends.find((f) => f.userId === creatorId)}
 					<div class="flex flex-wrap items-start">
-						<PersonRow userId={creatorId} name={creator?.displayName ?? userNames.get(creatorId) ?? creatorId} image={creator?.thumbnailImageUrl} friend={creator} detail="Instance Creator" />
+						<PersonRow userId={creatorId} name={creator?.displayName ?? userNames.get(creatorId) ?? creatorId} image={creator?.thumbnailImageUrl} friend={creator} detail={m.dialog_user_info_instance_creator()} />
 					</div>
 				{/if}
 				{#if instance?.present.length}
@@ -190,7 +190,7 @@
 			{#if !appearance.hideUserNotes.value}
 				<button type="button" class="cursor-pointer text-left {PANEL}" onclick={oneditnote}>
 					<div class={SECTION_ROW}>
-						{@render sectionTitle('Note')}
+						{@render sectionTitle(m.dialog_user_info_note())}
 						<span class="inline-flex h-5 w-5 items-center justify-center"><Pencil class="h-3 w-3 text-(--profile-icon)" /></span>
 					</div>
 					{#if note}
@@ -203,7 +203,7 @@
 			{#if !appearance.hideUserMemos.value}
 				<button type="button" class="cursor-pointer text-left {PANEL}" onclick={oneditnote}>
 					<div class={SECTION_ROW}>
-						{@render sectionTitle('Memo')}
+						{@render sectionTitle(m.dialog_user_info_memo())}
 						<span class="inline-flex h-5 w-5 items-center justify-center"><Pencil class="h-3 w-3 text-(--profile-icon)" /></span>
 					</div>
 					{#if memo}
@@ -233,16 +233,16 @@
 			<div class={PANEL}>
 				<div class="{PROFILE_SECTION} mb-2 border-b border-muted-foreground/20 pb-2">{m.dialog_user_info_header()}</div>
 				<div class="flex flex-col gap-1.5">
-					<InfoRow label={m.dialog_user_info_last_activity()} value={timeAgo(user.lastActivity)} title={`Last login ${formatDate(user.lastLogin)}`} />
+					<InfoRow label={m.dialog_user_info_last_activity()} value={timeAgo(user.lastActivity)} title={`${m.dialog_user_info_last_login()} ${formatDate(user.lastLogin)}`} />
 					<InfoRow label={m.dialog_user_info_date_joined()} value={timeAgo(user.dateJoined)} title={user.dateJoined} />
 					{#if isSelf}
 						<button type="button" class="{INFO_ROW} w-full cursor-pointer text-left hover:text-foreground" title={m.dialog_user_actions_refresh()} onclick={() => refreshCredits(userId)}>
 							<span class="shrink-0 text-muted-foreground">{m.view_profile_profile_vrchat_credits()}</span>
-							<span class="text-right text-muted-foreground">{credits.get(userId) ?? 'Refresh'}</span>
+							<span class="text-right text-muted-foreground">{credits.get(userId) ?? m.common_actions_refresh()}</span>
 						</button>
 					{/if}
 					{#if !isSelf}
-						<InfoRow label={m.dialog_user_info_avatar_cloning()} value={user.allowAvatarCopying ? 'Enabled' : 'Disabled'} />
+						<InfoRow label={m.dialog_user_info_avatar_cloning()} value={user.allowAvatarCopying ? m.dialog_user_info_avatar_cloning_allow() : m.dialog_user_info_avatar_cloning_deny()} />
 					{:else if sidebarData.me}
 						{@const me = sidebarData.me}
 						{@const options = [
@@ -260,18 +260,18 @@
 									onclick={() => actions.confirm(`${option.on ? 'disable' : 'enable'} ${option.label}`, () => option.save(!option.on), undefined, false)}
 								>
 									<span class="shrink-0 text-muted-foreground">{option.label}</span>
-									<span class="text-right text-muted-foreground">{option.on ? 'Enabled' : 'Disabled'}</span>
+									<span class="text-right text-muted-foreground">{option.on ? m.dialog_user_info_avatar_cloning_allow() : m.dialog_user_info_avatar_cloning_deny()}</span>
 								</button>
 							{/each}
 						</div>
 					{/if}
-					<CopyIdRow label={m.dialog_user_info_id()} oncopy={() => actions.copy(userId, 'User ID copied to clipboard')} />
+					<CopyIdRow label={m.dialog_user_info_id()} oncopy={() => actions.copy(userId, m.message_user_id_copied())} />
 				</div>
 			</div>
 			{#if isSelf && sidebarData.me?.homeLocation}
 				{@const home = sidebarData.me.homeLocation}
 				<div class={PANEL}>
-					<div class="{PROFILE_SECTION} mb-2 border-b border-muted-foreground/20 pb-2">Home Location</div>
+					<div class="{PROFILE_SECTION} mb-2 border-b border-muted-foreground/20 pb-2">{m.dialog_user_info_home_location()}</div>
 					<!-- svelte-ignore a11y_no_static_element_interactions, a11y_click_events_have_key_events -->
 					<div class="flex cursor-pointer items-center justify-between gap-2 text-xs" onclick={() => userDialog.openWorld(home)}>
 						<span class="truncate">{worldNames.get(home.split(':')[0]) ?? home}</span>
