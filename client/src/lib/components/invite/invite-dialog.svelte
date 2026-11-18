@@ -58,7 +58,7 @@
 		if (!at) return;
 		const { worldId } = parseLocation(at);
 		const account = owner;
-		api.get<Friend[]>(accountPath(account, '/friends')).then((data) => (friends = data), () => (friends = []));
+		sidebarData.ensureFriends().then((data) => (friends = data), () => (friends = []));
 		api.get<{ displayName: string; currentLocation?: string | null }>(accountPath(account, '/instances/options')).then(
 			(data) => {
 				ownName = data.displayName;

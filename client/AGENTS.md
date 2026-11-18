@@ -30,8 +30,10 @@ There is no linter or formatter configured. Match the indentation and style of t
   shell over a pure reducer module `<topic>.ts` (`applySnapshot`, `applyDelta`) with vitest
   tests. `src/lib/people/sidebar-events.ts` is the existing example of the pure-reducer style.
   Components do not call `#lib/api/client` for a feature that has a store.
-- Planned: a vitest `architecture.test.ts` ratchet with a checked-in allow-list that may only
-  shrink. Never add to it to make a change pass.
+- `src/lib/__tests__/architecture.test.ts` is the ratchet: it lists the components and pages that
+  still request a store feature's REST paths themselves, and fails on a new one or on a line that
+  no longer applies. The list may only shrink; never add to it to make a change pass. The friend
+  list is read through `sidebarData` (`ensureFriends()` for a one-off lookup), never `GET friends`.
 - Do not add notification or wrist-feed decision logic here. It is moving to the server, with
   its settings moving from `localStorage` into account settings (imported once).
 - UI text comes from paraglide messages: `import { m } from '#lib/paraglide/messages.js'`, then

@@ -65,7 +65,7 @@
 			groupIds = [];
 			loading = true;
 			const account = vrchatAuth.ownerUserId;
-			api.get<Friend[]>(accountPath(account, '/friends')).then((data) => (friends = data), () => (friends = []));
+			sidebarData.ensureFriends().then((data) => (friends = data), () => (friends = []));
 			api
 				.get<{ groups: OptionGroup[] }>(accountPath(account, '/instances/options'))
 				.then((data) => {

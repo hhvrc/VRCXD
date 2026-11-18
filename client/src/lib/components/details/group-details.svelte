@@ -61,6 +61,7 @@
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
 	import { accountPath, api, ApiError } from '#lib/api/client.js';
+	import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
 	import type { Friend } from '#lib/api/types.js';
 	import { DetailActions } from '#lib/helpers/detail-actions.svelte.js';
 	import { formatDateFilter, getFaviconUrl, replaceBioSymbols, sanitizeEntity, timeAgo } from '#lib/helpers/format.js';
@@ -118,7 +119,7 @@
 		loadError = '';
 		try {
 			const path = `${accountPath(owner)}/groups/${encodeURIComponent(id)}`;
-			const [details, nextFriends] = await Promise.all([api.get<Details>(`${path}/details`), api.get<Friend[]>(accountPath(owner, '/friends')).catch(() => [])]);
+			const [details, nextFriends] = await Promise.all([api.get<Details>(`${path}/details`), sidebarData.ensureFriends().catch((): Friend[] => [])]);
 			if (id !== groupId) return;
 			// The original's sanitizeEntityJson on a group it applies, and on each of its roles.
 			group = sanitizeEntity(details.group, ['name', 'description', 'rules']);

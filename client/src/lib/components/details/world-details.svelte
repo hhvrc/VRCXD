@@ -202,7 +202,7 @@
 			const [live, nextStats, nextFriends, accounts, persist] = await Promise.all([
 				api.get<LiveWorld | null>(`${path}/live`).catch(() => null),
 				api.get<Stats>(`${path}/stats`).catch(() => undefined),
-				api.get<Friend[]>(accountPath(owner, '/friends')).catch(() => []),
+				sidebarData.ensureFriends().catch((): Friend[] => []),
 				api.get<{ userId: string; homeLocation?: string }[]>('/1/accounts').catch(() => []),
 				api.get<boolean>(`${path}/persist`).catch(() => false)
 			]);

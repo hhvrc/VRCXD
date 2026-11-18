@@ -53,9 +53,3 @@ export async function loadFriendGroups(): Promise<FriendGroup[]> {
 	]);
 	return buildFriendGroups(favorites, local, localGroups.map((g) => g.name));
 }
-
-/** The friends list with the favorite groups that sort it, as the sidebar and Friends Locations show it. */
-export async function loadFriendsWithGroups(): Promise<{ friends: Friend[]; groups: FriendGroup[] }> {
-	const [friends, groups] = await Promise.all([api.get<Friend[]>(ownPath('/friends')), loadFriendGroups()]);
-	return { friends, groups };
-}
