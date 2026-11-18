@@ -2,21 +2,6 @@ using VRCX.Common.VrcxDb;
 
 namespace VRCX.API.Models.Response;
 
-/// <summary>One stay of a user in an instance, with what the instance was.</summary>
-public sealed class InstanceVisitResponse
-{
-    public required long Id { get; init; }
-    public required string UserId { get; init; }
-    public required string DisplayName { get; init; }
-    public required string InstanceLocation { get; init; }
-    public required string WorldId { get; init; }
-    public required string WorldName { get; init; }
-    public required InstanceAccessType AccessType { get; init; }
-    public required DateTimeOffset JoinedAt { get; init; }
-    public DateTimeOffset? LeftAt { get; init; }
-    public required VisitSource Source { get; init; }
-}
-
 public sealed class MemoResponse
 {
     public required string UserId { get; init; }

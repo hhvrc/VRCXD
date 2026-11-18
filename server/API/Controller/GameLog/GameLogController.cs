@@ -8,6 +8,7 @@ using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Accounts;
 using VRCX.Common.Features.GameLog;
+using VRCX.Common.Utils.Pagination;
 
 namespace VRCX.API.Controller.GameLog;
 
@@ -104,4 +105,17 @@ public sealed class GameLogController(AccountQueries accounts, GameLogQueries ga
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListPreviousInstancePlayers([FromRoute] string accountId, [FromQuery] string location, CancellationToken cancellationToken) =>
         Ok(await previous.PlayersAsync(accountId, location, cancellationToken));
+
+    /// <summary>The account's own instance visits (its game log), newest first.</summary>
+    /// <response code="200">A page of visits</response>
+    /// <response code="404">No such account</response>
+    [HttpGet("{accountId}/visits")]
+    [ProducesResponseType<PagedResult<InstanceVisitResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [MapToApiVersion("1")]
+    public async Task<IActionResult> ListVisits([FromRoute] string accountId, [FromQuery] PaginationQuery pagination, CancellationToken cancellationToken)
+    {
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        return Ok(await gameLog.Visits(accountId).ToPagedResultAsync(pagination, cancellationToken));
+    }
 }

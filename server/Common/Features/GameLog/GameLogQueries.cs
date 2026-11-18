@@ -5,6 +5,21 @@ using VRCX.Common.VrcxDb;
 
 namespace VRCX.Common.Features.GameLog;
 
+/// <summary>One stay of a user in an instance, with what the instance was.</summary>
+public sealed class InstanceVisitResponse
+{
+    public required long Id { get; init; }
+    public required string UserId { get; init; }
+    public required string DisplayName { get; init; }
+    public required string InstanceLocation { get; init; }
+    public required string WorldId { get; init; }
+    public required string WorldName { get; init; }
+    public required InstanceAccessType AccessType { get; init; }
+    public required DateTimeOffset JoinedAt { get; init; }
+    public DateTimeOffset? LeftAt { get; init; }
+    public required VisitSource Source { get; init; }
+}
+
 /// <summary>One game log row. Which fields are set depends on Type.</summary>
 public sealed class GameLogRowResponse
 {
@@ -336,4 +351,16 @@ public sealed class GameLogQueries(VrcxContext db, IPresenceCache presence)
 
         return rows;
     }
+
+    /// <summary>The account's own instance visits (its game log), newest first, for the caller to page.</summary>
+    public IQueryable<InstanceVisitResponse> Visits(string accountId) =>
+        db.InstanceVisits.AsNoTracking()
+            .Where(v => v.UserId == accountId)
+            .OrderByDescending(v => v.JoinedAt).ThenByDescending(v => v.Id)
+            .Select(v => new InstanceVisitResponse
+            {
+                Id = v.Id, UserId = v.UserId, DisplayName = v.User.DisplayName, InstanceLocation = v.InstanceLocation,
+                WorldId = v.Instance.WorldId, WorldName = v.Instance.World.Name, AccessType = v.Instance.Type,
+                JoinedAt = v.JoinedAt, LeftAt = v.LeftAt, Source = v.Source,
+            });
 }

@@ -269,6 +269,8 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.Favorites.FavoriteQueries>();
         services.AddScoped<VRCX.Common.Features.Favorites.FavoriteActions>();
         services.AddScoped<VRCX.Common.Features.UserActivity.UserActivityQueries>();
+        services.AddScoped<VRCX.Common.Features.QuickSearch.QuickSearchQueries>();
+        services.AddScoped<VRCX.Common.Features.Avatars.AvatarHistory>();
         services.AddScoped<VRCX.Common.Features.Memos.MemoStore>();
 
         return services;
