@@ -13,7 +13,9 @@ transport. The friends topic is the reference implementation.
 1. Read `server/AGENTS.md`, `TopicHub.cs`, `ILiveTopic.cs`, `FriendsTopic.cs` and `FriendWriter.cs`.
 2. Add protocol payload cases to `server/Common/Protos/vrcx_live.proto`. Never renumber or reuse an
    existing field.
-3. Put the topic, its writer and query extensions in `server/Common/Features/<Feature>/`.
+3. Put the topic, its writer and query extensions in `server/Common/Features/<Feature>/`. For rows
+   per account with a key, derive the topic from `AccountRowsTopic<TRow>` (`NotificationsTopic` is
+   the example) instead of writing the feed and coalescing again.
 4. Reuse the exact query used by REST and MCP for the snapshot. Deltas may reread just changed rows,
    but must emit the same mapped rows.
 5. Make one feature writer own all relevant mutations and after-commit announcements. Bulk writes

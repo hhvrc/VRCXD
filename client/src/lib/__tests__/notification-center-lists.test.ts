@@ -8,6 +8,9 @@ vi.mock('#lib/api/vrchat-auth.svelte.js', () => {
 	const vrchatAuth = { ownerUserId: 'usr_me' };
 	return { vrchatAuth, ownPath: (rest = '') => `/1/accounts/${encodeURIComponent(vrchatAuth.ownerUserId)}${rest}` };
 });
+vi.mock('#lib/live/topics/notifications.svelte.js', () => ({
+	notificationsTopic: () => ({ value: undefined, status: 'unsupported', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'unsupported'), () => {}), release: () => {} })
+}));
 
 const { notificationCenter } = await import('../notifications/notification-center.svelte.js');
 

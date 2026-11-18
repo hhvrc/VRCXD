@@ -68,6 +68,23 @@ public sealed class QueryCountTests
     private const int MaxFriendsSnapshotTrips = 2;
 
     [Test]
+    public async Task A_notifications_topic_snapshot_of_300_notifications_takes_a_bounded_number_of_queries()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        var sender = app.Vrchat.User("usr_q_sender", "Sender");
+        for (var i = 0; i < 300; i++) app.Vrchat.Notification("invite", sender, n => n.Message($"invite {i}"));
+        await app.LoginAsync();
+        await using var live = await app.ConnectLiveAsync();
+
+        var trips = await app.Sql.CountAsync(() => live.SubscribeSnapshotAsync(1, VRCX.Common.Features.Notifications.NotificationsTopic.TopicName, app.AccountId));
+
+        await Assert.That(trips).IsLessThanOrEqualTo(MaxNotificationsSnapshotTrips).Because(app.Sql.Describe());
+    }
+
+    /// <summary>The account check and the one page of rows.</summary>
+    private const int MaxNotificationsSnapshotTrips = 2;
+
+    [Test]
     public async Task A_full_sync_takes_a_bounded_number_of_queries()
     {
         await using var app = await VrcxScenario.StartAsync();

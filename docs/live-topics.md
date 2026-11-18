@@ -52,12 +52,32 @@ committed changes for 250 ms, and sends only rows that differ from the last copy
 announces friendships, listed user fields, presence, pending-offline state and memo changes after
 commit. A feed that fails to read changes closes its subscriptions with `ERROR`.
 
+The `notifications` topic reads `NotificationQueries.Notifications` with hidden rows included, so
+its snapshot is the first page of `GET /1/accounts/{id}/notifications?includeHidden=true`: the
+newest 500, newest first. Older notifications are only on REST, and a row older than those is not
+sent when it changes. `NotificationWriter` announces every notification a `SaveChanges` wrote, and
+makes the two bulk changes itself (hiding friend requests answered elsewhere, taking a row off the
+page). A removal means the row left the list: it was taken off the page, or it is a friend request
+or group notice that was answered. A row carries its sender's name as it was when the row last
+changed.
+
+`AccountRowsTopic<TRow>` is the base for a topic of this shape: rows per account with a key, one
+shared feed per subscribed account, coalescing, and whole-row upserts and removals. A new topic
+overrides the key, the read (everything, or just some keys) and the two payload builders, and its
+writer calls `Changed(accountId, keys)` after commit. The friends topic predates it and does the
+same by hand, because a change to one user reaches every account that has them as a friend.
+
 ## Client
 
 `client/src/lib/api/topics.svelte.ts` owns the socket subscription lifecycle. It reference-counts a
 shared store by topic and account, subscribes after every `ServerHello`, detects revision gaps, and
 resubscribes after reconnects and retryable closes. A server hello that omits a topic makes that
 store `unsupported`.
+
+The notification center (the sidebar bell) follows the `notifications` topic the same way the
+friend list follows `friends`: it waits up to four seconds for the first snapshot, shows the rows
+that are not hidden, and falls back to REST plus events without it. The Notifications page still
+reads its pages over REST, since it shows more than the topic carries.
 
 Keep each feature's encoding and reduction in a plain module:
 
@@ -75,7 +95,7 @@ client for a feature once its live store is in charge.
 1. Add payload cases and comments to `vrcx_live.proto` without renumbering existing fields, then
    regenerate the client protobuf code through `pnpm run check`.
 2. Reuse or extract the feature's shared query. Implement a snapshot and ordered delta behavior in
-   a singleton `ILiveTopic`.
+   a singleton `ILiveTopic`; for rows per account, derive from `AccountRowsTopic<TRow>`.
 3. Route every relevant write through the feature writer and publish only after commit. Account
    for changes kept outside Postgres, such as Redis presence.
 4. Add server scenario tests for the snapshot, each change source, `rev` ordering, gap recovery,

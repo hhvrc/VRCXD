@@ -19,12 +19,14 @@ export function startSidebarLive(): void {
 	started = true;
 	const reloadNotifications = debounce(() => notificationCenter.load(), { wait: 500, maxWait: 5000 });
 	onLiveEvent((event) => {
-		if (sidebarData.apply(event).notifications) reloadNotifications();
+		// Following the notifications topic, the server sends the rows themselves: nothing to read.
+		if (sidebarData.apply(event).notifications && !notificationCenter.followsTopic) reloadNotifications();
 	});
 	onReconnect(() => {
 		reloadNotifications.cancel();
 		sidebarData.resync();
-		void notificationCenter.load();
+		// The topic subscribes again on the new connection and its snapshot replaces the rows.
+		if (!notificationCenter.followsTopic) void notificationCenter.load();
 	});
 	// The original refreshes the open group instances every five minutes.
 	setInterval(() => void sidebarData.loadGroupInstances(), GROUP_INSTANCES_EVERY_MS);

@@ -15,7 +15,7 @@ namespace VRCX.Common.Features.Notifications;
 /// from the log only takes it off the page. A method returns null when it worked, else the problem
 /// to answer with.
 /// </summary>
-public sealed class NotificationActions(VrcxContext db, AccountSessionRunner runner, VrchatStore store, NotificationRefreshGate gate)
+public sealed class NotificationActions(VrcxContext db, AccountSessionRunner runner, VrchatStore store, NotificationRefreshGate gate, NotificationWriter writer)
 {
     private const int PageSize = 100;
     private const int Pages = 50;
@@ -66,10 +66,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
         });
         await db.SaveChangesAsync(ct);
 
-        // A friend request VRChat no longer lists was answered somewhere: the original drops those on refresh.
-        await db.Notifications
-            .Where(n => n.OwnerUserId == accountId && (n.Type == "friendRequest" || n.Type == "ignoredFriendRequest") && !n.Hidden && !requests.Contains(n.Id))
-            .ExecuteUpdateAsync(s => s.SetProperty(n => n.Hidden, true), ct);
+        await writer.HideAnsweredRequestsAsync(db, accountId, requests, ct);
     }
 
     /// <summary>Tells VRChat the unseen notifications have been seen.</summary>
@@ -188,10 +185,6 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
         }, ct);
 
     /// <summary>Takes a notification off the page. The row stays in the database.</summary>
-    public async Task<OpenShockProblem?> RemoveFromLogAsync(string accountId, string notificationId, CancellationToken ct)
-    {
-        var updated = await db.Notifications.Where(n => n.OwnerUserId == accountId && n.Id == notificationId)
-            .ExecuteUpdateAsync(s => s.SetProperty(n => n.LogHidden, true), ct);
-        return updated == 0 ? AccountError.NotificationNotFound : null;
-    }
+    public async Task<OpenShockProblem?> RemoveFromLogAsync(string accountId, string notificationId, CancellationToken ct) =>
+        await writer.RemoveFromLogAsync(db, accountId, notificationId, ct) ? null : AccountError.NotificationNotFound;
 }

@@ -19,6 +19,9 @@ vi.mock('#lib/api/live.svelte.js', () => ({
 vi.mock('#lib/live/topics/friends.svelte.js', () => ({
 	friendsTopic: () => ({ value: undefined, status: 'unsupported', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'unsupported'), () => {}), release: () => {} })
 }));
+vi.mock('#lib/live/topics/notifications.svelte.js', () => ({
+	notificationsTopic: () => ({ value: undefined, status: 'unsupported', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'unsupported'), () => {}), release: () => {} })
+}));
 
 const { startSidebarLive } = await import('../people/sidebar-live.js');
 

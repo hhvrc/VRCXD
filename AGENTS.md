@@ -81,13 +81,13 @@ These are decided. Follow them; do not work around them.
   `VrchatRequestBudgetTests`.
 - **SQL round trips are bounded.** No query per item in loops over friends, groups or players.
   `QueryCountTests` pin the bounds with `app.Sql`; extend them when you add such a flow.
-- **REST and MCP share one query.** Anything both read lives in `server/Common/Services/Queries`
-  (or `MemoStore`) today, and in its feature's folder once that feature has moved (see Target
-  architecture). Controllers and MCP tools stay thin.
+- **REST and MCP share one query.** Anything both read lives in its feature's folder,
+  `server/Common/Features/<Feature>/` (see Target architecture). Controllers and MCP tools stay
+  thin.
 - **Live data is moving to topics.** `/1/ws` is moving from "notify, then the page GETs" to
   subscribed topics: a typed protobuf snapshot, then deltas, a fresh snapshot after a reconnect.
   Topics are independent streams, not request/response. New live data should be a topic, not a
-  new `ServerEvent` plus a REST refetch. The first topic (friends) is being built now; see the
+  new `ServerEvent` plus a REST refetch. The friends and notifications topics exist; see the
   skill `add-live-topic` and ask the owner before adding another.
 - **Notification decisions move to the server (direction, not current state).** Which
   notifications and wrist-feed rows to show will be decided on the server, so the agent and MCP

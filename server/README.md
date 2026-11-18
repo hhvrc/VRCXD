@@ -119,7 +119,8 @@ Table and column names are explicit snake_case in `VrcxContext`.
   PC. Auth is the same token, as a header or `?token=` for browsers. The web UI generates its
   TypeScript from the same `.proto` (protobuf-es / buf). Clients can also subscribe to live
   topics: independent snapshot-then-delta streams with per-subscription revisions. The `friends`
-  topic replaces its REST refetches while a topic-capable server is connected; see
+  and `notifications` topics replace their REST refetches while a topic-capable server is
+  connected; see
   [`docs/live-topics.md`](../docs/live-topics.md).
 - Game-log lines become rows through `GameLogIngestor`: the PC's own instance visits
   (`source = game_log`), other players' visits from OnPlayerJoined/Left, video plays and portal

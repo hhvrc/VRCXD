@@ -11,6 +11,7 @@ using OpenShock.Internal.Common.ExceptionHandling;
 using OpenTelemetry.Metrics;
 using VRCX.Common.Authentication;
 using VRCX.Common.Features.Friends;
+using VRCX.Common.Features.Notifications;
 using VRCX.Common.Live.Topics;
 using VRCX.Common.Authentication.AuthenticationHandlers;
 using VRCX.Common.HealthChecks;
@@ -43,12 +44,14 @@ public static class VrcxServiceHelper
         services.AddSingleton<PresenceFlushInterceptor>();
         services.AddSingleton<LiveChangeInterceptor>();
         services.AddSingleton(sp => new FriendWriter.CommitHook(new Lazy<FriendWriter>(sp.GetRequiredService<FriendWriter>)));
+        services.AddSingleton(sp => new NotificationWriter.CommitHook(new Lazy<NotificationWriter>(sp.GetRequiredService<NotificationWriter>)));
         services.AddSingleton(sp => new Lazy<IPresenceCache>(sp.GetRequiredService<IPresenceCache>));
         services.AddPooledDbContextFactory<VrcxContext>((sp, builder) =>
         {
             VrcxContext.ConfigureOptionsBuilder(builder, options.Conn, options.Debug);
             // The friend writer's hook after the presence flush: it announces changes that rows read from Redis show.
-            builder.AddInterceptors(sp.GetRequiredService<PresenceFlushInterceptor>(), sp.GetRequiredService<LiveChangeInterceptor>(), sp.GetRequiredService<FriendWriter.CommitHook>());
+            builder.AddInterceptors(sp.GetRequiredService<PresenceFlushInterceptor>(), sp.GetRequiredService<LiveChangeInterceptor>(), sp.GetRequiredService<FriendWriter.CommitHook>(),
+                sp.GetRequiredService<NotificationWriter.CommitHook>());
         });
         services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<VrcxContext>>().CreateDbContext());
 
@@ -232,6 +235,9 @@ public static class VrcxServiceHelper
         services.AddSingleton<TopicHub>();
         services.AddSingleton<FriendsTopic>();
         services.AddSingleton<ILiveTopic>(sp => sp.GetRequiredService<FriendsTopic>());
+        services.AddSingleton<NotificationsTopic>();
+        services.AddSingleton<ILiveTopic>(sp => sp.GetRequiredService<NotificationsTopic>());
+        services.AddSingleton<NotificationWriter>();
         services.AddSingleton<FriendWriter>();
         services.AddSingleton<GameClientRegistry>();
         services.AddSingleton<VRCX.Common.Services.Sync.OwnAvatarsFetchLog>();

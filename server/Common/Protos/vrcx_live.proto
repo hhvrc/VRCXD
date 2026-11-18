@@ -313,6 +313,7 @@ message TopicSnapshot {
     // The case matches the subscription's topic.
     oneof payload {
         FriendsSnapshot friends = 10;
+        NotificationsSnapshot notifications = 11;
     }
 }
 
@@ -322,6 +323,7 @@ message TopicDelta {
     uint64 rev = 2;
     oneof payload {
         FriendsDelta friends = 10;
+        NotificationsDelta notifications = 11;
     }
 }
 
@@ -344,6 +346,47 @@ message TopicClosed {
     TopicCloseReason reason = 2;
     // For logs only.
     string detail = 3;
+}
+
+// ---- topic "notifications": an account's newest notifications, as GET /1/accounts/{id}/notifications
+// lists them with includeHidden ----
+
+message NotificationsSnapshot {
+    // Newest first, at most the server's cap (500): the first page REST returns. Older ones are
+    // only on REST.
+    repeated NotificationEntry notifications = 1;
+}
+
+// Whole rows: an upsert replaces the notification's row (or adds it), a removal drops it (taken off
+// the page, or a friend request that was answered).
+message NotificationsDelta {
+    repeated NotificationEntry upserts = 1;
+    repeated string removed_ids = 2;
+}
+
+// One notification as stored. Strings are empty and timestamps unset when unknown.
+message NotificationEntry {
+    string id = 1;
+    // 1 for VRChat's first notification feed, 2 for its second.
+    int32 version = 2;
+    // VRChat's type: friendRequest, invite, requestInvite, boop, group.announcement, ...
+    string type = 3;
+    string sender_user_id = 4;
+    string sender_display_name = 5;
+    string title = 6;
+    string message = 7;
+    string image_url = 8;
+    string link = 9;
+    string link_text = 10;
+    // v1 details or v2 data as VRChat sent it, as JSON text. Empty when there is none.
+    string details_json = 11;
+    // The answers VRChat offers on a v2 notification, as JSON text. Empty when there are none.
+    string responses_json = 12;
+    bool seen = 13;
+    // Answered, declined or expired on VRChat's side; kept for the Notifications page.
+    bool hidden = 14;
+    google.protobuf.Timestamp created_at = 15;
+    google.protobuf.Timestamp expires_at = 16;
 }
 
 // ---- topic "friends": an account's current friends, as GET /1/accounts/{id}/friends lists them ----
