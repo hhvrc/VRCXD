@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Features.Accounts;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Common.VrcxDb;
@@ -14,7 +14,7 @@ namespace VRCX.Common.Features.Moderation;
 public sealed class ModerationActions(VrcxContext db, AccountSessionRunner runner, VrchatStore store)
 {
     /// <summary>Blocks, mutes, disables the chatbox of, or disables avatar interaction with a user.</summary>
-    public Task<OpenShockProblem?> SendAsync(string accountId, string userId, string type, CancellationToken ct) =>
+    public Task<VrcxProblem?> SendAsync(string accountId, string userId, string type, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             var sent = await client.SendPlayerModerationAsync(userId, type, ct);
@@ -32,7 +32,7 @@ public sealed class ModerationActions(VrcxContext db, AccountSessionRunner runne
         }, ct);
 
     /// <summary>Undoes a block, mute, disabled chatbox or disabled avatar interaction.</summary>
-    public Task<OpenShockProblem?> DeleteAsync(string accountId, string userId, string type, CancellationToken ct) =>
+    public Task<VrcxProblem?> DeleteAsync(string accountId, string userId, string type, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             await client.DeletePlayerModerationAsync(userId, type, ct);
@@ -42,7 +42,7 @@ public sealed class ModerationActions(VrcxContext db, AccountSessionRunner runne
         }, ct);
 
     /// <summary>Removes every moderation of one kind from the account.</summary>
-    public Task<OpenShockProblem?> ClearAsync(string accountId, string type, CancellationToken ct) =>
+    public Task<VrcxProblem?> ClearAsync(string accountId, string type, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             await client.DeletePlayerModerationsOfTypeAsync(type, ct);
@@ -50,7 +50,7 @@ public sealed class ModerationActions(VrcxContext db, AccountSessionRunner runne
         }, ct);
 
     /// <summary>Fetches the account's moderations from VRChat now instead of waiting for the next sync.</summary>
-    public Task<OpenShockProblem?> RefreshAsync(string accountId, CancellationToken ct) =>
+    public Task<VrcxProblem?> RefreshAsync(string accountId, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             var moderations = await client.GetPlayerModerationsAsync(ct);

@@ -1,4 +1,4 @@
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Services.Sessions;
 using VRCX.Vrchat;
@@ -27,7 +27,7 @@ public sealed class AccountSessionRunner(IAccountSessionManager sessions)
     /// Null when the action ran. Otherwise the problem: no live session, a session VRChat no longer
     /// accepts (which is then marked invalid, and not retried), or VRChat's own refusal.
     /// </summary>
-    public async Task<OpenShockProblem?> RunAsync(string accountId, Func<VrchatApiClient, Task> action, CancellationToken ct)
+    public async Task<VrcxProblem?> RunAsync(string accountId, Func<VrchatApiClient, Task> action, CancellationToken ct)
     {
         var client = sessions.Get(accountId);
         if (client is null) return AccountError.NoLiveSession;

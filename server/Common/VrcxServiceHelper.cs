@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
-using OpenShock.Internal.Common.ExceptionHandling;
+using VRCX.Common.ExceptionHandling;
 using OpenTelemetry.Metrics;
 using VRCX.Common.Authentication;
 using VRCX.Common.Features.Friends;
@@ -93,9 +93,9 @@ public static class VrcxServiceHelper
         Action<AuthenticationBuilder>? configureAuth = null, Action<MeterProviderBuilder>? configureMetrics = null)
     {
         // <---- ASP.NET ---->
-        // OpenShockExceptionHandler (OpenShock.Internal.AspNet) takes JsonSerializerOptions via ctor injection.
+        // The exception handler takes its JsonSerializerOptions by constructor injection.
         services.AddSingleton(JsonOptions.Default);
-        services.AddExceptionHandler<OpenShockExceptionHandler>();
+        services.AddExceptionHandler<VrcxExceptionHandler>();
 
         services.TryAddSingleton(TimeProvider.System);
 

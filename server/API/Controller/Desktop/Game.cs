@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
 using VRCX.Common.Live;
@@ -75,10 +75,10 @@ public sealed partial class AccountDesktopController
     [HttpPost("{accountId}/game/launch")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status504GatewayTimeout, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status504GatewayTimeout, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> LaunchGame([FromRoute] string accountId, [FromBody] LaunchGameBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         DesktopActionAsync(accountId, body.Url, desktops, new ClientAction { LaunchVrchat = new LaunchVrchat { LaunchUrl = body.Url, DesktopMode = body.DesktopMode, AllowSecondInstance = body.AllowSecondInstance } }, cancellationToken);
@@ -91,10 +91,10 @@ public sealed partial class AccountDesktopController
     [HttpPost("{accountId}/game/open")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status504GatewayTimeout, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status504GatewayTimeout, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> OpenInGame([FromRoute] string accountId, [FromBody] OpenInGameBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         DesktopActionAsync(accountId, body.Url, desktops, new ClientAction { OpenInstance = new OpenInstanceInGame { LaunchUrl = body.Url } }, cancellationToken);

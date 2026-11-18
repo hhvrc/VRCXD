@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
@@ -30,7 +30,7 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/friends")]
     [ProducesResponseType<FriendResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListFriends([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -43,7 +43,7 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/friends/details")]
     [ProducesResponseType<FriendDetailsResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListFriendDetails([FromRoute] string accountId, CancellationToken cancellationToken) =>
         await queries.ListFriendDetailsAsync(accountId, cancellationToken) is { } details ? Ok(details) : Problem(AccountError.AccountNotFound);
@@ -54,8 +54,8 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/friends/{userId}/load")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> LoadFriend([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         Done(await actions.LoadAsync(accountId, userId, cancellationToken));
@@ -65,7 +65,7 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/friends/refresh")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RefreshFriends([FromRoute] string accountId, CancellationToken cancellationToken) =>
         Done(await actions.RefreshAsync(accountId, cancellationToken));
@@ -74,8 +74,8 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="204">Unfriended</response>
     [HttpDelete("{accountId}/friends/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> Unfriend([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         Done(await actions.UnfriendAsync(accountId, userId, cancellationToken));
@@ -86,8 +86,8 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/friend-requests/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SendFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         Done(await actions.SendRequestAsync(accountId, userId, cancellationToken));
@@ -96,8 +96,8 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="204">Withdrawn</response>
     [HttpDelete("{accountId}/friend-requests/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> CancelFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         Done(await actions.CancelRequestAsync(accountId, userId, cancellationToken));
@@ -117,7 +117,7 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/friend-log")]
     [ProducesResponseType<FriendLogEntryResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> FriendLog([FromRoute] string accountId, [FromQuery] int? limit, [FromQuery] DateTimeOffset? before, CancellationToken cancellationToken)
     {
@@ -130,7 +130,7 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
     /// <response code="404">No such account</response>
     [HttpDelete("{accountId}/friend-log/{key}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> HideFriendLogEntry([FromRoute] string accountId, [FromRoute] string key, CancellationToken cancellationToken)
     {
@@ -139,5 +139,5 @@ public sealed class FriendsController(AccountQueries accounts, FriendQueries que
         return NoContent();
     }
 
-    private IActionResult Done(OpenShockProblem? problem) => problem is null ? NoContent() : Problem(problem);
+    private IActionResult Done(VrcxProblem? problem) => problem is null ? NoContent() : Problem(problem);
 }

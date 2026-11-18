@@ -3,7 +3,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
@@ -101,8 +101,8 @@ public sealed partial class AccountProfileController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/profile")]
     [ProducesResponseType<EditProfileResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetEditProfile([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -139,8 +139,8 @@ public sealed partial class AccountProfileController
     [HttpPut("{accountId}/profile")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SaveProfile([FromRoute] string accountId, [FromBody] SaveProfileBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.UpdateProfileAsync(accountId, body.ToChanges(), cancellationToken));
@@ -151,8 +151,8 @@ public sealed partial class AccountProfileController
     [HttpPost("{accountId}/profile/themes")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> CreateProfileTheme([FromRoute] string accountId, [FromBody] ProfileThemeBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.CreateProfileThemeAsync(new { name = body.Name, buttonColor = body.ButtonColor, iconColor = body.IconColor, subtextColor = body.SubtextColor }, cancellationToken));
@@ -163,8 +163,8 @@ public sealed partial class AccountProfileController
     [HttpPut("{accountId}/profile/themes/{themeId}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SaveProfileTheme([FromRoute] string accountId, [FromRoute] string themeId, [FromBody] ProfileThemeBody body, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.SaveProfileThemeAsync(themeId, new { themeId, name = body.Name, buttonColor = body.ButtonColor, iconColor = body.IconColor, subtextColor = body.SubtextColor }, cancellationToken));
@@ -174,8 +174,8 @@ public sealed partial class AccountProfileController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/profile/themes/{themeId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteProfileTheme([FromRoute] string accountId, [FromRoute] string themeId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteProfileThemeAsync(themeId, cancellationToken));
@@ -186,8 +186,8 @@ public sealed partial class AccountProfileController
     [HttpPost("{accountId}/profile/languages")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<IReadOnlyList<string>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AddLanguage([FromRoute] string accountId, [FromBody] AddLanguageBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -202,8 +202,8 @@ public sealed partial class AccountProfileController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/profile/languages/{language}")]
     [ProducesResponseType<IReadOnlyList<string>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> RemoveLanguage([FromRoute] string accountId, [FromRoute] string language, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>

@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Requests;
 using VRCX.API.Models.Response;
 using VRCX.Common;
@@ -61,8 +61,8 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     /// <response code="409">The account has no live VRChat session</response>
     [HttpPost("{accountId}/sync")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> Sync([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -79,8 +79,8 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     [HttpPost("login")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status401Unauthorized, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status401Unauthorized, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> Login([FromBody] LoginRequest body, CancellationToken cancellationToken) =>
         Answer(await login.LoginAsync(body.Username, body.Password, body.Endpoint, body.Websocket, body.SaveCredentials, body.PrimaryPassword, cancellationToken),
@@ -96,9 +96,9 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     [HttpPost("login/2fa")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status401Unauthorized, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status401Unauthorized, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> CompleteTwoFactor([FromBody] TwoFactorRequest body, CancellationToken cancellationToken) =>
         Answer(await login.CompleteTwoFactorAsync(body.PendingId, body.Method, body.Code, cancellationToken), _ => LoginError.CodeRejected);
@@ -111,7 +111,7 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     /// <response code="502">VRChat could not be reached</response>
     [HttpPost("login/device")]
     [ProducesResponseType<DeviceLoginResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> StartDeviceLogin(CancellationToken cancellationToken)
     {
@@ -125,8 +125,8 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     /// <response code="502">VRChat refused the code (expired) or could not be reached</response>
     [HttpPost("login/device/{pendingId}")]
     [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> PollDeviceLogin([FromRoute] string pendingId, CancellationToken cancellationToken) =>
         Answer(await login.PollDeviceLoginAsync(pendingId, cancellationToken), rejected => LoginError.InvalidCredentials(rejected.Reason));
@@ -148,7 +148,7 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     [HttpPost("login/password-reset")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RequestPasswordReset([FromBody] PasswordResetRequest body, CancellationToken cancellationToken) =>
         Done(await login.RequestPasswordResetAsync(body.Email, cancellationToken));
@@ -160,7 +160,7 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     /// <response code="404">No such account</response>
     [HttpDelete("{accountId}/session")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> Logout([FromRoute] string accountId, CancellationToken cancellationToken) =>
         Done(await login.LogoutAsync(accountId, cancellationToken));
@@ -177,10 +177,10 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     [HttpPost("{accountId}/relogin")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<LoginResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status401Unauthorized, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status403Forbidden, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status401Unauthorized, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status403Forbidden, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> Relogin([FromRoute] string accountId, [FromBody] ReloginRequest body, CancellationToken cancellationToken) =>
         Answer(await login.ReloginAsync(accountId, body.PrimaryPassword, cancellationToken), rejected => LoginError.InvalidCredentials(rejected.Reason));
@@ -193,7 +193,7 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     /// <response code="404">No such account</response>
     [HttpDelete("{accountId}/saved-login")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> DeleteSavedLogin([FromRoute] string accountId, CancellationToken cancellationToken) =>
         Done(await login.DeleteSavedLoginAsync(accountId, cancellationToken));
@@ -216,8 +216,8 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     [HttpPut("primary-password")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<PrimaryPasswordResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status403Forbidden, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status403Forbidden, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> PutPrimaryPassword([FromBody] PrimaryPasswordRequest body, CancellationToken cancellationToken) =>
         await login.SetPrimaryPasswordAsync(body.Enabled, body.Password, cancellationToken) is { } problem

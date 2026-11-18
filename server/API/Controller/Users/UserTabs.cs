@@ -3,7 +3,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.API.Services;
 using VRCX.Common.Services;
@@ -21,8 +21,8 @@ public sealed partial class AccountUsersController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/users/{userId}/mutuals")]
     [ProducesResponseType<LimitedUserSearch[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListUserMutuals([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetAllMutualFriendsAsync(userId, cancellationToken));
@@ -35,7 +35,7 @@ public sealed partial class AccountUsersController
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/users/{userId}/together")]
     [ProducesResponseType<TimeTogetherResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetTimeTogether([FromRoute] string accountId, [FromRoute] string userId, [FromServices] FriendQueries friends, CancellationToken cancellationToken)
     {
@@ -49,8 +49,8 @@ public sealed partial class AccountUsersController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/users/{userId}/public-profile")]
     [ProducesResponseType<PublicProfile>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetUserPublicProfile([FromRoute] string accountId, [FromRoute] string userId, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "public-profile", userId), VrchatReadCache.DialogTtl,
@@ -61,8 +61,8 @@ public sealed partial class AccountUsersController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/users/{userId}/mutual-counts")]
     [ProducesResponseType<MutualCounts>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetUserMutualCounts([FromRoute] string accountId, [FromRoute] string userId, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "mutual-counts", userId), VrchatReadCache.DialogTtl,
@@ -101,8 +101,8 @@ public sealed partial class AccountUsersController
 
     [HttpGet("{accountId}/users/{userId}/groups")]
     [ProducesResponseType<LimitedUserGroup[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListUserGroups([FromRoute] string accountId, [FromRoute] string userId, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "user-groups", userId), VrchatReadCache.DialogTtl,
@@ -113,8 +113,8 @@ public sealed partial class AccountUsersController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/users/{userId}/worlds")]
     [ProducesResponseType<World[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListUserWorlds([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetWorldsByAuthorAsync(userId, isSelf: userId == accountId, cancellationToken));
@@ -124,8 +124,8 @@ public sealed partial class AccountUsersController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/users/{userId}/favorite-worlds")]
     [ProducesResponseType<UserFavoriteWorldsResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListUserFavoriteWorlds([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client => (await client.GetUserFavoriteWorldsAsync(userId, cancellationToken))
@@ -147,8 +147,8 @@ public sealed partial class AccountUsersController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/avatars/licensed")]
     [ProducesResponseType<AvatarResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListLicensedAvatars([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>

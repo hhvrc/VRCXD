@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 
 namespace VRCX.API.Controller.Groups;
 
@@ -47,8 +47,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/calendar/{eventId}")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupEvent([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetCalendarEventAsync(groupId, eventId, cancellationToken));
@@ -59,8 +59,8 @@ public sealed partial class AccountGroupsController
     [HttpPost("{accountId}/groups/{groupId}/calendar")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> CreateGroupEvent([FromRoute] string accountId, [FromRoute] string groupId, [FromBody] GroupEventBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.CreateCalendarEventAsync(groupId, EventJson(groupId, body), cancellationToken));
@@ -71,8 +71,8 @@ public sealed partial class AccountGroupsController
     [HttpPut("{accountId}/groups/{groupId}/calendar/{eventId}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UpdateGroupEvent([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, [FromBody] GroupEventBody body, CancellationToken cancellationToken)
     {
@@ -86,8 +86,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/calendar/{eventId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteGroupEvent([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteCalendarEventAsync(groupId, eventId, cancellationToken));

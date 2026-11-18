@@ -4,7 +4,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using VRCX.Common.VrcxDb;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Vrchat;
 using VRCX.API.Models.Response;
 using VRCX.API.Services;
@@ -59,8 +59,8 @@ public sealed partial class AccountInstancesController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/instances/options")]
     [ProducesResponseType<InstanceOptionsResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetInstanceOptions([FromRoute] string accountId, [FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, CancellationToken cancellationToken)
     {
@@ -99,8 +99,8 @@ public sealed partial class AccountInstancesController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/roles")]
     [ProducesResponseType<IReadOnlyList<VRCX.Vrchat.Models.GroupRole>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListGroupRoles([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetGroupRolesAsync(groupId, cancellationToken));
@@ -112,8 +112,8 @@ public sealed partial class AccountInstancesController
     [HttpPost("{accountId}/instances")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<VRCX.Vrchat.Models.Instance>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> CreateInstance([FromRoute] string accountId, [FromBody] CreateInstanceBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -152,8 +152,8 @@ public sealed partial class AccountInstancesController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/instances/catalog")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetInstanceCatalog([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetInstanceCatalogAsync(cancellationToken));
@@ -163,8 +163,8 @@ public sealed partial class AccountInstancesController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/instances/short-name")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetInstanceShortName([FromRoute] string accountId, [FromQuery] string location, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetInstanceShortNameAsync(location, cancellationToken));
@@ -185,8 +185,8 @@ public sealed partial class AccountInstancesController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/instances/live")]
     [ProducesResponseType<LiveInstanceResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetLiveInstance([FromRoute] string accountId, [FromQuery] string location, [FromQuery] bool refresh, [FromServices] VRCX.Common.Services.Automation.AccountAutomation automation, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -220,8 +220,8 @@ public sealed partial class AccountInstancesController
     [HttpPut("{accountId}/instances/calendar-event")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> LinkInstanceCalendarEvent([FromRoute] string accountId, [FromBody] InstanceCalendarLinkBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.LinkInstanceCalendarEventAsync(body.Location, string.IsNullOrEmpty(body.CalendarEntryId) ? null : body.CalendarEntryId, cancellationToken));
@@ -233,8 +233,8 @@ public sealed partial class AccountInstancesController
     [HttpPost("{accountId}/instances/announcement")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> AnnounceInInstance([FromRoute] string accountId, [FromBody] InstanceAnnouncementBody body, CancellationToken cancellationToken)
     {
@@ -253,8 +253,8 @@ public sealed partial class AccountInstancesController
     [HttpPost("{accountId}/instances/close")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> CloseInstance([FromRoute] string accountId, [FromBody] InstanceLocationBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.CloseInstanceAsync(body.Location, cancellationToken));
@@ -266,8 +266,8 @@ public sealed partial class AccountInstancesController
     [HttpPut("{accountId}/instances/display-name")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> RenameInstance([FromRoute] string accountId, [FromBody] RenameInstanceBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.RenameInstanceAsync(body.Location, string.IsNullOrWhiteSpace(body.DisplayName) ? null : body.DisplayName.Trim(), cancellationToken));
@@ -279,8 +279,8 @@ public sealed partial class AccountInstancesController
     [HttpPost("{accountId}/instances/self-invite")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SelfInvite([FromRoute] string accountId, [FromBody] SelfInviteBody body, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.SelfInviteAsync(body.Location, body.ShortName, cancellationToken));

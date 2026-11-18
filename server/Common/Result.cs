@@ -1,3 +1,5 @@
+using VRCX.Common.Problems;
+
 namespace VRCX.Common;
 
 /// <summary>

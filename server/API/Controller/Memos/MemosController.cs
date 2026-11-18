@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Requests;
 using VRCX.API.Models.Response;
 using VRCX.Common;
@@ -33,7 +33,7 @@ public sealed class MemosController(MemoStore memos) : VrcxControllerBase
     [HttpGet("users/{userId}/memo")]
     [Tags("Users")]
     [ProducesResponseType<MemoResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetUserMemo([FromRoute] string userId, CancellationToken cancellationToken)
     {
@@ -49,7 +49,7 @@ public sealed class MemosController(MemoStore memos) : VrcxControllerBase
     [Tags("Users")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<MemoResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SetUserMemo([FromRoute] string userId, [FromBody] MemoRequest body, CancellationToken cancellationToken)
     {
@@ -89,7 +89,7 @@ public sealed class MemosController(MemoStore memos) : VrcxControllerBase
     [Tags("Worlds")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<WorldMemoResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SetWorldMemo([FromRoute] string worldId, [FromBody] WorldMemoRequest body, CancellationToken cancellationToken)
     {
@@ -117,7 +117,7 @@ public sealed class MemosController(MemoStore memos) : VrcxControllerBase
     [Tags("Avatars")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<AvatarMemoResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SetAvatarMemo([FromRoute] string avatarId, [FromBody] AvatarMemoRequest body, CancellationToken cancellationToken)
     {

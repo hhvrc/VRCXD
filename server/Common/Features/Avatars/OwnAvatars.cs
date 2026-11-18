@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Accounts;
 using VRCX.Common.Services.Ingestion;
@@ -110,7 +110,7 @@ public sealed class OwnAvatars(
     }
 
     /// <summary>Wears the avatar (PUT avatars/{id}/select on VRChat) and records the wear.</summary>
-    public async Task<OpenShockProblem?> SelectAsync(string accountId, string avatarId, CancellationToken cancellationToken)
+    public async Task<VrcxProblem?> SelectAsync(string accountId, string avatarId, CancellationToken cancellationToken)
     {
         var account = await db.Accounts.FirstOrDefaultAsync(a => a.UserId == accountId, cancellationToken);
         if (account is null) return AccountError.AccountNotFound;
@@ -145,7 +145,7 @@ public sealed class OwnAvatars(
     }
 
     /// <summary>Asks VRChat to build the avatar's impostor.</summary>
-    public async Task<OpenShockProblem?> CreateImpostorAsync(string accountId, string avatarId, CancellationToken cancellationToken)
+    public async Task<VrcxProblem?> CreateImpostorAsync(string accountId, string avatarId, CancellationToken cancellationToken)
     {
         if (!await db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return AccountError.AccountNotFound;
         return await runner.RunAsync(accountId, client => client.EnqueueImpostorAsync(avatarId, cancellationToken), cancellationToken);

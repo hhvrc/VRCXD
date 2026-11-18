@@ -1,14 +1,18 @@
 using Microsoft.AspNetCore.Mvc;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Services.Sessions;
 using VRCX.Vrchat;
 
 namespace VRCX.Common;
 
-// Inherits Problem(OpenShockProblem) from OpenShock.Internal.Common.OpenShockControllerBase;
-// the members below are VRCX-specific and stay local.
-public abstract class VrcxControllerBase : OpenShock.Internal.Common.OpenShockControllerBase
+/// <summary>The base of every controller: how a problem, and what a feature handed back, become the response.</summary>
+public abstract class VrcxControllerBase : ControllerBase
 {
+    /// <summary>The problem as the response, with its status.</summary>
+    [NonAction]
+    public ObjectResult Problem(VrcxProblem problem) => problem.ToObjectResult(HttpContext);
+
     /// <summary>
     /// Picks the VRChat session a read-through should use: the requested account when it has a
     /// live session, otherwise any live account, otherwise null (the caller answers with

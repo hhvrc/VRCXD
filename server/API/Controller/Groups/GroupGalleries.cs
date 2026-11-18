@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 
 namespace VRCX.API.Controller.Groups;
 
@@ -30,8 +30,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/galleries/{galleryId}")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupGalleryImages([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string galleryId, [FromQuery, Range(1, 100)] int n = 100, [FromQuery, Range(0, int.MaxValue)] int offset = 0, CancellationToken cancellationToken = default) =>
         ReadLiveAsync(accountId, client => client.GetGroupGalleryImagesAsync(groupId, galleryId, n, offset, cancellationToken));
@@ -42,8 +42,8 @@ public sealed partial class AccountGroupsController
     [HttpPost("{accountId}/groups/{groupId}/galleries")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> CreateGroupGallery([FromRoute] string accountId, [FromRoute] string groupId, [FromBody] GroupGalleryBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.CreateGroupGalleryAsync(groupId, GalleryJson(body), cancellationToken));
@@ -54,8 +54,8 @@ public sealed partial class AccountGroupsController
     [HttpPut("{accountId}/groups/{groupId}/galleries/{galleryId}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UpdateGroupGallery([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string galleryId, [FromBody] GroupGalleryBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.UpdateGroupGalleryAsync(groupId, galleryId, GalleryJson(body), cancellationToken));
@@ -65,8 +65,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/galleries/{galleryId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteGroupGallery([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string galleryId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteGroupGalleryAsync(groupId, galleryId, cancellationToken));
@@ -77,8 +77,8 @@ public sealed partial class AccountGroupsController
     [HttpPost("{accountId}/groups/{groupId}/galleries/{galleryId}/images")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AddGroupGalleryImage([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string galleryId, [FromBody] GroupGalleryImageBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.AddGroupGalleryImageAsync(groupId, galleryId, body.FileId, cancellationToken));
@@ -88,8 +88,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/galleries/{galleryId}/images/{imageId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteGroupGalleryImage([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string galleryId, [FromRoute] string imageId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteGroupGalleryImageAsync(groupId, galleryId, imageId, cancellationToken));
@@ -99,8 +99,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/stores/{storeId}")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetStore([FromRoute] string accountId, [FromRoute] string storeId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetStoreAsync(storeId, cancellationToken));

@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.DataProtection;
-using OpenShock.Internal.Common.Utils;
 using VRCX.Common.Options;
 
 namespace VRCX.Common.Extensions;
@@ -87,7 +86,7 @@ public static class ConfigurationExtensions
 
         options = new MetricsOptions
         {
-            AllowedNetworks = options?.AllowedNetworks.Count is > 0 ? options.AllowedNetworks : TrustedProxiesFetcher.PrivateNetworks
+            AllowedNetworks = options?.AllowedNetworks.Count is > 0 ? options.AllowedNetworks : MetricsOptions.PrivateNetworks
         };
 
         builder.Services.AddSingleton(options);

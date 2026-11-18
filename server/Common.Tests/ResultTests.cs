@@ -1,4 +1,4 @@
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Errors;
 
@@ -9,7 +9,7 @@ public class ResultTests
 {
     private static string Describe(Result<string?> result) => result switch
     {
-        OpenShockProblem problem => $"problem {problem.Type}",
+        VrcxProblem problem => $"problem {problem.Type}",
         null => "nothing",
         string value => $"value {value}",
     };
@@ -33,6 +33,6 @@ public class ResultTests
     {
         var nothing = await ReadAsync(0);
         await Assert.That(Describe(nothing)).IsEqualTo("nothing");
-        await Assert.That(nothing is OpenShockProblem).IsFalse();
+        await Assert.That(nothing is VrcxProblem).IsFalse();
     }
 }

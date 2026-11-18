@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common;
 using VRCX.Common.Authentication;
@@ -29,8 +29,8 @@ public sealed class WorldsController(ContentQueries content, ContentRefresh fetc
     /// <response code="409">refresh=true but no account is logged in</response>
     [HttpGet("{worldId}")]
     [ProducesResponseType<WorldResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetWorld([FromRoute] string worldId, [FromQuery] bool refresh, [FromQuery] string? account, CancellationToken cancellationToken)
     {

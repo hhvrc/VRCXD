@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
@@ -36,7 +36,7 @@ public sealed class GameLogController(AccountQueries accounts, GameLogQueries ga
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/game-log")]
     [ProducesResponseType<GameLogRowResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListGameLog([FromRoute] string accountId, [FromQuery] string? types, [FromQuery] string? search, [FromQuery] bool vip, [FromQuery] int limit = 500, CancellationToken cancellationToken = default)
     {
@@ -55,7 +55,7 @@ public sealed class GameLogController(AccountQueries accounts, GameLogQueries ga
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/game-log/sessions")]
     [ProducesResponseType<GameLogSessionsResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListGameLogSessions([FromRoute] string accountId, [FromQuery] long? beforeId, [FromQuery] DateTimeOffset? from, [FromQuery] DateTimeOffset? to, [FromQuery] int limit = 10, CancellationToken cancellationToken = default)
     {
@@ -68,7 +68,7 @@ public sealed class GameLogController(AccountQueries accounts, GameLogQueries ga
     /// <response code="404">No such account</response>
     [HttpDelete("{accountId}/game-log/{key}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> HideGameLogEntry([FromRoute] string accountId, [FromRoute] string key, CancellationToken cancellationToken)
     {
@@ -82,7 +82,7 @@ public sealed class GameLogController(AccountQueries accounts, GameLogQueries ga
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/player-list")]
     [ProducesResponseType<PlayerListResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetPlayerList([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -111,7 +111,7 @@ public sealed class GameLogController(AccountQueries accounts, GameLogQueries ga
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/visits")]
     [ProducesResponseType<PagedResult<InstanceVisitResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListVisits([FromRoute] string accountId, [FromQuery] PaginationQuery pagination, CancellationToken cancellationToken)
     {

@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
@@ -39,8 +39,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/calendar/{scope:regex(^(all|following|featured)$)}")]
     [ProducesResponseType<CalendarResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListCalendarEvents([FromRoute] string accountId, [FromRoute] string scope, [FromQuery] string date, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -68,8 +68,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/calendar/{groupId}/{eventId}/follow")]
     [ProducesResponseType<CalendarEvent>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> FollowCalendarEvent([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, [FromBody] FollowCalendarEventBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.FollowCalendarEventAsync(groupId, eventId, body.IsFollowing, cancellationToken));
@@ -80,8 +80,8 @@ public sealed partial class AccountToolsController
     [HttpGet("{accountId}/calendar/{groupId}/{eventId}/ics")]
     [Produces("text/calendar")]
     [ProducesResponseType<string>(StatusCodes.Status200OK, "text/calendar")]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetCalendarEventIcs([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken)
     {
@@ -94,8 +94,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session, or no PC that can</response>
     [HttpPost("{accountId}/calendar/{groupId}/{eventId}/open-on-pc")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> OpenCalendarEventOnPc([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken)
     {
@@ -109,8 +109,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/info-push")]
     [ProducesResponseType<System.Text.Json.JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListInfoPush([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetInfoPushAsync(cancellationToken));

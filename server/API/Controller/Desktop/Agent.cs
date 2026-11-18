@@ -2,7 +2,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
@@ -26,9 +26,9 @@ public sealed partial class AccountDesktopController
     /// <response code="404">That folder or item is not on the PC</response>
     [HttpPost("{accountId}/agent/open-folder")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentOpenFolder([FromRoute] string accountId, [FromBody] OpenFolderBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         !Enum.TryParse<Folder>(body.Folder.Replace("_", ""), ignoreCase: true, out var folder) || folder == Folder.Unspecified
@@ -40,7 +40,7 @@ public sealed partial class AccountDesktopController
     /// <response code="200">{"path": "..."}, empty when cancelled</response>
     [HttpPost("{accountId}/agent/pick-path")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentPickPath([FromRoute] string accountId, [FromBody] PickPathBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         !Enum.TryParse<PickPurpose>(body.Purpose.Replace("_", ""), ignoreCase: true, out var purpose) || purpose == PickPurpose.Unspecified
@@ -56,8 +56,8 @@ public sealed partial class AccountDesktopController
     /// <response code="200">{"changed": n}</response>
     [HttpPost("{accountId}/agent/screenshot-metadata/delete-all")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentDeleteAllScreenshotMetadata([FromRoute] string accountId, [FromBody] ConfirmBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         // A whole photos folder takes a while.

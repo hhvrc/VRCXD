@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
@@ -43,7 +43,7 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/favorites")]
     [ProducesResponseType<FavoritesResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListFavorites([FromRoute] string accountId, [FromQuery] FavoriteType type, CancellationToken cancellationToken)
     {
@@ -64,8 +64,8 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/favorites/picker")]
     [ProducesResponseType<FavoritePickerResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetFavoritePicker([FromRoute] string accountId, [FromQuery] FavoriteType type, [FromQuery] string? targetId, CancellationToken cancellationToken) =>
         Answer(await actions.PickerAsync(accountId, type, targetId, cancellationToken));
@@ -77,8 +77,8 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     [HttpPost("{accountId}/favorites")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> AddFavorite([FromRoute] string accountId, [FromBody] AddFavoriteBody body, CancellationToken cancellationToken) =>
         Done(await actions.AddAsync(accountId, body.Type, body.TargetId, body.Group, cancellationToken));
@@ -89,8 +89,8 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/favorites/{targetId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RemoveFavorite([FromRoute] string accountId, [FromRoute] string targetId, CancellationToken cancellationToken) =>
         Done(await actions.RemoveAsync(accountId, targetId, cancellationToken));
@@ -104,8 +104,8 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/favorites/world-occupants")]
     [ProducesResponseType<Dictionary<string, int>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetFavoriteWorldOccupants([FromRoute] string accountId, [FromQuery] string[]? ids, CancellationToken cancellationToken) =>
         Answer(await actions.WorldOccupantsAsync(accountId, ids, cancellationToken));
@@ -124,7 +124,7 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     [HttpPost("{accountId}/favorites/local")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> AddLocalFavorite([FromRoute] string accountId, [FromBody] LocalFavoriteBody body, CancellationToken cancellationToken)
     {
@@ -141,7 +141,7 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/favorites/local/refresh")]
     [ProducesResponseType<LocalFavoriteRefreshResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RefreshLocalFavorite([FromRoute] string accountId, [FromQuery] FavoriteType type, [FromQuery] string targetId, CancellationToken cancellationToken) =>
         Answer(await actions.RefreshLocalAsync(accountId, type, targetId, cancellationToken));
@@ -163,8 +163,8 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/favorites/refresh")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RefreshFavorites([FromRoute] string accountId, CancellationToken cancellationToken) =>
         Done(await actions.RefreshAsync(accountId, cancellationToken));
@@ -176,8 +176,8 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     [HttpPut("{accountId}/favorites/groups/{type}/{name}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SaveFavoriteGroup([FromRoute] string accountId, [FromRoute] string type, [FromRoute] string name, [FromBody] SaveFavoriteGroupBody body, CancellationToken cancellationToken) =>
         Done(await actions.SaveGroupAsync(accountId, type, name, body.DisplayName, body.Visibility, cancellationToken));
@@ -188,8 +188,8 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/favorites/groups/{type}/{name}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ClearFavoriteGroup([FromRoute] string accountId, [FromRoute] string type, [FromRoute] string name, CancellationToken cancellationToken) =>
         Done(await actions.ClearGroupAsync(accountId, type, name, cancellationToken));
@@ -208,7 +208,7 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     [HttpPost("{accountId}/favorites/local/groups")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> CreateLocalFavoriteGroup([FromRoute] string accountId, [FromBody] LocalFavoriteGroupBody body, CancellationToken cancellationToken)
     {
@@ -240,6 +240,6 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
         return NoContent();
     }
 
-    private IActionResult Done(OpenShockProblem? problem) => problem is null ? NoContent() : Problem(problem);
+    private IActionResult Done(VrcxProblem? problem) => problem is null ? NoContent() : Problem(problem);
 
 }

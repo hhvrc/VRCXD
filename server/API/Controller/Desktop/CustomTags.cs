@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Desktop;
 using VRCX.Common.Live;
@@ -21,7 +21,7 @@ public sealed partial class AccountDesktopController
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/custom-tags")]
     [ProducesResponseType<CustomTagResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListCustomTags([FromRoute] string accountId, CancellationToken cancellationToken)
     {

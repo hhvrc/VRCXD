@@ -2,7 +2,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Common.VrcxDb;
@@ -40,7 +40,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/users")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SearchUsers([FromRoute] string accountId, [FromQuery] string search, [FromQuery] int offset, [FromQuery] string? sort, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
@@ -56,7 +56,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/worlds")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SearchWorlds([FromRoute] string accountId, [FromQuery] string? option, [FromQuery] string? sort, [FromQuery] bool? featured, [FromQuery] string? order,
         [FromQuery] string? user, [FromQuery] string? releaseStatus, [FromQuery] string? tag, [FromQuery] string? search, [FromQuery] int offset, CancellationToken cancellationToken) =>
@@ -75,7 +75,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/world-rows")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListWorldRows([FromRoute] string accountId, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
@@ -89,7 +89,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/groups")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SearchGroups([FromRoute] string accountId, [FromQuery] string query, [FromQuery] int offset, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.GetJsonAsync("groups", [new("query", query), new("n", "60"), new("offset", offset.ToString())], cancellationToken));
@@ -99,7 +99,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/groups/strict")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> StrictSearchGroups([FromRoute] string accountId, [FromQuery] string query, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.GetJsonAsync("groups/strictsearch", [new("query", query)], cancellationToken));
@@ -109,7 +109,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/short-name/{shortName}")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> InstanceFromShortName([FromRoute] string accountId, [FromRoute] string shortName, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.GetJsonAsync($"instances/s/{Uri.EscapeDataString(shortName)}", [], cancellationToken));
@@ -119,7 +119,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/marketplace")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SearchMarketplace([FromRoute] string accountId, [FromQuery] string? search, [FromQuery] int offset, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.GetJsonAsync("avatars",
@@ -130,7 +130,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/search/store")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetStore([FromRoute] string accountId, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
@@ -150,7 +150,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/purchases/owned")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetPurchases([FromRoute] string accountId, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
@@ -193,7 +193,7 @@ public sealed partial class AccountSearchController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/economy/balance")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> Credits([FromRoute] string accountId, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => new { balance = await ReadBalanceAsync(client, accountId, cancellationToken) });
@@ -204,8 +204,8 @@ public sealed partial class AccountSearchController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/search/store/purchase")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> PurchaseListing([FromRoute] string accountId, [FromBody] PurchaseListingBody body, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.PostQueryAsync("economy/purchase/listing",
@@ -217,8 +217,8 @@ public sealed partial class AccountSearchController
     /// <response code="502">The provider failed</response>
     [HttpGet("{accountId}/search/avatars")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SearchRemoteAvatars([FromRoute] string accountId, [FromQuery] string provider, CancellationToken cancellationToken, [FromQuery] string? search = null, [FromQuery] string? authorId = null)
     {

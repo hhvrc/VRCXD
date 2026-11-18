@@ -1,7 +1,7 @@
 using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Vrchat.Models;
 
 namespace VRCX.API.Controller.Groups;
@@ -21,8 +21,8 @@ public sealed partial class AccountGroupsController
     [HttpGet("{accountId}/groups/{groupId}/members/{userId}")]
     [ProducesResponseType<GroupMember>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupMember([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetGroupMemberAsync(groupId, userId, cancellationToken));
@@ -32,8 +32,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/members/search")]
     [ProducesResponseType<GroupMemberSearchResult>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SearchGroupMembers([FromRoute] string accountId, [FromRoute] string groupId, [FromQuery] string query, CancellationToken cancellationToken, [FromQuery] int offset = 0, [FromQuery] int n = 100) =>
         ReadLiveAsync(accountId, client => client.SearchGroupMembersAsync(groupId, query, Math.Clamp(n, 1, 100), Math.Max(offset, 0), cancellationToken));
@@ -44,8 +44,8 @@ public sealed partial class AccountGroupsController
     [HttpPut("{accountId}/groups/{groupId}/members/{userId}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<GroupMember>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UpdateGroupMember([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, [FromBody] GroupMemberUpdate body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.UpdateGroupMemberAsync(groupId, userId, body, cancellationToken));
@@ -55,8 +55,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/members/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> RemoveGroupMember([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.RemoveGroupMemberAsync(groupId, userId, cancellationToken));
@@ -66,8 +66,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpPut("{accountId}/groups/{groupId}/members/{userId}/roles/{roleId}")]
     [ProducesResponseType<IReadOnlyList<string>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AddGroupMemberRole([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, [FromRoute] string roleId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.AddGroupMemberRoleAsync(groupId, userId, roleId, cancellationToken));
@@ -77,8 +77,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/members/{userId}/roles/{roleId}")]
     [ProducesResponseType<IReadOnlyList<string>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> RemoveGroupMemberRole([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, [FromRoute] string roleId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.RemoveGroupMemberRoleAsync(groupId, userId, roleId, cancellationToken));
@@ -88,8 +88,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/bans")]
     [ProducesResponseType<IReadOnlyList<GroupMember>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupBans([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken, [FromQuery] int offset = 0, [FromQuery] int n = 100) =>
         ReadLiveAsync(accountId, client => client.GetGroupBansAsync(groupId, Math.Clamp(n, 1, 100), Math.Max(offset, 0), cancellationToken));
@@ -99,8 +99,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/groups/{groupId}/bans/{userId}")]
     [ProducesResponseType<GroupMember>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> BanGroupMember([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.BanGroupMemberAsync(groupId, userId, cancellationToken));
@@ -110,8 +110,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/bans/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UnbanGroupMember([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.UnbanGroupMemberAsync(groupId, userId, cancellationToken));
@@ -121,8 +121,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/invites")]
     [ProducesResponseType<IReadOnlyList<GroupMember>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupInvites([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken, [FromQuery] int offset = 0, [FromQuery] int n = 100) =>
         ReadLiveAsync(accountId, client => client.GetGroupInvitesAsync(groupId, Math.Clamp(n, 1, 100), Math.Max(offset, 0), cancellationToken));
@@ -132,8 +132,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/invites/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteGroupInvite([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteGroupInviteAsync(groupId, userId, cancellationToken));
@@ -143,8 +143,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/requests")]
     [ProducesResponseType<IReadOnlyList<GroupMember>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupJoinRequests([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken, [FromQuery] bool blocked = false, [FromQuery] int offset = 0, [FromQuery] int n = 100) =>
         ReadLiveAsync(accountId, client => client.GetGroupJoinRequestsAsync(groupId, blocked, Math.Clamp(n, 1, 100), Math.Max(offset, 0), cancellationToken));
@@ -157,8 +157,8 @@ public sealed partial class AccountGroupsController
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> RespondGroupJoinRequest([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string userId, [FromBody] GroupJoinRequestResponseBody body, CancellationToken cancellationToken)
     {
@@ -175,8 +175,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/audit-log-types")]
     [ProducesResponseType<IReadOnlyList<string>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupAuditLogTypes([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetGroupAuditLogTypesAsync(groupId, cancellationToken));
@@ -186,8 +186,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/audit-logs")]
     [ProducesResponseType<GroupAuditLogPage>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupAuditLogs([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken, [FromQuery] string? eventTypes = null, [FromQuery] int offset = 0, [FromQuery] int n = 100) =>
         ReadLiveAsync(accountId, client => client.GetGroupAuditLogsAsync(groupId, Math.Clamp(n, 1, 100), Math.Max(offset, 0), eventTypes, cancellationToken));

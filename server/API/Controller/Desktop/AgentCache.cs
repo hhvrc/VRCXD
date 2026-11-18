@@ -2,7 +2,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
 
@@ -18,7 +18,7 @@ public sealed partial class AccountDesktopController
     /// <response code="200">{"size": bytes, "location": "..."}</response>
     [HttpGet("{accountId}/agent/cache")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentCacheInfo([FromRoute] string accountId, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         // Adding up a big cache takes a while.
@@ -42,7 +42,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Empties the whole cache (DeleteAllCache).</summary>
     [HttpPost("{accountId}/agent/cache/clear")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentClearCache([FromRoute] string accountId, [FromBody] ConfirmBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.Cache, new ClientAction { ClearCache = new Confirm { Confirm_ = body.Confirm } }, cancellationToken, TimeSpan.FromMinutes(5));

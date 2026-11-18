@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 
 namespace VRCX.API.Controller.Groups;
 
@@ -34,8 +34,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/permissions")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGroupPermissionList([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetGroupPermissionListAsync(groupId, cancellationToken));
@@ -46,8 +46,8 @@ public sealed partial class AccountGroupsController
     [HttpPost("{accountId}/groups/{groupId}/roles")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> CreateGroupRole([FromRoute] string accountId, [FromRoute] string groupId, [FromBody] GroupRoleBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.CreateGroupRoleAsync(groupId, RoleJson(body), cancellationToken));
@@ -58,8 +58,8 @@ public sealed partial class AccountGroupsController
     [HttpPut("{accountId}/groups/{groupId}/roles/{roleId}")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UpdateGroupRole([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string roleId, [FromBody] GroupRoleBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.UpdateGroupRoleAsync(groupId, roleId, RoleJson(body), cancellationToken));
@@ -69,8 +69,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/groups/{groupId}/roles/{roleId}")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteGroupRole([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string roleId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.DeleteGroupRoleAsync(groupId, roleId, cancellationToken));

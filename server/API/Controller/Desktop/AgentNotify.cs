@@ -1,7 +1,7 @@
 using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Images;
 using VRCX.Common.Services.Live;
@@ -35,7 +35,7 @@ public sealed partial class AccountDesktopController
     /// <response code="409">No PC that can</response>
     [HttpPost("{accountId}/agent/notify")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> AgentNotify([FromRoute] string accountId, [FromBody] AgentNotificationBody body, [FromServices] DesktopClients desktops, [FromServices] ImageCache images, CancellationToken cancellationToken)
     {

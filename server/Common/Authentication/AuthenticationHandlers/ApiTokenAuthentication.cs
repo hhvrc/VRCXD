@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Encodings.Web;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Options;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Constants;
 using VRCX.Common.Errors;
 using VRCX.Common.JsonSerialization;
@@ -20,7 +20,7 @@ namespace VRCX.Common.Authentication.AuthenticationHandlers;
 public sealed class ApiTokenAuthentication : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     private readonly byte[] _expected;
-    private OpenShockProblem? _authResultError;
+    private VrcxProblem? _authResultError;
 
     public ApiTokenAuthentication(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
@@ -73,7 +73,7 @@ public sealed class ApiTokenAuthentication : AuthenticationHandler<Authenticatio
         return false;
     }
 
-    private AuthenticateResult Fail(OpenShockProblem reason)
+    private AuthenticateResult Fail(VrcxProblem reason)
     {
         _authResultError = reason;
         return AuthenticateResult.Fail(reason.Title!);

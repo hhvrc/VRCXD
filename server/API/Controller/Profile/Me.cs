@@ -3,7 +3,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.API.Services;
 using VRCX.Common.Services.Ingestion;
@@ -107,7 +107,7 @@ public sealed partial class AccountProfileController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/me")]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetMe([FromRoute] string accountId, [FromQuery] bool refresh, [FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, [FromServices] VRCX.Common.Services.Automation.AccountAutomation automation, [FromServices] VRCX.Common.Services.Sessions.CurrentUserCache currentUsers, CancellationToken cancellationToken)
     {
@@ -137,7 +137,7 @@ public sealed partial class AccountProfileController
     [HttpPut("{accountId}/me")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SaveMe([FromRoute] string accountId, [FromBody] SaveMeBody body, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
@@ -156,7 +156,7 @@ public sealed partial class AccountProfileController
     [HttpPut("{accountId}/me/options")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SaveMeOptions([FromRoute] string accountId, [FromBody] SaveMeOptionsBody body, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
@@ -176,7 +176,7 @@ public sealed partial class AccountProfileController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/client-config")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetClientConfig([FromRoute] string accountId, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.GetClientConfigAsync(accountId, cancellationToken));
@@ -187,7 +187,7 @@ public sealed partial class AccountProfileController
     [HttpPut("{accountId}/client-config")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SaveClientConfig([FromRoute] string accountId, [FromBody] SaveClientConfigBody body, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.SaveClientConfigAsync(accountId, new Dictionary<string, bool> { ["accessReduceDecorAnim"] = body.AccessReduceDecorAnim }, cancellationToken));
@@ -197,7 +197,7 @@ public sealed partial class AccountProfileController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/group-instances")]
     [ProducesResponseType<IReadOnlyList<GroupInstanceResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListGroupInstances([FromRoute] string accountId, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>

@@ -1,4 +1,4 @@
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Accounts;
 using VRCX.Common.Services;
@@ -17,28 +17,28 @@ namespace VRCX.Common.Features.Content;
 /// </summary>
 public sealed class ContentRefresh(AccountSessionRunner runner, IAccountSyncService sync, VrchatReadCache cache)
 {
-    public Task<OpenShockProblem?> UserAsync(string? account, string userId, CancellationToken ct) =>
+    public Task<VrcxProblem?> UserAsync(string? account, string userId, CancellationToken ct) =>
         RefreshAsync(account, "refresh-user", userId, via => sync.RefreshUserAsync(via, userId, ct),
             // The dialog's refresh reads its tabs again too.
             via => cache.Forget([.. new[] { "mutual-counts", "public-profile", "user-groups" }.Select(tab => VrchatReadCache.Key(via, tab, userId))]));
 
-    public Task<OpenShockProblem?> WorldAsync(string? account, string worldId, CancellationToken ct) =>
+    public Task<VrcxProblem?> WorldAsync(string? account, string worldId, CancellationToken ct) =>
         RefreshAsync(account, "refresh-world", worldId, via => sync.RefreshWorldAsync(via, worldId, ct));
 
     /// <summary>An avatar is fetched every time it is asked for: its endpoint has no minimum gap.</summary>
-    public Task<OpenShockProblem?> AvatarAsync(string? account, string avatarId, CancellationToken ct) =>
+    public Task<VrcxProblem?> AvatarAsync(string? account, string avatarId, CancellationToken ct) =>
         RefreshAsync(account, null, avatarId, via => sync.RefreshAvatarAsync(via, avatarId, ct));
 
-    public Task<OpenShockProblem?> GroupAsync(string? account, string groupId, CancellationToken ct) =>
+    public Task<VrcxProblem?> GroupAsync(string? account, string groupId, CancellationToken ct) =>
         RefreshAsync(account, "refresh-group", groupId, via => sync.RefreshGroupAsync(via, groupId, ct));
 
     /// <param name="account">The account to fetch with, when it has a session.</param>
     /// <param name="location">The instance's own location tag (VrchatLocation.InstanceLocation).</param>
     /// <param name="ct"></param>
-    public Task<OpenShockProblem?> InstanceAsync(string? account, string location, CancellationToken ct) =>
+    public Task<VrcxProblem?> InstanceAsync(string? account, string location, CancellationToken ct) =>
         RefreshAsync(account, "refresh-instance", location, via => sync.RefreshInstanceAsync(via, location, ct));
 
-    private async Task<OpenShockProblem?> RefreshAsync(string? account, string? throttle, string target, Func<string, Task> refresh, Action<string>? ran = null)
+    private async Task<VrcxProblem?> RefreshAsync(string? account, string? throttle, string target, Func<string, Task> refresh, Action<string>? ran = null)
     {
         var via = runner.PickAccount(account);
         if (via is null) return AccountError.NoAccounts;

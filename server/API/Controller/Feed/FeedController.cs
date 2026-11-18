@@ -3,7 +3,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
@@ -49,7 +49,7 @@ public sealed class FeedController(AccountQueries accounts, IFeedService feed, A
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/feed")]
     [ProducesResponseType<FeedEntry[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetFeed(
         [FromRoute] string accountId,
@@ -79,14 +79,14 @@ public sealed class FeedController(AccountQueries accounts, IFeedService feed, A
     [HttpPost("{accountId}/database/purge-avatar-feed")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<PurgeAvatarFeedResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> PurgeAvatarFeed([FromRoute] string accountId, [FromBody] PurgeAvatarFeedBody body, CancellationToken cancellationToken)
     {
         if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         var deleted = await cleanup.PurgeChosenAsync(accountId, body.OlderThanDays, body.All, cancellationToken);
-        if (deleted is null) return Problem(new OpenShockProblem("Database.PurgeNothingChosen", "Give olderThanDays or all", HttpStatusCode.BadRequest));
+        if (deleted is null) return Problem(new VrcxProblem("Database.PurgeNothingChosen", "Give olderThanDays or all", HttpStatusCode.BadRequest));
         return Ok(new PurgeAvatarFeedResponse(deleted.Value));
     }
 }

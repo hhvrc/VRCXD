@@ -4,7 +4,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
@@ -94,7 +94,7 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/emoji/{fileId}")]
     [ProducesResponseType<EmojiFileResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetEmojiFile([FromRoute] string accountId, [FromRoute] string fileId, CancellationToken cancellationToken)
     {
@@ -109,8 +109,8 @@ public sealed partial class AccountToolsController
 
     [HttpGet("{accountId}/gallery/info")]
     [ProducesResponseType<GalleryInfo>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetGalleryInfo([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -155,8 +155,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/cosmetics/{kind:regex(^(iconFrame|profileEffect|nameplateEffect)$)}")]
     [ProducesResponseType<IEnumerable<CosmeticResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListCosmetics([FromRoute] string accountId, [FromRoute] string kind, CancellationToken cancellationToken)
     {
@@ -195,8 +195,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/gallery/files/{tag:regex(^(gallery|icon|emoji|sticker)$)}")]
     [ProducesResponseType<IEnumerable<UserFile>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListGalleryFiles([FromRoute] string accountId, [FromRoute] string tag, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client => Enumerable.Reverse(await client.GetFilesAsync(tag, cancellationToken)).ToList());
@@ -207,8 +207,8 @@ public sealed partial class AccountToolsController
     [HttpPost("{accountId}/gallery/files")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<UserFile>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UploadGalleryFile([FromRoute] string accountId, [FromForm] GalleryUploadForm form, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -228,8 +228,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/gallery/files/{fileId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteGalleryFile([FromRoute] string accountId, [FromRoute] string fileId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteFileAsync(fileId, cancellationToken));
@@ -239,8 +239,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpPut("{accountId}/gallery/icon")]
     [ProducesResponseType<SetUserIconResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SetUserIcon([FromRoute] string accountId, [FromBody] SetUserIconBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -255,8 +255,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/gallery/prints")]
     [ProducesResponseType<GalleryPrints>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListPrints([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -272,8 +272,8 @@ public sealed partial class AccountToolsController
     [HttpPost("{accountId}/gallery/prints")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<VrchatPrint>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UploadPrint([FromRoute] string accountId, [FromForm] PrintUploadForm form, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -287,8 +287,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpDelete("{accountId}/gallery/prints/{printId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeletePrint([FromRoute] string accountId, [FromRoute] string printId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeletePrintAsync(printId, cancellationToken));
@@ -298,7 +298,7 @@ public sealed partial class AccountToolsController
     /// <response code="404">Unknown account</response>
     [HttpPut("{accountId}/gallery/prints/{printId}/favorite")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> AddPrintFavorite([FromRoute] string accountId, [FromRoute] string printId, CancellationToken cancellationToken)
     {
@@ -323,8 +323,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/inventory")]
     [ProducesResponseType<IEnumerable<InventoryItem>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ListInventory([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetAllInventoryAsync(cancellationToken));
@@ -334,8 +334,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/inventory/{inventoryId}/consume")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ConsumeInventoryBundle([FromRoute] string accountId, [FromRoute] string inventoryId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.ConsumeInventoryBundleAsync(inventoryId, cancellationToken));
@@ -345,8 +345,8 @@ public sealed partial class AccountToolsController
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/inventory/redeem")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> RedeemReward([FromRoute] string accountId, [FromBody] RedeemRewardBody body, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.RedeemRewardAsync(body.Code.Trim(), cancellationToken));

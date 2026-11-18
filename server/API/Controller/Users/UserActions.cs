@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Vrchat;
@@ -26,8 +26,8 @@ public sealed partial class AccountUsersController
     /// <response code="502">VRChat refused</response>
     [HttpPut("{accountId}/badges/{badgeId}")]
     [ProducesResponseType<Badge>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UpdateBadge([FromRoute] string accountId, [FromRoute] string badgeId, [FromBody] UpdateBadgeBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -44,8 +44,8 @@ public sealed partial class AccountUsersController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/users/{userId}/relationship")]
     [ProducesResponseType<UserRelationshipResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetUserRelationship([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -67,8 +67,8 @@ public sealed partial class AccountUsersController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/invite-requests/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SendRequestInvite([FromRoute] string accountId, [FromRoute] string userId, [FromBody(EmptyBodyBehavior = Microsoft.AspNetCore.Mvc.ModelBinding.EmptyBodyBehavior.Allow)] RequestInviteBody? body, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.SendRequestInviteAsync(userId, body?.RequestSlot, cancellationToken));
@@ -79,8 +79,8 @@ public sealed partial class AccountUsersController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/invites/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SendInvite([FromRoute] string accountId, [FromRoute] string userId, [FromBody] SendInviteBody body, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.SendInstanceInviteAsync(userId, body.Location, body.WorldName, body.MessageSlot, cancellationToken));
@@ -91,8 +91,8 @@ public sealed partial class AccountUsersController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/users/{userId}/boop")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SendBoop([FromRoute] string accountId, [FromRoute] string userId, [FromBody] BoopBody body, CancellationToken cancellationToken) =>
         Done(await notificationActions.SendBoopAsync(accountId, userId, body.EmojiId, cancellationToken));
@@ -103,8 +103,8 @@ public sealed partial class AccountUsersController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/friend-requests/{userId}/accept")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> AcceptFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         Done(await notificationActions.AcceptFriendRequestFromAsync(accountId, userId, cancellationToken));
@@ -115,8 +115,8 @@ public sealed partial class AccountUsersController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/friend-requests/{userId}/decline")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> DeclineFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         Done(await notificationActions.DeclineFriendRequestFromAsync(accountId, userId, cancellationToken));

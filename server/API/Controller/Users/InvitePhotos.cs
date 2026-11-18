@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Services.Ingestion;
 
 namespace VRCX.API.Controller.Users;
@@ -39,8 +39,8 @@ public sealed partial class AccountUsersController
     [HttpPost("{accountId}/invites/{userId}/photo")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SendInvitePhoto([FromRoute] string accountId, [FromRoute] string userId, [FromForm] InvitePhotoForm form, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
@@ -58,8 +58,8 @@ public sealed partial class AccountUsersController
     [HttpPost("{accountId}/invite-requests/{userId}/photo")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SendRequestInvitePhoto([FromRoute] string accountId, [FromRoute] string userId, [FromForm] RequestInvitePhotoForm form, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
@@ -77,8 +77,8 @@ public sealed partial class AccountUsersController
     [HttpPost("{accountId}/notifications/{notificationId}/invite-response/photo")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SendInviteResponsePhoto([FromRoute] string accountId, [FromRoute] string notificationId, [FromForm] InviteResponsePhotoForm form, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>

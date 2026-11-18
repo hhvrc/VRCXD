@@ -1,6 +1,6 @@
 using System.Net;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Accounts;
 using VRCX.Common.Services.Ingestion;
@@ -24,8 +24,8 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
     /// Fetches every notification and ignored friend request from VRChat again. A refresh asked for
     /// while one runs, or while the account backs off after a 429, does nothing and still succeeds.
     /// </summary>
-    public Task<OpenShockProblem?> RefreshAsync(string accountId, CancellationToken ct) =>
-        gate.RunAsync<OpenShockProblem?>(accountId, () => runner.RunAsync(accountId, async client =>
+    public Task<VrcxProblem?> RefreshAsync(string accountId, CancellationToken ct) =>
+        gate.RunAsync<VrcxProblem?>(accountId, () => runner.RunAsync(accountId, async client =>
         {
             try
             {
@@ -70,7 +70,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
     }
 
     /// <summary>Tells VRChat the unseen notifications have been seen.</summary>
-    public Task<OpenShockProblem?> SeeAllAsync(string accountId, CancellationToken ct) =>
+    public Task<VrcxProblem?> SeeAllAsync(string accountId, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             var unseen = await db.Notifications.Where(n => n.OwnerUserId == accountId && !n.Seen && !n.Hidden).ToListAsync(ct);
@@ -86,7 +86,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
     /// Tells VRChat one notification has been seen, as the notification center does for each one it
     /// showed. One that is already seen needs no session and no call.
     /// </summary>
-    public async Task<OpenShockProblem?> SeeAsync(string accountId, string notificationId, CancellationToken ct)
+    public async Task<VrcxProblem?> SeeAsync(string accountId, string notificationId, CancellationToken ct)
     {
         var row = await db.Notifications.FirstOrDefaultAsync(n => n.OwnerUserId == accountId && n.Id == notificationId, ct);
         if (row is null) return AccountError.NotificationNotFound;
@@ -113,7 +113,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
     }
 
     /// <summary>Accepts the friend request in a notification.</summary>
-    public Task<OpenShockProblem?> AcceptAsync(string accountId, string notificationId, CancellationToken ct) =>
+    public Task<VrcxProblem?> AcceptAsync(string accountId, string notificationId, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             try
@@ -129,7 +129,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
         }, ct);
 
     /// <summary>Declines a notification on VRChat. The row stays in the log, marked hidden.</summary>
-    public async Task<OpenShockProblem?> HideAsync(string accountId, string notificationId, CancellationToken ct)
+    public async Task<VrcxProblem?> HideAsync(string accountId, string notificationId, CancellationToken ct)
     {
         var row = await db.Notifications.FirstOrDefaultAsync(n => n.OwnerUserId == accountId && n.Id == notificationId, ct);
         if (row is null) return AccountError.NotificationNotFound;
@@ -147,7 +147,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
     /// Answers a notification with one of the responses VRChat offered on it. When VRChat refuses,
     /// the notification is hidden there instead and still counts as answered, as the original does.
     /// </summary>
-    public Task<OpenShockProblem?> RespondAsync(string accountId, string notificationId, string responseType, string responseData, CancellationToken ct) =>
+    public Task<VrcxProblem?> RespondAsync(string accountId, string notificationId, string responseType, string responseData, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             try
@@ -175,7 +175,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
         }, ct);
 
     /// <summary>Answers an invite or invite request with a saved message, then hides it.</summary>
-    public Task<OpenShockProblem?> SendInviteResponseAsync(string accountId, string notificationId, int responseSlot, CancellationToken ct) =>
+    public Task<VrcxProblem?> SendInviteResponseAsync(string accountId, string notificationId, int responseSlot, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             await client.SendInviteResponseAsync(notificationId, responseSlot, ct);
@@ -185,7 +185,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
         }, ct);
 
     /// <summary>Takes a notification off the page. The row stays in the database.</summary>
-    public async Task<OpenShockProblem?> RemoveFromLogAsync(string accountId, string notificationId, CancellationToken ct) =>
+    public async Task<VrcxProblem?> RemoveFromLogAsync(string accountId, string notificationId, CancellationToken ct) =>
         await writer.RemoveFromLogAsync(db, accountId, notificationId, ct) ? null : AccountError.NotificationNotFound;
 
     /// <summary>A notification was answered on VRChat by something other than this class: the row is hidden here.</summary>
@@ -199,7 +199,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
     /// Boops a user. As the original's SendBoopDialog: booping back hides the boops this user sent
     /// that are still open, before sending.
     /// </summary>
-    public Task<OpenShockProblem?> SendBoopAsync(string accountId, string userId, string? emojiId, CancellationToken ct) =>
+    public Task<VrcxProblem?> SendBoopAsync(string accountId, string userId, string? emojiId, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             var now = DateTimeOffset.UtcNow;
@@ -219,7 +219,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
         }, ct);
 
     /// <summary>Accepts a user's friend request. Without a stored notification this sends a request back, as the original does.</summary>
-    public Task<OpenShockProblem?> AcceptFriendRequestFromAsync(string accountId, string userId, CancellationToken ct) =>
+    public Task<VrcxProblem?> AcceptFriendRequestFromAsync(string accountId, string userId, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             var request = await FindFriendRequestAsync(accountId, userId, ct);
@@ -234,7 +234,7 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
         }, ct);
 
     /// <summary>Declines a user's friend request by hiding its notification. Without one, a request this account sent is withdrawn.</summary>
-    public Task<OpenShockProblem?> DeclineFriendRequestFromAsync(string accountId, string userId, CancellationToken ct) =>
+    public Task<VrcxProblem?> DeclineFriendRequestFromAsync(string accountId, string userId, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             var request = await FindFriendRequestAsync(accountId, userId, ct);

@@ -4,7 +4,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Features.Worlds;
 using VRCX.Vrchat;
@@ -22,8 +22,8 @@ public sealed partial class AccountWorldsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/worlds/{worldId}/live")]
     [ProducesResponseType<VRCX.Vrchat.Models.World>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetLiveWorld([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetWorldAsync(worldId, cancellationToken));
@@ -43,8 +43,8 @@ public sealed partial class AccountWorldsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/worlds/{worldId}/persist")]
     [ProducesResponseType<bool>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> HasWorldPersistData([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.HasWorldPersistDataAsync(accountId, worldId, cancellationToken));
@@ -55,8 +55,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/worlds/{worldId}/persist")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteWorldPersistData([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteWorldPersistDataAsync(accountId, worldId, cancellationToken));
@@ -66,8 +66,8 @@ public sealed partial class AccountWorldsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/worlds/{worldId}/rating")]
     [ProducesResponseType<VRCX.Vrchat.Models.WorldRating>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetWorldRating([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetWorldRatingAsync(worldId, cancellationToken));
@@ -83,8 +83,8 @@ public sealed partial class AccountWorldsController
     [HttpPut("{accountId}/worlds/{worldId}/rating")]
     [ProducesResponseType<VRCX.Vrchat.Models.WorldRating>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SetWorldRating([FromRoute] string accountId, [FromRoute] string worldId,
         [FromQuery][Required][RegularExpression("^(like|dislike)$")] string value, CancellationToken cancellationToken) =>
@@ -96,8 +96,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/worlds/{worldId}/rating")]
     [ProducesResponseType<VRCX.Vrchat.Models.WorldRating>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteWorldRating([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.DeleteWorldRatingAsync(worldId, cancellationToken));
@@ -108,8 +108,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpPut("{accountId}/worlds/{worldId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SaveWorld([FromRoute] string accountId, [FromRoute] string worldId, [FromBody] SaveWorldBody body, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
@@ -136,8 +136,8 @@ public sealed partial class AccountWorldsController
     [HttpPost("{accountId}/worlds/{worldId}/image")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<ContentImageResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ChangeWorldImage([FromRoute] string accountId, [FromRoute] string worldId, [FromForm] ContentImageForm form, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -152,8 +152,8 @@ public sealed partial class AccountWorldsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/worlds/{worldId}/store")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetWorldStore([FromRoute] string accountId, [FromRoute] string worldId, [FromQuery] string storeId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -170,8 +170,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpPut("{accountId}/worlds/{worldId}/publish")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> PublishWorld([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
@@ -186,8 +186,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/worlds/{worldId}/publish")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UnpublishWorld([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
@@ -202,8 +202,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/worlds/{worldId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteWorld([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteWorldAsync(worldId, cancellationToken));
@@ -214,8 +214,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpPut("{accountId}/home/{worldId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SetHome([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken) =>
         SaveHomeAsync(accountId, worldId, cancellationToken);
@@ -226,8 +226,8 @@ public sealed partial class AccountWorldsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/home")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ResetHome([FromRoute] string accountId, CancellationToken cancellationToken) =>
         SaveHomeAsync(accountId, "", cancellationToken);

@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
@@ -32,7 +32,7 @@ public sealed class ModerationController(AccountQueries accounts, ModerationQuer
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/moderations")]
     [ProducesResponseType<PlayerModerationResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListModerations([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -46,8 +46,8 @@ public sealed class ModerationController(AccountQueries accounts, ModerationQuer
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/moderations/{userId}/{type:regex(" + ModerationTypes + ")}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SendModeration([FromRoute] string accountId, [FromRoute] string userId, [FromRoute] string type, CancellationToken cancellationToken) =>
         Done(await actions.SendAsync(accountId, userId, type, cancellationToken));
@@ -58,8 +58,8 @@ public sealed class ModerationController(AccountQueries accounts, ModerationQuer
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/moderations/{userId}/{type:regex(" + AllModerationTypes + ")}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> DeleteModeration([FromRoute] string accountId, [FromRoute] string userId, [FromRoute] string type, CancellationToken cancellationToken) =>
         Done(await actions.DeleteAsync(accountId, userId, type, cancellationToken));
@@ -70,8 +70,8 @@ public sealed class ModerationController(AccountQueries accounts, ModerationQuer
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/moderations/{type:regex(" + AllModerationTypes + ")}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ClearModerations([FromRoute] string accountId, [FromRoute] string type, CancellationToken cancellationToken) =>
         Done(await actions.ClearAsync(accountId, type, cancellationToken));
@@ -82,11 +82,11 @@ public sealed class ModerationController(AccountQueries accounts, ModerationQuer
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/moderations/refresh")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RefreshModerations([FromRoute] string accountId, CancellationToken cancellationToken) =>
         Done(await actions.RefreshAsync(accountId, cancellationToken));
 
-    private IActionResult Done(OpenShockProblem? problem) => problem is null ? NoContent() : Problem(problem);
+    private IActionResult Done(VrcxProblem? problem) => problem is null ? NoContent() : Problem(problem);
 }

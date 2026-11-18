@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
@@ -26,7 +26,7 @@ public sealed class AvatarHistoryController(AvatarHistory history) : VrcxControl
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/avatar-history")]
     [ProducesResponseType<IReadOnlyList<AvatarHistoryEntry>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetAvatarHistory([FromRoute] string accountId, CancellationToken cancellationToken) =>
         await history.ListAsync(accountId, cancellationToken) is { } entries ? Ok(entries) : Problem(AccountError.AccountNotFound);
@@ -36,7 +36,7 @@ public sealed class AvatarHistoryController(AvatarHistory history) : VrcxControl
     /// <response code="404">No such account</response>
     [HttpDelete("{accountId}/avatar-history")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ClearAvatarHistory([FromRoute] string accountId, CancellationToken cancellationToken) =>
         await history.ClearAsync(accountId, cancellationToken) ? NoContent() : Problem(AccountError.AccountNotFound);
@@ -46,7 +46,7 @@ public sealed class AvatarHistoryController(AvatarHistory history) : VrcxControl
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/avatars/{avatarId}/exists")]
     [ProducesResponseType<AvatarExistsResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> AvatarExists([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken)
     {

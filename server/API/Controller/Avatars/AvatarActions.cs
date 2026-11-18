@@ -3,7 +3,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
 using VRCX.Vrchat;
@@ -31,9 +31,9 @@ public sealed partial class AccountAvatarsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/avatars/{avatarId}/details")]
     [ProducesResponseType<AvatarDetailsResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetAvatarDetails([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken)
     {
@@ -69,8 +69,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/avatars/{avatarId}/block")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> BlockAvatar([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.BlockAvatarAsync(avatarId, cancellationToken));
@@ -81,8 +81,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/avatars/{avatarId}/block")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UnblockAvatar([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.UnblockAvatarAsync(avatarId, cancellationToken));
@@ -93,8 +93,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="502">VRChat refused</response>
     [HttpPost("{accountId}/avatars/{avatarId}/fallback")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SelectFallbackAvatar([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.SelectFallbackAvatarAsync(avatarId, cancellationToken));
@@ -105,8 +105,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="502">VRChat refused</response>
     [HttpPut("{accountId}/avatars/{avatarId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SaveAvatar([FromRoute] string accountId, [FromRoute] string avatarId, [FromBody] SaveAvatarBody body, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
@@ -131,8 +131,8 @@ public sealed partial class AccountAvatarsController
     [HttpPost("{accountId}/avatars/{avatarId}/image")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<ContentImageResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> ChangeAvatarImage([FromRoute] string accountId, [FromRoute] string avatarId, [FromForm] ContentImageForm form, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -147,8 +147,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/avatars/{avatarId}/gallery")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetAvatarGallery([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetJsonAsync("files",
@@ -160,8 +160,8 @@ public sealed partial class AccountAvatarsController
     [HttpPost("{accountId}/avatars/{avatarId}/gallery")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType<UserFile>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> UploadAvatarGalleryImage([FromRoute] string accountId, [FromRoute] string avatarId, [FromForm] AvatarGalleryUploadForm form, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
@@ -176,8 +176,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="502">VRChat refused</response>
     [HttpPut("{accountId}/avatars/{avatarId}/gallery/order")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> SetAvatarGalleryOrder([FromRoute] string accountId, [FromRoute] string avatarId, [FromBody] GalleryOrderBody body, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.SetFileOrderAsync(body.Ids, avatarId, cancellationToken));
@@ -187,8 +187,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/avatar-styles")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetAvatarStyles([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetJsonAsync("avatarStyles", [], cancellationToken));
@@ -199,8 +199,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/avatars/{avatarId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteAvatar([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
@@ -215,8 +215,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="502">VRChat refused</response>
     [HttpDelete("{accountId}/avatars/{avatarId}/impostor")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> DeleteImpostor([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         RunAsync(accountId, client => client.DeleteImpostorAsync(avatarId, cancellationToken));

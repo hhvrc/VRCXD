@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Options;
 using VRCX.Common.Services.Sessions;
@@ -31,7 +31,7 @@ public sealed class AccountLogin(
     {
         var vrchatOptions = services.GetService<VrchatOptions>() ?? new VrchatOptions();
         if (!VrchatEndpoint.TryParse(endpointAddress, websocketAddress, vrchatOptions.EndpointHosts, out var endpoint, out var endpointError))
-            return new OpenShockProblem("Login.InvalidEndpoint", "The custom endpoint is not allowed", System.Net.HttpStatusCode.BadRequest, endpointError);
+            return new VrcxProblem("Login.InvalidEndpoint", "The custom endpoint is not allowed", System.Net.HttpStatusCode.BadRequest, endpointError);
 
         // The original's Save Credentials: with the primary password on, the password is encrypted
         // with it, and a wrong one stops the login before VRChat is asked.
@@ -137,7 +137,7 @@ public sealed class AccountLogin(
     public void AbandonDeviceLogin(string pendingId) => sessions.AbandonPending(pendingId);
 
     /// <summary>The original's Forgot Password: VRChat mails a password recovery link to the address.</summary>
-    public async Task<OpenShockProblem?> RequestPasswordResetAsync(string email, CancellationToken cancellationToken)
+    public async Task<VrcxProblem?> RequestPasswordResetAsync(string email, CancellationToken cancellationToken)
     {
         try
         {
@@ -152,7 +152,7 @@ public sealed class AccountLogin(
     }
 
     /// <summary>Logs an account out: drops its VRChat session here and on VRChat's side. Its history stays.</summary>
-    public async Task<OpenShockProblem?> LogoutAsync(string accountId, CancellationToken cancellationToken)
+    public async Task<VrcxProblem?> LogoutAsync(string accountId, CancellationToken cancellationToken)
     {
         if (!await db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return AccountError.AccountNotFound;
         await sessions.LogoutAsync(accountId, cancellationToken);
@@ -212,7 +212,7 @@ public sealed class AccountLogin(
     /// The original's saved account delete: forgets the saved password and logs the session out. Its
     /// history stays. With no saved account left the primary password turns off.
     /// </summary>
-    public async Task<OpenShockProblem?> DeleteSavedLoginAsync(string accountId, CancellationToken cancellationToken)
+    public async Task<VrcxProblem?> DeleteSavedLoginAsync(string accountId, CancellationToken cancellationToken)
     {
         if (!await db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return AccountError.AccountNotFound;
         await credentials.DeleteAsync(accountId, cancellationToken);
@@ -228,7 +228,7 @@ public sealed class AccountLogin(
     /// the server can no longer log in again by itself. Off: needs it, and decrypts them again.
     /// Answers the problem, or null when the setting is now <paramref name="enabled"/>.
     /// </summary>
-    public async Task<OpenShockProblem?> SetPrimaryPasswordAsync(bool enabled, string password, CancellationToken cancellationToken)
+    public async Task<VrcxProblem?> SetPrimaryPasswordAsync(bool enabled, string password, CancellationToken cancellationToken)
     {
         var current = await credentials.PrimaryPasswordEnabledAsync(cancellationToken);
         if (enabled && current) return SavedLoginError.PrimaryPasswordAlreadyEnabled;

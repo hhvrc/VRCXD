@@ -3,7 +3,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
@@ -35,7 +35,7 @@ public sealed partial class AccountDesktopController
     /// <response code="200">{"exists": bool, "json": "the file"}</response>
     [HttpGet("{accountId}/agent/vrchat-config")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentReadVrchatConfig([FromRoute] string accountId, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.VrchatConfig, new ClientAction { ReadVrchatConfig = new LogNoData() }, cancellationToken);
@@ -43,7 +43,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Writes VRChat's config.json on the PC (WriteConfigFile); a JSON object only.</summary>
     [HttpPut("{accountId}/agent/vrchat-config")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentWriteVrchatConfig([FromRoute] string accountId, [FromBody] VrchatConfigBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.VrchatConfig, new ClientAction { WriteVrchatConfig = new WriteVrchatConfig { Json = body.Json } }, cancellationToken);
@@ -51,7 +51,7 @@ public sealed partial class AccountDesktopController
     /// <summary>VRChat's whole registry on the PC (GetVRChatRegistry); 404 when VRChat has none.</summary>
     [HttpGet("{accountId}/agent/vrchat-registry")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentReadVrchatRegistry([FromRoute] string accountId, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.Registry, new ClientAction { ReadVrchatRegistry = new LogNoData() }, cancellationToken);
@@ -59,7 +59,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Writes a backup into VRChat's registry (SetVRChatRegistry), e.g. one restored from a file.</summary>
     [HttpPost("{accountId}/agent/vrchat-registry/restore")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentRestoreVrchatRegistry([FromRoute] string accountId, [FromBody] RegistryRestoreBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.Registry,
@@ -68,7 +68,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Deletes VRChat's registry key on the PC (DeleteVRChatRegistryFolder): VRChat starts over with its defaults.</summary>
     [HttpPost("{accountId}/agent/vrchat-registry/delete")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentDeleteVrchatRegistry([FromRoute] string accountId, [FromBody] ConfirmBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.Registry, new ClientAction { DeleteVrchatRegistry = new Confirm { Confirm_ = body.Confirm } }, cancellationToken);
@@ -84,7 +84,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Sets one PlayerPrefs value (SetVRChatRegistryKey); 404 when VRChat has no registry key yet.</summary>
     [HttpPut("{accountId}/agent/vrchat-registry/keys/{key}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentSetVrchatRegistryKey([FromRoute] string accountId, [FromRoute] string key, [FromBody] RegistryKeyBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.Registry,
@@ -102,7 +102,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Hides (4) or shows (5) a user's avatar, or 0 to go back to the default (SetVRChatUserModeration).</summary>
     [HttpPut("{accountId}/agent/local-moderations/{userId}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentSetLocalModeration([FromRoute] string accountId, [FromRoute] string userId, [FromBody] LocalModerationBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.LocalModerations,
@@ -120,7 +120,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Backs up the PC's registry now under a name (backupVrcRegistry).</summary>
     [HttpPost("{accountId}/registry-backups")]
     [ProducesResponseType<RegistryBackupResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> CreateRegistryBackup([FromRoute] string accountId, [FromBody] RegistryBackupBody body, [FromServices] DesktopClients desktops, [FromServices] RegistryBackups backups, CancellationToken cancellationToken)
     {
@@ -136,7 +136,7 @@ public sealed partial class AccountDesktopController
     /// <summary>Writes a kept backup back into the PC's registry (restoreVrcRegistryBackup).</summary>
     [HttpPost("{accountId}/registry-backups/{id:long}/restore")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RestoreRegistryBackup([FromRoute] string accountId, [FromRoute] long id, [FromBody] ConfirmBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken)
     {

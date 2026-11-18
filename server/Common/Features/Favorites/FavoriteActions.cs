@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Features.Accounts;
 using VRCX.Common.Services;
 using VRCX.Common.Services.Ingestion;
@@ -61,15 +61,15 @@ public sealed class FavoriteActions(VrcxContext db, AccountSessionRunner runner,
     }
 
     /// <summary>Adds a favorite to one of VRChat's groups.</summary>
-    public Task<OpenShockProblem?> AddAsync(string accountId, string type, string targetId, string group, CancellationToken ct) =>
+    public Task<VrcxProblem?> AddAsync(string accountId, string type, string targetId, string group, CancellationToken ct) =>
         runner.RunAsync(accountId, _ => sync.AddFavoriteAsync(accountId, type, targetId, group, ct), ct);
 
     /// <summary>Takes something out of VRChat's favorites.</summary>
-    public Task<OpenShockProblem?> RemoveAsync(string accountId, string targetId, CancellationToken ct) =>
+    public Task<VrcxProblem?> RemoveAsync(string accountId, string targetId, CancellationToken ct) =>
         runner.RunAsync(accountId, _ => sync.RemoveFavoriteAsync(accountId, targetId, ct), ct);
 
     /// <summary>Reads every favorite from VRChat again.</summary>
-    public Task<OpenShockProblem?> RefreshAsync(string accountId, CancellationToken ct) =>
+    public Task<VrcxProblem?> RefreshAsync(string accountId, CancellationToken ct) =>
         runner.RunAsync(accountId, _ => sync.SyncFavoritesAsync(accountId, ct), ct);
 
     /// <summary>
@@ -97,7 +97,7 @@ public sealed class FavoriteActions(VrcxContext db, AccountSessionRunner runner,
         }, ct);
 
     /// <summary>Renames a VRChat favorite group or changes its visibility.</summary>
-    public Task<OpenShockProblem?> SaveGroupAsync(string accountId, string type, string name, string? displayName, string? visibility, CancellationToken ct) =>
+    public Task<VrcxProblem?> SaveGroupAsync(string accountId, string type, string name, string? displayName, string? visibility, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             var saved = await client.SaveFavoriteGroupAsync(type, name, accountId, displayName?.Trim(), visibility, ct);
@@ -114,7 +114,7 @@ public sealed class FavoriteActions(VrcxContext db, AccountSessionRunner runner,
         }, ct);
 
     /// <summary>Empties a VRChat favorite group, then reads the favorites again.</summary>
-    public Task<OpenShockProblem?> ClearGroupAsync(string accountId, string type, string name, CancellationToken ct) =>
+    public Task<VrcxProblem?> ClearGroupAsync(string accountId, string type, string name, CancellationToken ct) =>
         runner.RunAsync(accountId, async client =>
         {
             await client.ClearFavoriteGroupAsync(type, name, accountId, ct);

@@ -3,7 +3,7 @@ using System.Net.Mime;
 using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 
 namespace VRCX.API.Controller.Groups;
 
@@ -21,8 +21,8 @@ public sealed partial class AccountGroupsController
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/groups/{groupId}/transfer")]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> CheckGroupTransfer([FromRoute] string accountId, [FromRoute] string groupId, [FromQuery, Required] string transferTargetId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetGroupTransferabilityAsync(groupId, transferTargetId, cancellationToken));
@@ -33,8 +33,8 @@ public sealed partial class AccountGroupsController
     [HttpPost("{accountId}/groups/{groupId}/transfer")]
     [Consumes(MediaTypeNames.Application.Json)]
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> TransferGroup([FromRoute] string accountId, [FromRoute] string groupId, [FromBody] GroupTransferBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.TransferGroupAsync(groupId, body.TransferTargetId, cancellationToken));

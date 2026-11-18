@@ -58,6 +58,14 @@ public sealed class VrchatOptions
 /// <summary>VRCX:Metrics - networks allowed to read /metrics and /health. Private ranges by default.</summary>
 public sealed class MetricsOptions
 {
+    /// <summary>Loopback and the private IPv4 and IPv6 ranges: the networks allowed when none are configured.</summary>
+    public static readonly IReadOnlyList<string> PrivateNetworks =
+    [
+        "127.0.0.0/8", "::1/128", "::ffff:127.0.0.0/8",
+        "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+        "fc00::/7", "fe80::/10",
+    ];
+
     public IReadOnlyList<string> AllowedNetworks { get; init; } = [];
 }
 

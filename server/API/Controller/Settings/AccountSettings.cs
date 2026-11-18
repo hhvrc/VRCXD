@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Feed;
 using VRCX.Common.VrcxDb;
@@ -21,7 +21,7 @@ public sealed partial class AccountSettingsController
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/settings")]
     [ProducesResponseType<AccountSettings>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetSettings([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -49,7 +49,7 @@ public sealed partial class AccountSettingsController
     /// <response code="404">No such account</response>
     [HttpPut("{accountId}/settings")]
     [ProducesResponseType<AccountSettings>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> PutSettings([FromRoute] string accountId, [FromBody] AccountSettings body, [FromServices] VRCX.Common.Services.Live.AgentSettingsPush agentSettings, [FromServices] VRCX.Common.Services.Live.DiscordPresenceService discordPresence, [FromServices] VRCX.Common.Services.Live.Photon.PhotonService photon, CancellationToken cancellationToken)
     {

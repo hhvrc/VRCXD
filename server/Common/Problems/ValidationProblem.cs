@@ -1,10 +1,9 @@
 using System.Net;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using OpenShock.Internal.Common.Problems;
 
 namespace VRCX.Common.Problems;
 
-public sealed class ValidationProblem : OpenShockProblem
+public sealed class ValidationProblem : VrcxProblem
 {
     public ValidationProblem(ModelStateDictionary state) : base("Validation.Error",
         "One or more validation errors occurred", HttpStatusCode.BadRequest, null)

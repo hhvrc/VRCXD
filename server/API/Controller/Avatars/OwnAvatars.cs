@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Net.Mime;
 using Microsoft.AspNetCore.Mvc;
 using Asp.Versioning;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Avatars;
@@ -44,7 +44,7 @@ public sealed partial class AccountAvatarsController
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/avatars")]
     [ProducesResponseType<OwnAvatarResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListOwnAvatars([FromRoute] string accountId, CancellationToken cancellationToken, [FromQuery] bool refresh = false)
     {
@@ -59,8 +59,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/avatars/{avatarId}/select")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> SelectAvatar([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         await ownAvatars.SelectAsync(accountId, avatarId, cancellationToken) is { } problem ? Problem(problem) : NoContent();
@@ -71,8 +71,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="409">No live session</response>
     [HttpPatch("{accountId}/avatars/{avatarId}")]
     [ProducesResponseType<AvatarResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> UpdateAvatar([FromRoute] string accountId, [FromRoute] string avatarId, [FromBody] UpdateAvatarRequest body, CancellationToken cancellationToken)
     {
@@ -86,8 +86,8 @@ public sealed partial class AccountAvatarsController
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/avatars/{avatarId}/impostor")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> CreateImpostor([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken) =>
         await ownAvatars.CreateImpostorAsync(accountId, avatarId, cancellationToken) is { } problem ? Problem(problem) : Accepted();
@@ -97,7 +97,7 @@ public sealed partial class AccountAvatarsController
     /// <response code="404">No such account or avatar</response>
     [HttpPut("{accountId}/avatars/{avatarId}/tags")]
     [ProducesResponseType<OwnAvatarTag[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> PutAvatarTags([FromRoute] string accountId, [FromRoute] string avatarId, [FromBody] OwnAvatarTag[] body, CancellationToken cancellationToken)
     {
@@ -109,7 +109,7 @@ public sealed partial class AccountAvatarsController
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/avatars/lookup")]
     [ProducesResponseType<AvatarLookupResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> LookupAvatar([FromRoute] string accountId, [FromQuery] string imageUrl, [FromQuery] string? userId, CancellationToken cancellationToken) =>
         await ownAvatars.LookupAsync(accountId, imageUrl, userId, cancellationToken) is { } found ? Ok(found) : Problem(AccountError.AccountNotFound);

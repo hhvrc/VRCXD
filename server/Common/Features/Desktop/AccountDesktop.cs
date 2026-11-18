@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common.Errors;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;

@@ -10,9 +10,9 @@ are different:
 - **The backend is laid out like [OpenShock/API](https://github.com/OpenShock/API)**: a `Common`
   library holding the EF Core context, options, services, errors and the shared host wiring;
   an `API` host built on it; a `MigrationHelper` for `dotnet ef`; unit tests against `Common`
-  and integration tests that boot the real host with `WebApplicationFactory`. The
-  `OpenShock.Internal.*` packages supply problem details, the exception handler and the
-  controller base.
+  and integration tests that boot the real host with `WebApplicationFactory`. The problem
+  details, the exception handler and the controller base follow OpenShock's, as VRCXD's own
+  code (`Common/Problems/VrcxProblem.cs`, `Common/ExceptionHandling/`).
 
 Everything server-side is **one process** (`API`): the HTTP API, the pipeline websocket
 listener per account, and the Hangfire recurring jobs that pull from VRChat. There is no
@@ -160,7 +160,7 @@ with the API token as a header (`Authorization: Bearer <token>` or `VrcxToken: <
 `?token=` query is refused). For example, for Claude Code:
 
 ```sh
-claude mcp add --transport http vrcxd http://<nas>:5280/1/mcp --header "Authorization: Bearer <token>"
+claude mcp add --transport http vrcxd http://<server>:5280/1/mcp --header "Authorization: Bearer <token>"
 ```
 
 Version 1 is read-only plus memos: the tools read Postgres and Redis and never call VRChat (so
@@ -190,7 +190,7 @@ The stack is five containers: Postgres, Redis, the API, the web client (Caddy se
 build and proxying `/1/...` to the API, websocket included) and a nightly database dump. Browsers
 and the agent both use the web container's address; the API itself is not published.
 
-On the NAS, with Docker Compose:
+On the machine that runs the server, with Docker Compose:
 
 ```sh
 git clone https://github.com/hhvrc/VRCXD && cd VRCXD/server
@@ -199,8 +199,8 @@ docker compose up -d --build                  # build here, or
 docker compose pull && docker compose up -d   # use the images CI publishes from master
 ```
 
-Then open `http://<nas>:5280`, enter the token, and log in to VRChat. On the gaming PC, give the
-agent the same `http://<nas>:5280` and the same token (`agent/README.md`).
+Then open `http://<server>:5280`, enter the token, and log in to VRChat. On the PC that runs VRChat, give the
+agent the same `http://<server>:5280` and the same token (`agent/README.md`).
 
 | Folder (next to the compose file) | Holds | Back it up? |
 |---|---|---|
@@ -212,7 +212,7 @@ agent the same `http://<nas>:5280` and the same token (`agent/README.md`).
 Restore a dump into an empty database:
 `docker compose exec -T db pg_restore -U vrcx -d vrcx --clean --if-exists < backups/vrcx-....dump`
 
-HTTPS: set `VRCX_SITE` to a domain that points at the NAS and forward ports 80 and 443 to
+HTTPS: set `VRCX_SITE` to a domain that points at the server and forward ports 80 and 443 to
 `VRCX_PORT` and `VRCX_HTTPS_PORT`; Caddy fetches and renews the certificate. Without that the
 token travels in plain HTTP, so keep `VRCX_BIND` on the LAN address and do not forward the port.
 

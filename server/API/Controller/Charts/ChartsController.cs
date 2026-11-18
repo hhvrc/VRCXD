@@ -2,7 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using OpenShock.Internal.Common.Problems;
+using VRCX.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
@@ -29,7 +29,7 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/activity/dates")]
     [ProducesResponseType<DateTimeOffset[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetActivityDates([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -42,7 +42,7 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/activity")]
     [ProducesResponseType<InstanceActivity>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetActivity([FromRoute] string accountId, [FromQuery] DateTimeOffset from, [FromQuery] DateTimeOffset to, CancellationToken cancellationToken)
     {
@@ -59,7 +59,7 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/hot-worlds")]
     [ProducesResponseType<HotWorld[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetHotWorlds([FromRoute] string accountId, [FromQuery] int days, [FromQuery] int limit, CancellationToken cancellationToken)
     {
@@ -72,7 +72,7 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/hot-worlds/{worldId}/friends")]
     [ProducesResponseType<HotWorldFriend[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetHotWorldFriends([FromRoute] string accountId, [FromRoute] string worldId, [FromQuery] int days, CancellationToken cancellationToken)
     {
@@ -85,7 +85,7 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/mutuals")]
     [ProducesResponseType<MutualGraphSnapshot>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetMutualGraph([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -106,8 +106,8 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     /// <response code="409">Already running, or no live session</response>
     [HttpPost("{accountId}/mutuals/fetch")]
     [ProducesResponseType(StatusCodes.Status202Accepted)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> StartMutualGraphFetch([FromRoute] string accountId, CancellationToken cancellationToken)
     {
@@ -134,8 +134,8 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     /// <response code="409">No live session</response>
     [HttpPost("{accountId}/mutuals/{userId}/refresh")]
     [ProducesResponseType<MutualRefreshResult>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RefreshMutuals([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken)
     {
