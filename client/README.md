@@ -1,8 +1,8 @@
 # VRCXD web client (SvelteKit)
 
-The browser UI for the server in `../Server`, and the eventual replacement for the
-Electron/CefSharp client in `Dotnet/`/`src/`. Opened from any device on the LAN/VPN; the
-gaming PC runs the Qt app in `../desktop` instead, which only ships game logs.
+The browser UI for the server in `../server`, and the replacement for the original
+Electron/CefSharp client (now in `../legacy`). Opened from any device on the LAN/VPN; the
+gaming PC runs the agent in `../agent`, which ships game logs and does what needs the PC.
 
 - **Frontend**: SvelteKit, fully prerendered (`export const prerender = true` in
   `src/routes/+layout.ts`) via `@sveltejs/adapter-static`. All dynamic data comes from the

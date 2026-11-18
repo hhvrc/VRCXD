@@ -28,8 +28,8 @@ tracking all the time on a separate machine. A database from VRCX can be importe
 | Web client | `client/` | SvelteKit, built to a static site and served by Caddy next to the API. The UI: friends, feed, friend log, game log, notifications, favorites, charts, tools and settings. |
 | Agent | `agent/` | A small headless Rust program for the gaming PC, with no window of its own. Reads VRChat's log and ships it to the server, runs the actions that need the PC (launching VRChat, joining an instance, writing screenshot metadata) and the original's named pipe for other programs. |
 
-`src/` and `Dotnet/` still hold the original VRCX code that is being ported, and `legacy/` holds
-the parts that are done.
+`legacy/` holds the original VRCX code the port was made from (its `src/`, `Dotnet/` and build
+files), kept for reference and for following upstream changes. Nothing in it is built or shipped.
 
 ## Getting started
 
