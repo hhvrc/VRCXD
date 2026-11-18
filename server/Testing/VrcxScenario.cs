@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ModelContextProtocol.Client;
 using VRCX.API.Jobs;
 using VRCX.API.Services;
 using VRCX.Common.Services.Ingestion;
@@ -25,6 +26,9 @@ public sealed record ScenarioOptions
 
     /// <summary>Extra service replacements, applied after the scenario's own (a fake image fetcher, say).</summary>
     public Action<Microsoft.Extensions.DependencyInjection.IServiceCollection>? ConfigureServices { get; init; }
+
+    /// <summary>Turn on the MCP endpoint (VRCX__MCP__ENABLED), which is off by default. See <see cref="VrcxScenario.ConnectMcpAsync"/>.</summary>
+    public bool EnableMcp { get; init; }
 }
 
 /// <summary>
@@ -94,7 +98,7 @@ public sealed class VrcxScenario : IAsyncDisposable
     private async Task StartHostAsync()
     {
         _host = await ScenarioHost.StartAsync(new ScenarioHostSettings(
-            _database.ConnectionString, _redis.ConnectionString, ApiToken, _imageDirectory, Vrchat, Time, Logs, _options.KestrelPort, _options.ConfigureServices, Syncs));
+            _database.ConnectionString, _redis.ConnectionString, ApiToken, _imageDirectory, Vrchat, Time, Logs, _options.KestrelPort, _options.ConfigureServices, Syncs, _options.EnableMcp));
         _pipelineService = null;
         _api = null;
     }
@@ -220,6 +224,26 @@ public sealed class VrcxScenario : IAsyncDisposable
             await desktop.SendLogAsync(GameLog.UserAuthenticated(account, name));
         }
         return desktop;
+    }
+
+    /// <summary>
+    /// An AI assistant's MCP client on /1/mcp (streamable HTTP), sending the API token as
+    /// <c>Authorization: Bearer</c> the way MCP clients do. Needs <see cref="ScenarioOptions.EnableMcp"/>.
+    /// </summary>
+    public async Task<McpClient> ConnectMcpAsync()
+    {
+        var http = CreateClient(authenticated: false);
+        http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ApiToken);
+        var transport = new HttpClientTransport(new HttpClientTransportOptions
+        {
+            Endpoint = new Uri(http.BaseAddress!, "/1/mcp"),
+            TransportMode = HttpTransportMode.StreamableHttp,
+            Name = "vrcx-scenario",
+        }, http, ownsHttpClient: true);
+        var client = await McpClient.CreateAsync(transport);
+        // The client closes its session; the transport owns the HttpClient.
+        lock (_sockets) _sockets.AddRange([client, transport]);
+        return client;
     }
 
     private async Task<System.Net.WebSockets.WebSocket> OpenSocketAsync()

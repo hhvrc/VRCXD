@@ -55,50 +55,6 @@ public sealed class PrimaryPasswordResponse
     public required bool Enabled { get; init; }
 }
 
-/// <summary>The picture to show for a user, in the original's userImage order. VRChat often sends no thumbnail for friends.</summary>
-public static class UserImage
-{
-    public static string? Pick(string? iconUrl, string? thumbnailUrl, string? imageUrl) =>
-        !string.IsNullOrEmpty(iconUrl) ? iconUrl
-        : !string.IsNullOrEmpty(thumbnailUrl) ? thumbnailUrl
-        : string.IsNullOrEmpty(imageUrl) ? null : imageUrl;
-}
-
-public sealed class FriendResponse
-{
-    public required int FriendNumber { get; init; }
-    public required DateTimeOffset FriendsSince { get; init; }
-    public required string UserId { get; init; }
-    public required string DisplayName { get; init; }
-    public required string TrustLevel { get; init; }
-    public required UserState State { get; init; }
-    public required string Status { get; init; }
-    public string? StatusDescription { get; init; }
-    public string? Location { get; init; }
-    public string? TravelingToLocation { get; init; }
-    /// <summary>When they arrived at Location.</summary>
-    public DateTimeOffset? LocationSince { get; init; }
-    /// <summary>When they last came online, went active or went offline (the original's $online_for and $offline_for).</summary>
-    public DateTimeOffset? OnlineFor { get; init; }
-    public DateTimeOffset? LastActivity { get; init; }
-    public DateTimeOffset? LastLogin { get; init; }
-    public string? ThumbnailImageUrl { get; init; }
-    public string[] Tags { get; init; } = [];
-    public string DeveloperType { get; init; } = "none";
-    /// <summary>VRChat's last_platform, for the mobile status dot.</summary>
-    public string? Platform { get; init; }
-    /// <summary>The first line of the account's memo on them, which the sidebar shows beside the name.</summary>
-    public string? Nickname { get; init; }
-    /// <summary>Reported offline but still inside the original's grace period, so still listed online.</summary>
-    public bool PendingOffline { get; init; }
-    /// <summary>For "consistent colors per user", as on the Friend List.</summary>
-    public int NameHue { get; init; }
-    /// <summary>The icon frame VRChat shows around their picture (an inventory template id).</summary>
-    public string? IconFrame { get; init; }
-    /// <summary>The friend's profile effect template id, drawn behind the Friends Locations card.</summary>
-    public string? ProfileEffect { get; init; }
-}
-
 /// <summary>One row of the Friend List page: everything its columns and search need.</summary>
 public sealed class FriendDetailResponse
 {
@@ -136,22 +92,6 @@ public sealed class FriendDetailsResponse
     public required IReadOnlyList<FriendDetailResponse> Friends { get; init; }
     /// <summary>The account has turned off sharing its connections, so mutuals can't be loaded.</summary>
     public required bool MutualOptOut { get; init; }
-}
-
-public sealed class FriendLogEntryResponse
-{
-    /// <summary>Stable row key: what a delete takes.</summary>
-    public required string Key { get; init; }
-    /// <summary>Friend, Unfriend, FriendRequest, CancelFriendRequest, DisplayName or TrustLevel.</summary>
-    public required string Type { get; init; }
-    public required DateTimeOffset CreatedAt { get; init; }
-    public required string UserId { get; init; }
-    /// <summary>Their name at the time.</summary>
-    public required string DisplayName { get; init; }
-    public string? PreviousDisplayName { get; init; }
-    public string? TrustLevel { get; init; }
-    public string? PreviousTrustLevel { get; init; }
-    public int? FriendNumber { get; init; }
 }
 
 public sealed class UserResponse
@@ -213,26 +153,6 @@ public sealed class UserResponse
     };
 
     private static string? NullIfEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
-}
-
-public sealed class UserHistoryResponse
-{
-    public required IReadOnlyList<UserDisplayNameChange> DisplayNames { get; init; }
-    public required IReadOnlyList<UserTrustChange> Trust { get; init; }
-    public required IReadOnlyList<UserStatusChange> Status { get; init; }
-    public required IReadOnlyList<UserBioChange> Bio { get; init; }
-    public required IReadOnlyList<UserAvatarChange> Avatars { get; init; }
-    public required IReadOnlyList<PresenceEvent> Presence { get; init; }
-    public required IReadOnlyList<VisitResponse> Visits { get; init; }
-}
-
-public sealed class VisitResponse
-{
-    public required string InstanceLocation { get; init; }
-    public required string WorldName { get; init; }
-    public required DateTimeOffset JoinedAt { get; init; }
-    public DateTimeOffset? LeftAt { get; init; }
-    public required VisitSource Source { get; init; }
 }
 
 public sealed class WorldResponse

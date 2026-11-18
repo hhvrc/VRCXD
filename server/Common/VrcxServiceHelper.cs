@@ -240,6 +240,15 @@ public static class VrcxServiceHelper
         services.AddSingleton<IImageFetcher, VrchatImageFetcher>();
         services.AddSingleton<ImageCache>();
 
+        // Read models over what is stored, per request on the request's context: the endpoints and
+        // the MCP tools share them, so neither carries query logic of its own.
+        services.AddScoped<VRCX.Common.Services.Queries.FriendQueries>();
+        services.AddScoped<VRCX.Common.Services.Queries.GameLogQueries>();
+        services.AddScoped<VRCX.Common.Services.Queries.PreviousInstanceQueries>();
+        services.AddScoped<VRCX.Common.Services.Queries.UserQueries>();
+        services.AddScoped<VRCX.Common.Services.Queries.AccountListQueries>();
+        services.AddScoped<MemoStore>();
+
         return services;
     }
 

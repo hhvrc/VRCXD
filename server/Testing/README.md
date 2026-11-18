@@ -40,7 +40,8 @@ public async Task A_friend_going_offline_is_held_until_the_delay_passes()
 Other things a scenario can do: `app.Api` (an authenticated `HttpClient` for `/1/...`),
 `app.CreateDbContext()` to arrange or inspect rows, `app.RestartAsync()` (a new server process
 over the same database, Redis and fake VRChat), `ScenarioOptions.ConfigureServices` to replace
-a service, and `ScenarioOptions.KestrelPort` for a real socket.
+a service, `ScenarioOptions.KestrelPort` for a real socket, and `ScenarioOptions.EnableMcp` with
+`app.ConnectMcpAsync()` for an MCP client on `/1/mcp` (the SDK's `McpClient`, token as a Bearer header).
 
 `server/API.IntegrationTests/IsolatedHost.cs` adapts a scenario to TUnit's `ClassDataSource`
 for the older test classes; new tests just `await using` a scenario.

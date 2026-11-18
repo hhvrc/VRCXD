@@ -1,0 +1,192 @@
+using System.ComponentModel;
+using Microsoft.EntityFrameworkCore;
+using ModelContextProtocol;
+using ModelContextProtocol.Server;
+using VRCX.Common.Services.Presence;
+using VRCX.Common.Services.Queries;
+using VRCX.Common.VrcxDb;
+
+namespace VRCX.API.Mcp;
+
+public sealed record McpUserCandidate(string UserId, string DisplayName, bool IsFriend, string MatchedOn, DateTimeOffset LastUpdatedAt);
+
+public sealed record McpUserCandidates(McpAccount Account, string Query, IReadOnlyList<McpUserCandidate> Candidates, bool Truncated);
+
+public sealed record McpPresence(string State, McpLocation? Location, McpLocation? TravelingTo, DateTimeOffset? StateSince, DateTimeOffset? LocationSince, string? Platform);
+
+public sealed record McpRelationship(bool IsFriend, int? FriendNumber, DateTimeOffset? FriendsSince, IReadOnlyList<FriendLogDate> FriendLog, IReadOnlyList<string> Moderations, string? Note);
+
+public sealed record McpTimeTogether(int JoinCount, long TimeTogetherMs, DateTimeOffset? LastSeen);
+
+public sealed record McpUser(
+    McpAccount Account, string Id, string DisplayName, string Status, string? StatusDescription, string TrustLevel, string? Pronouns,
+    string? Bio, IReadOnlyList<string> BioLinks, string? LastPlatform, DateTimeOffset? LastLogin, DateTimeOffset? LastActivity, DateOnly? DateJoined,
+    bool AgeVerified, bool IsStub, DateTimeOffset FirstSeenAt, DateTimeOffset UpdatedAt, DateTimeOffset? LastFullFetchAt,
+    McpPresence Presence, string? Memo, McpRelationship Relationship, McpTimeTogether TimeTogether);
+
+/// <summary>One change in a user's history. Only the fields of its kind are set.</summary>
+public sealed record McpUserChange(
+    DateTimeOffset At, string Kind, string? Value = null, string? PreviousValue = null, string? Detail = null, string? PreviousDetail = null,
+    McpLocation? Location = null, McpLocation? PreviousLocation = null, DateTimeOffset? LeftAt = null, string? Source = null);
+
+public sealed record McpUserHistory(string UserId, string DisplayName, IReadOnlyList<McpUserChange> Items, bool Truncated, DateTimeOffset? NextBefore);
+
+[McpServerToolType]
+public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPresenceCache presence, FriendQueries friends, UserQueries users)
+{
+    private static readonly string[] HistoryKinds = ["displayName", "trust", "status", "bio", "avatar", "presence", "visit"];
+
+    [McpServerTool(Name = "find_user", Title = "Find a user", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("""
+        Turn a name into usr_ ids: ranked candidates among users this server has stored, the
+        account's friends first. Matches the display name (exact, then starting with, then
+        containing, ignoring case), for friends also the account's memo and VRChat note on them, and
+        names a user had before. Only finds users the server has seen (friends, people met in
+        instances, notification senders); it does not search VRChat. Pass the chosen userId to
+        get_user and the other user tools.
+        """)]
+    public async Task<McpUserCandidates> FindUser(
+        [Description("Display name or part of one (or a usr_ id).")] string query,
+        [Description("usr_ id or display name of the logged-in account whose friends rank first; optional when only one account exists.")] string? account = null,
+        [Description("Candidates to return, 1-200 (default 20).")] int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var who = await accounts.ResolveAsync(account, cancellationToken);
+        var text = query?.Trim() ?? "";
+        if (text.Length == 0) throw new McpException("`query` must not be empty.");
+        limit = McpPaging.Limit(limit);
+        var like = $"%{EscapeLike(text)}%";
+        var friendIds = db.Friendships.Where(f => f.OwnerUserId == who.Id && f.EndedAt == null).Select(f => f.FriendUserId);
+
+        var friendRows = await db.Friendships.AsNoTracking()
+            .Where(f => f.OwnerUserId == who.Id && f.EndedAt == null)
+            .Select(f => new
+            {
+                f.Friend.Id, f.Friend.DisplayName, f.Friend.UpdatedAt,
+                Memo = db.UserMemos.Where(m => m.UserId == f.FriendUserId).Select(m => m.Memo).FirstOrDefault(),
+                Note = db.UserNotes.Where(n => n.OwnerUserId == who.Id && n.TargetUserId == f.FriendUserId).Select(n => n.Note).FirstOrDefault(),
+            })
+            .Where(f => f.Id == text || EF.Functions.ILike(f.DisplayName, like) || (f.Memo != null && EF.Functions.ILike(f.Memo, like)) || (f.Note != null && EF.Functions.ILike(f.Note, like)))
+            .ToListAsync(cancellationToken);
+        var others = await db.Users.AsNoTracking()
+            .Where(u => !friendIds.Contains(u.Id) && (u.Id == text || EF.Functions.ILike(u.DisplayName, like)))
+            .OrderByDescending(u => u.UpdatedAt).Take(500)
+            .Select(u => new { u.Id, u.DisplayName, u.UpdatedAt })
+            .ToListAsync(cancellationToken);
+        var renamed = await db.UserDisplayNameChanges.AsNoTracking()
+            .Where(c => EF.Functions.ILike(c.PreviousDisplayName, like))
+            .OrderByDescending(c => c.ChangedAt).Take(500)
+            .Select(c => new { c.UserId, c.User.DisplayName, c.User.UpdatedAt, c.PreviousDisplayName, IsFriend = friendIds.Contains(c.UserId) })
+            .ToListAsync(cancellationToken);
+
+        var candidates = new List<(McpUserCandidate Candidate, int Rank)>();
+        foreach (var f in friendRows)
+        {
+            var (rank, on) = NameRank(f.Id, f.DisplayName, text) is { } r ? r
+                : f.Memo is not null && f.Memo.Contains(text, StringComparison.OrdinalIgnoreCase) ? (3, "memo") : (4, "note");
+            candidates.Add((new McpUserCandidate(f.Id, f.DisplayName, true, on, f.UpdatedAt), rank));
+        }
+        foreach (var u in others)
+            if (NameRank(u.Id, u.DisplayName, text) is { } r) candidates.Add((new McpUserCandidate(u.Id, u.DisplayName, false, r.On, u.UpdatedAt), 10 + r.Rank));
+        foreach (var c in renamed.DistinctBy(c => c.UserId))
+            if (candidates.All(x => x.Candidate.UserId != c.UserId))
+                candidates.Add((new McpUserCandidate(c.UserId, c.DisplayName, c.IsFriend, $"previousName:{c.PreviousDisplayName}", c.UpdatedAt), c.IsFriend ? 5 : 15));
+
+        var ranked = candidates.OrderBy(c => c.Rank).ThenByDescending(c => c.Candidate.LastUpdatedAt).Select(c => c.Candidate).ToList();
+        return new McpUserCandidates(who, text, ranked.Take(limit).ToList(), ranked.Count > limit);
+    }
+
+    private static (int Rank, string On)? NameRank(string id, string name, string text) =>
+        id == text ? (0, "id")
+        : string.Equals(name, text, StringComparison.OrdinalIgnoreCase) ? (0, "name")
+        : name.StartsWith(text, StringComparison.OrdinalIgnoreCase) ? (1, "namePrefix")
+        : name.Contains(text, StringComparison.OrdinalIgnoreCase) ? (2, "nameContains")
+        : null;
+
+    [McpServerTool(Name = "get_user", Title = "Get a user", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("""
+        Everything stored about one user, as this account sees them: profile as last fetched from
+        VRChat (updatedAt says when it last changed here), where they are now, the VRCXD memo on
+        them, the account's VRChat note, the relationship (friend or not, since when, friend and
+        unfriend dates, blocks and mutes the account applied) and time together (how often the
+        account's game log saw them join and the total time in the same instance; lastSeen is when
+        the account last saw them in an instance). Never asks VRChat, so the profile can be stale.
+        Time together only counts sessions the agent logged on the account's PC.
+        """)]
+    public async Task<McpUser> GetUser(
+        [Description("usr_ id of the user. Use find_user to turn a name into an id.")] string userId,
+        [Description("usr_ id or display name of the logged-in account; optional when only one account exists.")] string? account = null,
+        CancellationToken cancellationToken = default)
+    {
+        var id = McpLocations.RequireId(userId, "usr_", "userId", "Use find_user to turn a name into an id.");
+        var who = await accounts.ResolveAsync(account, cancellationToken);
+        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
+            ?? throw new McpException($"This server has never seen {id}. Use find_user to search the stored users by name.");
+
+        var now = await presence.GetAsync(id, cancellationToken);
+        var name = await McpLocations.NamerAsync(db, [now.Location, now.TravelingToLocation], cancellationToken);
+        var memo = await db.UserMemos.AsNoTracking().Where(m => m.UserId == id).Select(m => m.Memo).FirstOrDefaultAsync(cancellationToken);
+        var note = await db.UserNotes.AsNoTracking().Where(n => n.OwnerUserId == who.Id && n.TargetUserId == id).Select(n => n.Note).FirstOrDefaultAsync(cancellationToken);
+        var friendship = await db.Friendships.AsNoTracking().Where(f => f.OwnerUserId == who.Id && f.FriendUserId == id && f.EndedAt == null)
+            .Select(f => new { f.FriendNumber, f.StartedAt }).FirstOrDefaultAsync(cancellationToken);
+        var moderations = await db.PlayerModerations.AsNoTracking().Where(m => m.OwnerUserId == who.Id && m.TargetUserId == id).Select(m => m.Type).ToListAsync(cancellationToken);
+        var together = await friends.TimeTogetherAsync(who.Id, id, cancellationToken);
+
+        return new McpUser(who, user.Id, user.DisplayName, user.Status, user.StatusDescription, user.TrustLevel, user.Pronouns,
+            user.Bio, user.BioLinks, user.LastPlatform, user.LastLogin, user.LastActivity, user.DateJoined,
+            user.AgeVerified, user.IsStub, user.FirstSeenAt, user.UpdatedAt, user.LastFullFetchAt,
+            new McpPresence(McpLocations.State(now.State), name(now.Location), name(now.TravelingToLocation), now.StateSince ?? now.PresenceChangedAt, now.LocationSince, now.Platform),
+            string.IsNullOrEmpty(memo) ? null : memo,
+            new McpRelationship(friendship is not null, friendship?.FriendNumber, friendship?.StartedAt, together.FriendLog, moderations, string.IsNullOrEmpty(note) ? null : note),
+            new McpTimeTogether(together.JoinCount, together.TimeTogetherMs, together.LastSeen));
+    }
+
+    [McpServerTool(Name = "get_user_history", Title = "User history", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
+    [Description("""
+        What changed about a user, newest first, merged into one timeline: displayName, trust,
+        status (value = status, detail = status text), bio, avatar (value = avatar name, detail = its avtr_ id when known), presence
+        (value = online/active/offline/location, with the location moved to and from) and visit (an
+        instance stay: location, joined at, leftAt; source = game_log when an account's PC logged it,
+        pipeline when VRChat's presence reported it, api when an instance lookup listed them). Only covers what the server observed while it
+        was running: nothing recorded for a time does not mean nothing happened, and the first time
+        a value is seen produces no change. Not account-scoped: users are shared by all accounts.
+        """)]
+    public async Task<McpUserHistory> GetUserHistory(
+        [Description("usr_ id of the user. Use find_user to turn a name into an id.")] string userId,
+        [Description("Only these kinds, comma separated: displayName, trust, status, bio, avatar, presence, visit. Default all.")] string? kinds = null,
+        [Description("Only changes before this instant (ISO 8601), from a previous result's nextBefore.")] DateTimeOffset? before = null,
+        [Description("Rows to return, 1-200 (default 50).")] int limit = McpPaging.DefaultLimit,
+        CancellationToken cancellationToken = default)
+    {
+        var id = McpLocations.RequireId(userId, "usr_", "userId", "Use find_user to turn a name into an id.");
+        var displayName = await db.Users.AsNoTracking().Where(u => u.Id == id).Select(u => u.DisplayName).FirstOrDefaultAsync(cancellationToken)
+            ?? throw new McpException($"This server has never seen {id}. Use find_user to search the stored users by name.");
+        var wanted = (kinds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (wanted.Count == 0) wanted = HistoryKinds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        limit = McpPaging.Limit(limit);
+
+        // Each list is read newest first with one row more than asked, so the merge knows whether any is left.
+        var history = await users.HistoryAsync(id, limit + 1, before, cancellationToken);
+        var name = await McpLocations.NamerAsync(db, history.Presence.SelectMany(p => new[] { p.Location, p.PreviousLocation }).Concat(history.Visits.Select(v => v.InstanceLocation)), cancellationToken);
+
+        var changes = new List<McpUserChange>();
+        if (wanted.Contains("displayName")) changes.AddRange(history.DisplayNames.Select(c => new McpUserChange(c.ChangedAt, "displayName", c.DisplayName, c.PreviousDisplayName)));
+        if (wanted.Contains("trust")) changes.AddRange(history.Trust.Select(c => new McpUserChange(c.ChangedAt, "trust", c.TrustLevel, c.PreviousTrustLevel)));
+        if (wanted.Contains("status")) changes.AddRange(history.Status.Select(c => new McpUserChange(c.ChangedAt, "status", c.Status, c.PreviousStatus, c.StatusDescription, c.PreviousStatusDescription)));
+        if (wanted.Contains("bio")) changes.AddRange(history.Bio.Select(c => new McpUserChange(c.ChangedAt, "bio", c.Bio, c.PreviousBio)));
+        if (wanted.Contains("avatar")) changes.AddRange(history.Avatars.Select(c => new McpUserChange(c.ChangedAt, "avatar", c.AvatarName, c.PreviousAvatarName, c.AvatarId)));
+        if (wanted.Contains("presence"))
+            changes.AddRange(history.Presence.Select(p => new McpUserChange(p.At, "presence", p.Kind.ToString().ToLowerInvariant(), p.PreviousState is { } s ? McpLocations.State(s) : null,
+                Location: name(p.Location), PreviousLocation: name(p.PreviousLocation))));
+        if (wanted.Contains("visit"))
+            changes.AddRange(history.Visits.Select(v => new McpUserChange(v.JoinedAt, "visit", Location: name(v.InstanceLocation), LeftAt: v.LeftAt,
+                Source: v.Source == VisitSource.GameLog ? "game_log" : v.Source.ToString().ToLowerInvariant())));
+
+        var ordered = changes.OrderByDescending(c => c.At).ToList();
+        var page = ordered.Take(limit).ToList();
+        var truncated = ordered.Count > limit;
+        return new McpUserHistory(id, displayName, page, truncated, truncated ? page[^1].At : null);
+    }
+
+    private static string EscapeLike(string s) => s.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
+}

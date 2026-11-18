@@ -60,3 +60,12 @@ public sealed class MetricsOptions
 {
     public IReadOnlyList<string> AllowedNetworks { get; init; } = [];
 }
+
+/// <summary>
+/// VRCX:Mcp - the Model Context Protocol endpoint at /1/mcp, for AI assistants. Off unless enabled:
+/// it hands the stored friend history to whatever client holds the API token.
+/// </summary>
+public sealed class McpOptions
+{
+    public bool Enabled { get; init; }
+}

@@ -8,6 +8,7 @@ using VRCX.API.Models.Response;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
+using VRCX.Common.Services;
 
 namespace VRCX.API.Controller.Accounts;
 

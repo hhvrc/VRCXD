@@ -3,6 +3,7 @@ using Hangfire;
 using Hangfire.Redis.StackExchange;
 using StackExchange.Redis;
 using Serilog;
+using VRCX.API.Mcp;
 using VRCX.API.Services;
 using VRCX.API.Utils;
 using VRCX.Common;
@@ -22,6 +23,7 @@ builder.RegisterKeyOptions();
 builder.RegisterErrorReportingOptions();
 builder.RegisterAuthOptions();
 builder.RegisterMetricsOptions();
+var mcpOptions = builder.RegisterMcpOptions();
 
 builder.Services
     .AddVrcxDB(databaseOptions)
@@ -43,12 +45,19 @@ builder.Services.AddHostedService<StubRefreshService>();
 builder.Services.AddHostedService<ProfileRefreshService>();
 builder.Services.AddHostedService<AutoStatusService>();
 
+// The MCP endpoint for AI assistants (/1/mcp), off unless VRCX:Mcp:Enabled.
+if (mcpOptions.Enabled) builder.Services.AddVrcxMcp();
+
 var app = builder.Build();
 
 // Optional path prefix the API is served under (e.g. "/api" when reverse-proxied on a shared host).
 var apiPathBase = builder.Configuration.GetValue<string>("VRCX:Api:PathBase");
 
 app.UseCommonVrcxMiddleware(apiPathBase);
+
+// Beside /1/ws (mapped in UseCommonVrcxMiddleware), behind the same token. It lives in this host
+// because its tools are API-side; when disabled the path is simply not mapped and answers 404.
+if (mcpOptions.Enabled) app.MapVrcxMcp();
 
 if (!databaseOptions.SkipMigration)
 {

@@ -10,6 +10,7 @@ using VRCX.Common.Errors;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
+using VRCX.Common.Services;
 
 namespace VRCX.API.Controller.Accounts;
 

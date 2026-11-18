@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
-using VRCX.Common.VrcxDb;
+using VRCX.Common.Services;
 
 namespace VRCX.API.Controller.Worlds;
 
@@ -32,23 +32,10 @@ public sealed partial class WorldsController
     [ProducesResponseType<WorldMemoResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> SetMemo([FromRoute] string worldId, [FromBody] WorldMemoRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> SetMemo([FromRoute] string worldId, [FromBody] WorldMemoRequest body, [FromServices] MemoStore memos, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(body.Memo))
-        {
-            await _db.WorldMemos.Where(m => m.WorldId == worldId).ExecuteDeleteAsync(cancellationToken);
-            return Ok(new WorldMemoResponse { WorldId = worldId, Memo = "", UpdatedAt = null });
-        }
-        if (!await _db.Worlds.AnyAsync(w => w.Id == worldId, cancellationToken)) return Problem(WorldError.WorldNotFound);
-        var memo = await _db.WorldMemos.FirstOrDefaultAsync(m => m.WorldId == worldId, cancellationToken);
-        if (memo is null)
-        {
-            memo = new WorldMemo { WorldId = worldId, Memo = body.Memo };
-            _db.WorldMemos.Add(memo);
-        }
-        memo.Memo = body.Memo;
-        memo.UpdatedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        var memo = await memos.SetWorldMemoAsync(worldId, body.Memo, cancellationToken);
+        if (!memo.Found) return Problem(WorldError.WorldNotFound);
         return Ok(new WorldMemoResponse { WorldId = worldId, Memo = memo.Memo, UpdatedAt = memo.UpdatedAt });
     }
 }

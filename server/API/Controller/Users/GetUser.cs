@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
+using VRCX.Common.Services.Queries;
 using VRCX.Vrchat;
 
 namespace VRCX.API.Controller.Users;
@@ -57,22 +58,9 @@ public sealed partial class UsersController
     [ProducesResponseType<UserHistoryResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetUserHistory([FromRoute] string userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetUserHistory([FromRoute] string userId, [FromServices] UserQueries users, CancellationToken cancellationToken)
     {
         if (!await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken)) return Problem(UserError.UserNotFound);
-
-        const int cap = 100;
-        return Ok(new UserHistoryResponse
-        {
-            DisplayNames = await _db.UserDisplayNameChanges.AsNoTracking().Where(c => c.UserId == userId).OrderByDescending(c => c.ChangedAt).Take(cap).ToListAsync(cancellationToken),
-            Trust = await _db.UserTrustChanges.AsNoTracking().Where(c => c.UserId == userId).OrderByDescending(c => c.ChangedAt).Take(cap).ToListAsync(cancellationToken),
-            Status = await _db.UserStatusChanges.AsNoTracking().Where(c => c.UserId == userId).OrderByDescending(c => c.ChangedAt).Take(cap).ToListAsync(cancellationToken),
-            Bio = await _db.UserBioChanges.AsNoTracking().Where(c => c.UserId == userId).OrderByDescending(c => c.ChangedAt).Take(cap).ToListAsync(cancellationToken),
-            Avatars = await _db.UserAvatarChanges.AsNoTracking().Where(c => c.UserId == userId).OrderByDescending(c => c.ChangedAt).Take(cap).ToListAsync(cancellationToken),
-            Presence = await _db.PresenceEvents.AsNoTracking().Where(c => c.UserId == userId).OrderByDescending(c => c.At).Take(cap).ToListAsync(cancellationToken),
-            Visits = await _db.InstanceVisits.AsNoTracking().Where(v => v.UserId == userId).OrderByDescending(v => v.JoinedAt).Take(cap)
-                .Select(v => new VisitResponse { InstanceLocation = v.InstanceLocation, WorldName = v.Instance.World.Name, JoinedAt = v.JoinedAt, LeftAt = v.LeftAt, Source = v.Source })
-                .ToListAsync(cancellationToken),
-        });
+        return Ok(await users.HistoryAsync(userId, 100, null, cancellationToken));
     }
 }

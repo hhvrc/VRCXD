@@ -74,6 +74,13 @@ public static class ConfigurationExtensions
         return options;
     }
 
+    public static McpOptions RegisterMcpOptions(this WebApplicationBuilder builder)
+    {
+        var options = builder.Configuration.GetSection("VRCX:Mcp").Get<McpOptions>() ?? new McpOptions();
+        builder.Services.AddSingleton(options);
+        return options;
+    }
+
     public static MetricsOptions RegisterMetricsOptions(this WebApplicationBuilder builder)
     {
         var options = builder.Configuration.GetSection("VRCX:Metrics").Get<MetricsOptions>();

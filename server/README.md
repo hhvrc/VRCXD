@@ -50,6 +50,7 @@ The `VRCX:*` configuration schema, as environment variables:
 | `VRCX__AUTH__TOKEN`       | x        |                 | The one API token; `VrcxToken:` header or `Authorization: Bearer` |
 | `VRCX__METRICS__ALLOWEDNETWORKS` |   | private ranges  | Who may read `/metrics` and `/1/health` (CIDR list)          |
 | `VRCX__API__PATHBASE`     |          |                 | e.g. `/api` when reverse-proxied on a shared host            |
+| `VRCX__MCP__ENABLED`      |          | `false`         | Serve the MCP endpoint `/1/mcp` for AI assistants (see MCP below) |
 
 Layered appsettings as in OpenShock: `appsettings.json`, `appsettings.Container.json`,
 `appsettings.{Environment}.json`, `appsettings.Custom.json`, then environment, user secrets,
@@ -140,6 +141,27 @@ with stable `type` strings (`Login.InvalidCredentials`, `User.NotFound`, …). O
 | `GET /1/accounts/{id}/hot-worlds?days=`, `/hot-worlds/{worldId}/friends?days=` | Worlds friends moved into most, and who |
 | `GET /1/accounts/{id}/mutuals`, `GET`/`POST`/`DELETE …/mutuals/fetch`, `POST …/mutuals/{userId}/refresh` | The mutual-friend network and its background fetch |
 | `GET`/`PUT /1/accounts/{id}/settings` | The original's app settings (screenshot helper, YouTube key, quit fix, resource loads) |
+
+## MCP
+
+With `VRCX__MCP__ENABLED=true` the API also serves the [Model Context Protocol](https://modelcontextprotocol.io)
+at `/1/mcp` (streamable HTTP, stateless), so an AI assistant can answer questions from what the
+server has stored: who is online, where someone was, who you played with, the friend log, a
+user's history. Point the client at the web container's address, the same one the agent uses,
+with the API token as a header (`Authorization: Bearer <token>` or `VrcxToken: <token>`; a
+`?token=` query is refused). For example, for Claude Code:
+
+```sh
+claude mcp add --transport http vrcxd http://<nas>:5280/1/mcp --header "Authorization: Bearer <token>"
+```
+
+Version 1 is read-only plus memos: the tools read Postgres and Redis and never call VRChat (so
+they cannot spend the shared rate limit or change anything there); the only writes are VRCXD's
+own user, world and avatar memos. With several VRChat accounts logged in, account-scoped tools
+need an `account` argument (`list_accounts` names them) and fail rather than pick one. Lists are
+paged (50 rows by default, 200 at most). It is off by default because a client holding the
+token reads the whole stored history, as the web UI can. The tools live in `API/Mcp/`; their
+query logic is shared with the endpoints in `Common/Services/Queries/`.
 
 ## Run
 

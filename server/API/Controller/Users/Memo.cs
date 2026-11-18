@@ -6,7 +6,7 @@ using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Requests;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
-using VRCX.Common.VrcxDb;
+using VRCX.Common.Services;
 
 namespace VRCX.API.Controller.Users;
 
@@ -35,19 +35,11 @@ public sealed partial class UsersController
     [ProducesResponseType<MemoResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> SetMemo([FromRoute] string userId, [FromBody] MemoRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> SetMemo([FromRoute] string userId, [FromBody] MemoRequest body, [FromServices] MemoStore memos, CancellationToken cancellationToken)
     {
-        if (!await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken)) return Problem(UserError.UserNotFound);
-        var memo = await _db.UserMemos.FirstOrDefaultAsync(m => m.UserId == userId, cancellationToken);
-        if (memo is null)
-        {
-            memo = new UserMemo { UserId = userId, Memo = body.Memo };
-            _db.UserMemos.Add(memo);
-        }
-        memo.Memo = body.Memo;
-        memo.UpdatedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
-        return Ok(new MemoResponse { UserId = memo.UserId, Memo = memo.Memo, UpdatedAt = memo.UpdatedAt });
+        var memo = await memos.SetUserMemoAsync(userId, body.Memo, cancellationToken);
+        if (!memo.Found) return Problem(UserError.UserNotFound);
+        return Ok(new MemoResponse { UserId = userId, Memo = memo.Memo, UpdatedAt = memo.UpdatedAt!.Value });
     }
 
     /// <summary>Remove the memo on this user.</summary>
@@ -55,9 +47,9 @@ public sealed partial class UsersController
     [HttpDelete("{userId}/memo")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> DeleteMemo([FromRoute] string userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteMemo([FromRoute] string userId, [FromServices] MemoStore memos, CancellationToken cancellationToken)
     {
-        await _db.UserMemos.Where(m => m.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        await memos.DeleteUserMemoAsync(userId, cancellationToken);
         return NoContent();
     }
 }

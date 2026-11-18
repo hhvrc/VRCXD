@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
-using VRCX.Common.VrcxDb;
+using VRCX.Common.Services;
 
 namespace VRCX.API.Controller.Avatars;
 
@@ -32,23 +32,10 @@ public sealed partial class AvatarsController
     [ProducesResponseType<AvatarMemoResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> SetMemo([FromRoute] string avatarId, [FromBody] AvatarMemoRequest body, CancellationToken cancellationToken)
+    public async Task<IActionResult> SetMemo([FromRoute] string avatarId, [FromBody] AvatarMemoRequest body, [FromServices] MemoStore memos, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(body.Memo))
-        {
-            await _db.AvatarMemos.Where(m => m.AvatarId == avatarId).ExecuteDeleteAsync(cancellationToken);
-            return Ok(new AvatarMemoResponse { AvatarId = avatarId, Memo = "", UpdatedAt = null });
-        }
-        if (!await _db.Avatars.AnyAsync(a => a.Id == avatarId, cancellationToken)) return Problem(AvatarError.AvatarNotFound);
-        var memo = await _db.AvatarMemos.FirstOrDefaultAsync(m => m.AvatarId == avatarId, cancellationToken);
-        if (memo is null)
-        {
-            memo = new AvatarMemo { AvatarId = avatarId, Memo = body.Memo };
-            _db.AvatarMemos.Add(memo);
-        }
-        memo.Memo = body.Memo;
-        memo.UpdatedAt = DateTimeOffset.UtcNow;
-        await _db.SaveChangesAsync(cancellationToken);
+        var memo = await memos.SetAvatarMemoAsync(avatarId, body.Memo, cancellationToken);
+        if (!memo.Found) return Problem(AvatarError.AvatarNotFound);
         return Ok(new AvatarMemoResponse { AvatarId = avatarId, Memo = memo.Memo, UpdatedAt = memo.UpdatedAt });
     }
 }

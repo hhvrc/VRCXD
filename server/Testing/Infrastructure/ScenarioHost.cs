@@ -23,7 +23,8 @@ internal sealed record ScenarioHostSettings(
     CapturedLogs Logs,
     int? KestrelPort,
     Action<IServiceCollection>? ConfigureServices,
-    SyncTracker Syncs);
+    SyncTracker Syncs,
+    bool EnableMcp);
 
 /// <summary>
 /// The real API (its Program) on a TestServer, or on Kestrel for the browser tests. VRChat is the
@@ -61,6 +62,8 @@ internal sealed class ScenarioHost(ScenarioHostSettings settings) : WebApplicati
             Environment.SetEnvironmentVariable("VRCX__AUTH__TOKEN", settings.ApiToken);
             Environment.SetEnvironmentVariable("VRCX__IMAGES__DIR", settings.ImageDirectory);
             Environment.SetEnvironmentVariable("VRCX__KEYS__DIR", Path.Combine(settings.ImageDirectory, "keys"));
+            // Set or cleared every time: the variable is process-wide and the previous host may have set it.
+            Environment.SetEnvironmentVariable("VRCX__MCP__ENABLED", settings.EnableMcp ? "true" : null);
             // A test project gets its content root from the attribute Mvc.Testing generates into
             // it; a plain app using the harness (Testing.E2EHost) has none, so point it at API/.
             const string contentRootVariable = "ASPNETCORE_TEST_CONTENTROOT_VRCX_API";

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
+using VRCX.Common.Services.Queries;
 using VRCX.Vrchat.Models;
 
 namespace VRCX.API.Controller.Accounts;
@@ -34,48 +35,10 @@ public sealed partial class AccountsController
     [ProducesResponseType<TimeTogetherResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetTimeTogether([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetTimeTogether([FromRoute] string accountId, [FromRoute] string userId, [FromServices] FriendQueries friends, CancellationToken cancellationToken)
     {
         if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-        // Identical rows are counted once: the same join has been stored twice in places.
-        var visits = await _db.InstanceVisits.AsNoTracking()
-            .Where(v => v.Source == global::VRCX.Common.VrcxDb.VisitSource.GameLog && v.UserId == userId)
-            .Select(v => new { v.InstanceLocation, v.JoinedAt, v.LeftAt })
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        // The original's getUserStats: Last Seen is the newest join or leave, but while they are here
-        // (their newest stay is still open) it is the one before, not this join.
-        var ordered = visits.OrderByDescending(v => v.JoinedAt).ToList();
-        var past = ordered.Count > 0 && ordered[0].LeftAt is null ? ordered.Skip(1).ToList() : ordered;
-        DateTimeOffset? lastSeen = past.Count > 0 ? past.Max(v => v.LeftAt ?? v.JoinedAt) : null;
-
-        return Ok(new TimeTogetherResponse(
-            visits.Count,
-            (long)visits.Where(v => v.LeftAt != null).Sum(v => (v.LeftAt!.Value - v.JoinedAt).TotalMilliseconds),
-            lastSeen,
-            await FriendLogForUserAsync(accountId, userId, cancellationToken)));
-    }
-
-    /// <summary>
-    /// The user's Friend and Unfriend rows of the account's friend log, newest first: the original's
-    /// getFriendLogHistoryForUserId behind the user dialog's Friended and Unfriended.
-    /// </summary>
-    private async Task<IReadOnlyList<FriendLogDate>> FriendLogForUserAsync(string accountId, string userId, CancellationToken cancellationToken)
-    {
-        var friendships = await _db.Friendships.AsNoTracking()
-            .Where(f => f.OwnerUserId == accountId && f.FriendUserId == userId)
-            .Select(f => new { f.Id, f.StartedAt, f.EndedAt })
-            .ToListAsync(cancellationToken);
-        if (friendships.Count == 0) return [];
-        var baseline = await FriendLogBaselineAsync(accountId, cancellationToken);
-        var hidden = (await _db.FriendLogHiddenEntries.AsNoTracking().Where(h => h.OwnerUserId == accountId).Select(h => h.EntryKey).ToListAsync(cancellationToken)).ToHashSet();
-        var entries = new List<FriendLogDate>();
-        foreach (var f in friendships)
-        {
-            if (f.StartedAt != baseline && !hidden.Contains($"Friend:{f.Id}")) entries.Add(new FriendLogDate("Friend", f.StartedAt));
-            if (f.EndedAt is { } ended && !hidden.Contains($"Unfriend:{f.Id}")) entries.Add(new FriendLogDate("Unfriend", ended));
-        }
-        return entries.OrderByDescending(e => e.CreatedAt).ToList();
+        return Ok(await friends.TimeTogetherAsync(accountId, userId, cancellationToken));
     }
 
     /// <summary>A user's public profile live from VRChat: bio, badges, and the profile theme and
@@ -197,9 +160,3 @@ public sealed partial class AccountsController
             return stored;
         });
 }
-
-/// <summary>Times the account's game log saw a user join, the time spent together, when it last saw them, and the friend log's dates for them.</summary>
-public sealed record TimeTogetherResponse(int JoinCount, long TimeTogetherMs, DateTimeOffset? LastSeen, IReadOnlyList<FriendLogDate> FriendLog);
-
-/// <summary>A Friend or Unfriend row of the friend log.</summary>
-public sealed record FriendLogDate(string Type, DateTimeOffset CreatedAt);
