@@ -49,9 +49,8 @@ is where its code lives.
   controller's "is this account logged in", `Features/Accounts/AccountSessionRunner` runs an
   actions class's VRChat calls with the account's session and maps the failures to problems, and
   `Features/Locations/LocationQueries` names location tags for the MCP tools.
-- Never: a Domain / Application / Infrastructure project split, a generic `IRepository<T>`,
-  MediatR or pipeline behaviours, route or proto shape changes inside a refactor, or large file
-  moves while other worktrees are active.
+- Never: a Domain / Application / Infrastructure project split, a generic `IRepository<T>`, or
+  large file moves while other worktrees are active.
 
 ## Rules
 

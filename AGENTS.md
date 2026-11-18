@@ -135,8 +135,6 @@ Rejected. Never do these:
 
 - a Domain / Application / Infrastructure project split;
 - a generic `IRepository<T>`;
-- MediatR or pipeline behaviours;
-- route or proto shape changes as part of a refactor;
 - large file moves while other worktrees are active.
 
 ## Code and text
