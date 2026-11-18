@@ -871,8 +871,12 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
         }, now, ct);
     }
 
-    /// <summary>GET users/{id}/groups: upserts every listed group + membership and marks the ones no longer listed as left.</summary>
-    public async Task SyncUserGroupsAsync(VrcxContext db, string userId, IReadOnlyList<LimitedUserGroup> groups, DateTimeOffset now, CancellationToken ct)
+    /// <summary>
+    /// GET users/{id}/groups: upserts every listed group + membership and marks the ones no longer listed
+    /// as left, except those in stillMember: missing from the list while VRChat's group itself says the
+    /// user is still in it (upstream #1455).
+    /// </summary>
+    public async Task SyncUserGroupsAsync(VrcxContext db, string userId, IReadOnlyList<LimitedUserGroup> groups, DateTimeOffset now, CancellationToken ct, IReadOnlySet<string>? stillMember = null)
     {
         var listed = new HashSet<string>(StringComparer.Ordinal);
         foreach (var g in groups)
@@ -904,7 +908,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
         var current = await db.GroupMembers.Where(m => m.UserId == userId && m.LeftAt == null).ToListAsync(ct);
         foreach (var membership in current)
         {
-            if (!listed.Contains(membership.GroupId)) membership.LeftAt = now;
+            if (!listed.Contains(membership.GroupId) && stillMember?.Contains(membership.GroupId) != true) membership.LeftAt = now;
         }
     }
 

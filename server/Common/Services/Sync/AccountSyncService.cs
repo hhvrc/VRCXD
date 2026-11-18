@@ -172,6 +172,37 @@ public sealed class AccountSyncService(
         return stillFriends;
     }
 
+    // The original's onGroupLeft fetches the group before believing the list, and keeps the group
+    // when VRChat still says "member" (upstream #1455: "Left group" for the account's own groups).
+    // One GET per open membership the list left out; none when nothing is missing. Without an
+    // answer the membership stays, as the original's failed request left it.
+    private async Task<IReadOnlySet<string>> FindMissedGroupsAsync(
+        VrcxContext db, VrchatApiClient client, string accountId, IReadOnlySet<string> listed, CancellationToken ct)
+    {
+        var missing = await db.GroupMembers.AsNoTracking()
+            .Where(m => m.UserId == accountId && m.LeftAt == null && !listed.Contains(m.GroupId))
+            .Select(m => m.GroupId).ToListAsync(ct);
+        var stillMember = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var id in missing)
+        {
+            try
+            {
+                var group = await client.GetGroupAsync(id, includeRoles: false, ct);
+                if ((group?.MembershipStatus ?? group?.MyMember?.MembershipStatus) == GroupMemberStatusValues.Member)
+                {
+                    logger.LogInformation("Group {Group} is missing from {Account}'s group list but VRChat still says member", id, accountId);
+                    stillMember.Add(id);
+                }
+            }
+            catch (VrchatApiException ex) when (ex is not VrchatUnauthorizedException)
+            {
+                logger.LogWarning(ex, "Could not confirm {Account} left group {Group}", accountId, id);
+                stillMember.Add(id);
+            }
+        }
+        return stillMember;
+    }
+
     public async Task SyncEverythingAsync(string accountId, CancellationToken ct)
     {
         using var _ = await LockAsync(accountId, ct);
@@ -183,10 +214,11 @@ public sealed class AccountSyncService(
             var groups = await client.GetUserGroupsWithRepresentationAsync(accountId, ct);
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             var before = await GroupSnapshotAsync(db, accountId, ct);
-            await store.SyncUserGroupsAsync(db, accountId, groups, DateTimeOffset.UtcNow, ct);
-            // The original's onGroupLeft: a group the account was in and VRChat no longer lists.
             var listed = groups.Select(g => g.GroupId).ToHashSet(StringComparer.Ordinal);
-            foreach (var left in before.Values.Where(b => !listed.Contains(b.GroupId)))
+            var stillMember = await FindMissedGroupsAsync(db, client, accountId, listed, ct);
+            await store.SyncUserGroupsAsync(db, accountId, groups, DateTimeOffset.UtcNow, ct, stillMember);
+            // The original's onGroupLeft: a group the account was in and VRChat no longer lists.
+            foreach (var left in before.Values.Where(b => !listed.Contains(b.GroupId) && !stillMember.Contains(b.GroupId)))
                 db.Notifications.Add(VrchatStore.GroupChangeNotice(accountId, left.GroupId, left.Name, left.IconUrl, "Left group", DateTimeOffset.UtcNow));
             await db.SaveChangesAsync(ct);
 

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.EntityFrameworkCore;
 using VRCX.Testing;
 using VRCX.Testing.Desktop;
 
@@ -104,10 +105,12 @@ public sealed class NotificationRegressions
         await VrcxScenario.EnsureSuccessAsync(put, "PUT settings");
     }
 
-    // "Auto Accept Invite Requests" for VRCX favorites stopped answering (and PR 999 also hides
-    // the request once answered). Here: a favorite asks while the game is in a public instance.
-    [Test, Issue(889), Pr(999)]
-    public async Task Issue_889_an_invite_request_from_a_favorite_is_answered_and_hidden()
+    // "Auto Accept Invite Requests" stopped answering after updates (PR 857 fixed one such break;
+    // issue 1578 another); PR 999 also hides the request once answered. Here, end to end: a favorite
+    // asks over the pipeline while the game is in a public instance. The Selected Favorites groups of
+    // issue 889 are AutomationTests.Issue_889_*.
+    [Test, Pr(857), Issue(1578), Pr(999)]
+    public async Task Pr_857_an_invite_request_from_a_favorite_is_answered_and_hidden()
     {
         await using var app = await VrcxScenario.StartAsync();
         var alice = app.Vrchat.Friend("usr_alice", "Alice", u => u.Active());
@@ -133,6 +136,28 @@ public sealed class NotificationRegressions
         await Assert.That(rows.Single(n => n.GetProperty("id").GetString() == fromCarol.Id).GetProperty("hidden").GetBoolean()).IsFalse();
     }
 
+    // Auto accept tried to invite to instances the account may not invite to (someone else's
+    // invite or friends instance) and failed. As the original's checkCanInvite: no invite is sent.
+    [Test, Pr(820)]
+    public async Task Pr_820_no_auto_invite_to_an_instance_the_account_cannot_invite_to()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        var alice = app.Vrchat.Friend("usr_alice", "Alice", u => u.Active());
+        app.Vrchat.Favorite("friend", alice.Id, "group_0");
+        await app.LoginAsync();
+        await EnableAutoAcceptAsync(app, "All Favorites");
+        await using var pc = await app.ConnectDesktopAsync("pc-auto-private");
+        await pc.SendLogAsync(GameLog.Location("wrld_auto:4242~private(usr_someone)~region(eu)", "Auto World"));
+
+        var request = app.Vrchat.Notification("requestInvite", alice);
+        await app.Pipeline.NotificationAsync(request);
+
+        app.Vrchat.AssertNotCalled("POST", $"invite/{alice.Id}");
+        app.Vrchat.AssertNotCalled("PUT", $"auth/user/notifications/{request.Id}/hide");
+        var rows = await NotificationsAsync(app, includeHidden: true);
+        await Assert.That(rows.Single(n => n.GetProperty("id").GetString() == request.Id).GetProperty("hidden").GetBoolean()).IsFalse();
+    }
+
     // The original noted group changes (rename, new owner, own roles, leaving) in the notification
     // log; the port never made them.
     [Test, Issue(762), Issue(919)]
@@ -155,5 +180,43 @@ public sealed class NotificationRegressions
         await Assert.That(messages).Contains("Name changed from Club to Club Renamed");
         await Assert.That(messages).Contains("Left group");
         await Assert.That(messages.Count).IsEqualTo(2);
+    }
+
+    // Changes to the account's own group kept logging "Left group" for a group it never left.
+    // VRChat's group list can leave a group out; as the original's onGroupLeft, the group itself
+    // is asked first, and a "member" answer keeps it.
+    [Test, Issue(1455)]
+    public async Task Issue_1455_a_group_missing_from_the_list_that_vrchat_still_calls_joined_is_not_left()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        var me = app.Vrchat.SetMe();
+        var own = app.Vrchat.Group("grp_own", "Own", g => g.Set("ownerId", "usr_me"));
+        var guild = app.Vrchat.Group("grp_guild", "Guild");
+        app.Vrchat.Member(me.Id, own);
+        app.Vrchat.Member(me.Id, guild);
+        await app.LoginAsync();
+
+        // Nothing missing from the list: no group is looked up on its own.
+        app.Vrchat.ClearRequests();
+        await app.SyncAsync();
+        await Assert.That(app.Vrchat.Calls.Where(c => c.EndsWith("?includeRoles=false", StringComparison.Ordinal))).IsEmpty();
+
+        // The list leaves the own group out while the group still says member; Guild is really left.
+        var stillJoined = (JsonObject)own.Json.DeepClone();
+        stillJoined["membershipStatus"] = "member";
+        app.Vrchat.LeaveGroup(me.Id, own.Id);
+        app.Vrchat.On("GET", $"groups/{own.Id}", _ => VRCX.Testing.FakeVrchat.FakeVrchatApi.Ok(stillJoined));
+        app.Vrchat.LeaveGroup(me.Id, guild.Id);
+        await app.SyncAsync();
+        await app.SyncAsync();
+
+        app.Vrchat.AssertCalled("GET", $"groups/{own.Id}");
+        var left = (await NotificationsAsync(app)).Where(n => n.GetProperty("type").GetString() == "groupChange").ToList();
+        await Assert.That(left.Select(n => n.GetProperty("message").GetString()!)).IsEquivalentTo(["Left group"]);
+        await Assert.That(left.Single().GetProperty("link").GetString()).IsEqualTo($"group:{guild.Id}");
+        await using var db = app.CreateDbContext();
+        var memberships = await db.GroupMembers.Where(m => m.UserId == me.Id).ToListAsync();
+        await Assert.That(memberships.Single(m => m.GroupId == own.Id).LeftAt).IsNull();
+        await Assert.That(memberships.Single(m => m.GroupId == guild.Id).LeftAt).IsNotNull();
     }
 }

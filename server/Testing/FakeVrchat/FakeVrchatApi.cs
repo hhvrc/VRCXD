@@ -512,7 +512,13 @@ public sealed class FakeVrchatApi : HttpMessageHandler, IVrchatClientFactory
             case ["avatars", var id] when _avatars.TryGetValue(id, out var avatar):
                 return Ok(avatar.Json);
             case ["groups", var id] when _groups.TryGetValue(id, out var group):
-                return Ok(group.Json);
+                {
+                    // As VRChat: the group as the logged-in account sees it, with its own membershipStatus.
+                    var json = (JsonObject)group.Json.DeepClone();
+                    if (Me is not null && !json.ContainsKey("membershipStatus"))
+                        json["membershipStatus"] = Memberships(Me.Id).Any(m => (string?)m["groupId"] == id) ? "member" : "inactive";
+                    return Ok(json);
+                }
             case ["groups", var id, "roles"] when _groups.ContainsKey(id):
                 return Ok(new JsonArray());
             case ["instances", var location]:
