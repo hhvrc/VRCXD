@@ -17,7 +17,7 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261118132513_StubRefreshAttempts";
+    public override string LastMigrationId => "20261118233240_DropNameIndexes";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
@@ -212,8 +212,6 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                 b.HasIndex("AuthorId");
 
                 b.HasIndex("ImageUrl");
-
-                b.HasIndex("Name");
 
                 b.ToTable("avatars");
             });
@@ -769,8 +767,6 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
 
                 b.HasKey("Id")
                     .HasName("groups_pkey");
-
-                b.HasIndex("Name");
 
                 b.HasIndex("OwnerUserId");
 
@@ -2432,8 +2428,6 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                     .HasName("worlds_pkey");
 
                 b.HasIndex("AuthorId");
-
-                b.HasIndex("Name");
 
                 b.HasIndex("StubAttemptedAt", "FirstSeenAt")
                     .HasFilter("is_stub");

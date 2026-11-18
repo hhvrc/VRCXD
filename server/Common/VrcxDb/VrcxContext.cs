@@ -596,7 +596,8 @@ public class VrcxContext : DbContext
 
             entity.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId)
                 .OnDelete(DeleteBehavior.SetNull).HasConstraintName("fk_worlds_author_id");
-            entity.HasIndex(x => x.Name);
+            // No index on the name: nothing looks one up, searches are ILIKE '%...%', and VRChat serves names of
+            // 5,000 characters (a world named after the Bee Movie script), more than a btree entry holds.
             entity.HasIndex(x => x.AuthorId);
             // The stub refresh's queue: only stubs, least recently tried first.
             entity.HasIndex(x => new { x.StubAttemptedAt, x.FirstSeenAt }).HasFilter("is_stub");
@@ -632,7 +633,8 @@ public class VrcxContext : DbContext
 
             entity.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId)
                 .OnDelete(DeleteBehavior.SetNull).HasConstraintName("fk_avatars_author_id");
-            entity.HasIndex(x => x.Name);
+            // No index on the name: nothing looks one up, searches are ILIKE '%...%', and VRChat serves names of
+            // 5,000 characters (a world named after the Bee Movie script), more than a btree entry holds.
             entity.HasIndex(x => x.AuthorId);
             // Avatar changes are matched to avatars by image URL, so look it up fast.
             entity.HasIndex(x => x.ImageUrl);
@@ -764,7 +766,8 @@ public class VrcxContext : DbContext
 
             entity.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerUserId)
                 .OnDelete(DeleteBehavior.SetNull).HasConstraintName("fk_groups_owner_user_id");
-            entity.HasIndex(x => x.Name);
+            // No index on the name: nothing looks one up, searches are ILIKE '%...%', and VRChat serves names of
+            // 5,000 characters (a world named after the Bee Movie script), more than a btree entry holds.
             entity.HasIndex(x => new { x.ShortCode, x.Discriminator });
             // The stub refresh's queue: only stubs, least recently tried first.
             entity.HasIndex(x => new { x.StubAttemptedAt, x.FirstSeenAt }).HasFilter("is_stub");

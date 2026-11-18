@@ -412,6 +412,37 @@ public sealed class LegacyImportTests
         await Assert.That(deleted).StartsWith("replace history: deleted 1 ");
     }
 
+    // A real file's import failed in the presence step: a friend's GPS row named a world after the
+    // Bee Movie script (4,999 characters), and the world stub's name did not fit the btree index on
+    // worlds.name. The index is gone; the stub keeps the whole name.
+    [Test]
+    public async Task A_world_named_in_5000_characters_of_prose_is_imported_with_its_whole_name()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        app.Vrchat.SetMe(Me, "Me");
+        await app.LoginAsync();
+        var t0 = Second(app.Time.GetUtcNow().AddDays(-3));
+        using var fixture = Fixture.Create(t0);
+        var name = LongNameTests.Prose(5_000);
+        const string bee = "wrld_1d55d0b7-0000-4000-8000-00000000b33e:1~region(us)";
+        await using (var db = new SqliteConnection($"Data Source={fixture.Path};Pooling=False"))
+        {
+            await db.OpenAsync();
+            await using var insert = db.CreateCommand();
+            insert.CommandText = $"INSERT INTO {LegacyDatabase.TablePrefix(Me)}_feed_gps (created_at, user_id, display_name, location, world_name, previous_location, time, group_name) VALUES (@at, @user, 'Alice', @location, @name, '', 0, '')";
+            insert.Parameters.AddWithValue("@at", Iso(t0.AddHours(5)));
+            insert.Parameters.AddWithValue("@user", Alice);
+            insert.Parameters.AddWithValue("@location", bee);
+            insert.Parameters.AddWithValue("@name", name);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        await ImportAsync(app, fixture.Path);
+
+        var stored = await RowsAsync(app, "SELECT name FROM worlds WHERE id = 'wrld_1d55d0b7-0000-4000-8000-00000000b33e'", r => r.GetString(0));
+        await Assert.That(stored.Single()).IsEqualTo(name);
+    }
+
     // The Settings page follows an upload, a check and an import on the "legacy_import" topic: the
     // snapshot is the status GET /1/legacy-import returns, and every change after it is a delta
     // carrying the whole status again, numbered without gaps.
