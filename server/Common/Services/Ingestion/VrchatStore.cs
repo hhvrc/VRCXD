@@ -1037,11 +1037,8 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     // the caller's to set, in one statement after saving, rather than one UPDATE per friend in the save.
     public sealed record FriendSyncResult(IReadOnlyList<string> Added, IReadOnlyList<string> Removed, IReadOnlyList<long> Confirmed);
 
-    /// <summary>Sets last_confirmed_at on the friendships a <see cref="SyncFriendsAsync"/> confirmed, in one statement.</summary>
-    public static Task ConfirmFriendshipsAsync(VrcxContext db, FriendSyncResult result, DateTimeOffset now, CancellationToken ct) =>
-        result.Confirmed.Count == 0
-            ? Task.CompletedTask
-            : db.Friendships.Where(f => result.Confirmed.Contains(f.Id)).ExecuteUpdateAsync(s => s.SetProperty(f => f.LastConfirmedAt, now), ct);
+    // The friendship methods below are called through Features/Friends/FriendWriter, which is what
+    // announces the change to the friends topic; call that, not these.
 
     /// <summary>
     /// Diffs a complete friend list against the account's open friendships:

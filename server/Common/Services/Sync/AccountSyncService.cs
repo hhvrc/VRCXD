@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Common.Services.Live;
 using VRCX.Common.Services.Sessions;
@@ -47,6 +48,7 @@ public sealed class AccountSyncService(
     IDbContextFactory<VrcxContext> dbFactory,
     VrchatStore store,
     ILiveEventBus bus,
+    FriendWriter friendWriter,
     ILogger<AccountSyncService> logger) : IAccountSyncService
 {
     // One sync per account at a time: a manual sync, the login-triggered one and the Hangfire
@@ -116,7 +118,7 @@ public sealed class AccountSyncService(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         await store.UpsertCurrentUserAsync(db, me, now, ct);
         var stillFriends = await FindMissedFriendsAsync(db, client, accountId, me, friends, ct);
-        var diff = await store.SyncFriendsAsync(db, accountId, me, friends, stillFriends, now, ct);
+        var diff = await friendWriter.SyncAsync(db, accountId, me, friends, stillFriends, now, ct);
         var account = await db.Accounts.FindAsync([accountId], ct);
         if (account is not null)
         {
@@ -125,7 +127,7 @@ public sealed class AccountSyncService(
             ApplyCurrentUser(account, me);
         }
         await db.SaveChangesAsync(ct);
-        await VrchatStore.ConfirmFriendshipsAsync(db, diff, now, ct);
+        await FriendWriter.ConfirmAsync(db, diff, now, ct);
         await sessions.PersistCookiesAsync(accountId, ct);
 
         if (diff.Added.Count > 0 || diff.Removed.Count > 0)

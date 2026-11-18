@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.Services.Presence;
 using VRCX.Common.VrcxDb;
 
@@ -67,11 +68,16 @@ public sealed record FriendLogDate(string Type, DateTimeOffset CreatedAt);
 /// </summary>
 public sealed class FriendQueries(VrcxContext db, IPresenceCache presence, IPendingPresenceQueue pending)
 {
-    /// <summary>The account's current friends with their latest known presence, in friend-number order.</summary>
-    public async Task<FriendResponse[]> ListFriendsAsync(string accountId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The account's current friends with their latest known presence, in friend-number order: GET
+    /// friends and the friends topic's rows (Features/Friends/FriendsTopic), so both show the same.
+    /// With <paramref name="onlyUserIds"/>, just those of them that are still friends.
+    /// </summary>
+    public async Task<FriendResponse[]> ListFriendsAsync(string accountId, CancellationToken cancellationToken, IReadOnlyCollection<string>? onlyUserIds = null)
     {
-        var friends = await db.Friendships.AsNoTracking()
-            .Where(f => f.OwnerUserId == accountId && f.EndedAt == null)
+        var current = db.Friendships.AsNoTracking().CurrentOf(accountId);
+        if (onlyUserIds is not null) current = current.Where(f => onlyUserIds.Contains(f.FriendUserId));
+        var friends = await current
             .OrderBy(f => f.FriendNumber)
             .Select(f => new
             {
@@ -94,11 +100,11 @@ public sealed class FriendQueries(VrcxContext db, IPresenceCache presence, IPend
             })
             .ToArrayAsync(cancellationToken);
         var ids = friends.Select(f => f.Id).ToArray();
-        var current = await presence.GetManyAsync(ids, cancellationToken);
+        var now = await presence.GetManyAsync(ids, cancellationToken);
         var waiting = await pending.PendingAsync(ids, cancellationToken);
         return friends.Select(f =>
         {
-            var where = current.GetValueOrDefault(f.Id);
+            var where = now.GetValueOrDefault(f.Id);
             return new FriendResponse
             {
                 FriendNumber = f.FriendNumber,

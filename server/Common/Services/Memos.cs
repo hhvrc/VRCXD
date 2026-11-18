@@ -10,7 +10,7 @@ public sealed record MemoWriteResult(bool Found, string Memo, DateTimeOffset? Up
 /// VRCX's own memos on users, worlds and avatars: local data, VRChat never sees it. The memo
 /// endpoints and the MCP memo tools both write through here.
 /// </summary>
-public sealed class MemoStore(VrcxContext db)
+public sealed class MemoStore(VrcxContext db, VRCX.Common.Features.Friends.FriendWriter friends)
 {
     /// <summary>Write (or replace) the memo on a user. An empty memo is stored as empty; <see cref="DeleteUserMemoAsync"/> removes it.</summary>
     public async Task<MemoWriteResult> SetUserMemoAsync(string userId, string text, CancellationToken cancellationToken)
@@ -29,7 +29,7 @@ public sealed class MemoStore(VrcxContext db)
     }
 
     public Task DeleteUserMemoAsync(string userId, CancellationToken cancellationToken) =>
-        db.UserMemos.Where(m => m.UserId == userId).ExecuteDeleteAsync(cancellationToken);
+        friends.DeleteMemoAsync(db, userId, cancellationToken);
 
     /// <summary>Write the memo on a world. An empty memo removes it, whether or not the world was seen.</summary>
     public async Task<MemoWriteResult> SetWorldMemoAsync(string worldId, string text, CancellationToken cancellationToken)

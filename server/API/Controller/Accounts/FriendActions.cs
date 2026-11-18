@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.Common.Errors;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 
@@ -50,13 +51,11 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> Unfriend([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
+    public Task<IActionResult> Unfriend([FromRoute] string accountId, [FromRoute] string userId, [FromServices] FriendWriter friends, CancellationToken cancellationToken) =>
         RunAsync(accountId, async client =>
         {
             await client.UnfriendAsync(userId, cancellationToken);
-            var now = DateTimeOffset.UtcNow;
-            await _db.Friendships.Where(f => f.OwnerUserId == accountId && f.FriendUserId == userId && f.EndedAt == null)
-                .ExecuteUpdateAsync(set => set.SetProperty(f => f.EndedAt, now), cancellationToken);
+            await friends.UnfriendAsync(_db, accountId, userId, DateTimeOffset.UtcNow, cancellationToken);
         });
 
     private async Task LogFriendRequestAsync(string accountId, string userId, string type, CancellationToken cancellationToken)

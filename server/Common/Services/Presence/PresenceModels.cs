@@ -70,6 +70,9 @@ public sealed class PresenceUnitOfWork
     /// <summary>The instance this unit of work moved the user out of, and whether it changed them at all.</summary>
     public bool TryGetPreviousInstance(string userId, out string? previous) => _changed.TryGetValue(userId, out previous);
 
+    /// <summary>Who this unit of work changed presence for and has not flushed yet (FriendWriter reads it before the save).</summary>
+    public IReadOnlyCollection<string> ChangedUserIds => _changed.Keys;
+
     public IReadOnlyList<PresenceWrite> TakeChanges()
     {
         if (_changed.Count == 0) return [];

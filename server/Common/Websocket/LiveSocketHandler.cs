@@ -2,6 +2,7 @@ using System.Net.WebSockets;
 using System.Reflection;
 using Google.Protobuf;
 using VRCX.Common.Live;
+using VRCX.Common.Live.Topics;
 using VRCX.Common.Services.Automation;
 using VRCX.Common.Services.Live;
 using VRCX.Common.Services.Sessions;
@@ -10,8 +11,9 @@ namespace VRCX.Common.Websocket;
 
 /// <summary>
 /// The /1/ws endpoint: binary protobuf frames, <see cref="ClientMessage"/> in and
-/// <see cref="ServerMessage"/> out. One read loop (hello, game-log batches, pings) and one
-/// write loop (events from the bus) per connection; either side closing ends both.
+/// <see cref="ServerMessage"/> out. One read loop (hello, game-log batches, pings, topic
+/// subscriptions) and two write loops (events from the bus, and the connection's topic streams,
+/// docs/live-topics.md) per connection; either side closing ends them all.
 /// </summary>
 public sealed class LiveSocketHandler(
     ILiveEventBus bus,
@@ -28,6 +30,7 @@ public sealed class LiveSocketHandler(
     DiscordPresenceService discordPresence,
     VRCX.Common.Services.Live.Photon.PhotonService photon,
     IpcIngestor ipcIngestor,
+    TopicHub topicHub,
     ILogger<LiveSocketHandler> logger)
 {
     private const int MaxFrameBytes = 4 * 1024 * 1024;
@@ -51,11 +54,12 @@ public sealed class LiveSocketHandler(
 
         await SendAsync(socket, new ServerMessage
         {
-            Hello = new ServerHello { ProtocolVersion = (uint)ProtocolVersion._1, ServerVersion = ServerVersion, AccountIds = { sessions.ActiveAccountIds } },
+            Hello = new ServerHello { ProtocolVersion = (uint)ProtocolVersion._1, ServerVersion = ServerVersion, AccountIds = { sessions.ActiveAccountIds }, Topics = { topicHub.Names } },
         }, ct);
 
         using var subscription = bus.Subscribe();
-        using var closing = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        await using var topics = topicHub.OpenSession();
+        using var closing = CancellationTokenSource.CreateLinkedTokenSource(ct, topics.Closing);
         var sendLock = new SemaphoreSlim(1, 1);
         // The message loop and the quiet-close timer both change the game-log session; one at a time.
         var ingestLock = new SemaphoreSlim(1, 1);
@@ -107,16 +111,32 @@ public sealed class LiveSocketHandler(
             catch (WebSocketException) { }
         }, CancellationToken.None);
 
+        // Topic streams are what the client asked for, so a muted connection gets them too.
+        var topicWriter = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var message in topics.ReadAllAsync(closing.Token))
+                {
+                    await sendLock.WaitAsync(closing.Token);
+                    try { await SendAsync(socket, message, closing.Token); }
+                    finally { sendLock.Release(); }
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (WebSocketException) { }
+        }, CancellationToken.None);
+
         try
         {
             var buffer = new byte[64 * 1024];
-            while (socket.State == WebSocketState.Open && !ct.IsCancellationRequested)
+            while (socket.State == WebSocketState.Open && !closing.IsCancellationRequested)
             {
                 using var frame = new MemoryStream();
                 ValueWebSocketReceiveResult result;
                 do
                 {
-                    result = await socket.ReceiveAsync(buffer.AsMemory(), ct);
+                    result = await socket.ReceiveAsync(buffer.AsMemory(), closing.Token);
                     if (result.MessageType == WebSocketMessageType.Close) goto done;
                     frame.Write(buffer, 0, result.Count);
                     if (frame.Length > MaxFrameBytes) throw new WebSocketException("frame too large");
@@ -199,6 +219,12 @@ public sealed class LiveSocketHandler(
                         }
                         finally { ingestLock.Release(); }
                         break;
+                    case ClientMessage.MessageOneofCase.Subscribe:
+                        topics.Subscribe(message.Subscribe);
+                        break;
+                    case ClientMessage.MessageOneofCase.Unsubscribe:
+                        topics.Unsubscribe(message.Unsubscribe.SubId);
+                        break;
                     case ClientMessage.MessageOneofCase.ActionResult:
                         desktops.Complete(message.ActionResult);
                         break;
@@ -262,7 +288,7 @@ public sealed class LiveSocketHandler(
             }
             done:;
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (closing.IsCancellationRequested) { }
         catch (WebSocketException ex)
         {
             logger.LogDebug(ex, "Live socket from {Client} dropped", session.ClientId);
@@ -278,6 +304,7 @@ public sealed class LiveSocketHandler(
             await closing.CancelAsync();
             quietClose?.Dispose();
             await writer;
+            await topicWriter;
             if (socket.State is WebSocketState.Open or WebSocketState.CloseReceived)
             {
                 try { await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None); }

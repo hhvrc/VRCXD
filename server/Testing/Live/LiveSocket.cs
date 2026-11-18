@@ -185,6 +185,50 @@ public sealed class LiveClient : LiveSocket
         return (T)Payload(message.Event)!;
     }
 
+    // ---- topics (docs/live-topics.md) ----------------------------------------
+
+    /// <summary>Sends a Subscribe; await <see cref="SnapshotAsync"/> or <see cref="ClosedAsync"/> for the answer.</summary>
+    public Task SubscribeAsync(uint subId, string topic, string? accountId) =>
+        SendAsync(new ClientMessage { Subscribe = new Subscribe { SubId = subId, Topic = topic, AccountId = accountId ?? "" } });
+
+    public Task UnsubscribeAsync(uint subId) =>
+        SendAsync(new ClientMessage { Unsubscribe = new Unsubscribe { SubId = subId } });
+
+    /// <summary>Subscribes and returns the snapshot.</summary>
+    public async Task<TopicSnapshot> SubscribeSnapshotAsync(uint subId, string topic, string? accountId)
+    {
+        await SubscribeAsync(subId, topic, accountId);
+        return await SnapshotAsync(subId);
+    }
+
+    public async Task<TopicSnapshot> SnapshotAsync(uint subId, TimeSpan? timeout = null) =>
+        (await NextAsync(m => m.MessageCase == ServerMessage.MessageOneofCase.TopicSnapshot && m.TopicSnapshot.SubId == subId, timeout, $"snapshot for sub {subId}")).TopicSnapshot;
+
+    /// <summary>The next delta of the subscription (matching, when given) no earlier wait claimed.</summary>
+    public async Task<TopicDelta> DeltaAsync(uint subId, Func<TopicDelta, bool>? match = null, TimeSpan? timeout = null) =>
+        (await NextAsync(m => m.MessageCase == ServerMessage.MessageOneofCase.TopicDelta && m.TopicDelta.SubId == subId && (match?.Invoke(m.TopicDelta) ?? true), timeout, $"delta for sub {subId}")).TopicDelta;
+
+    public async Task<TopicClosed> ClosedAsync(uint subId, TimeSpan? timeout = null) =>
+        (await NextAsync(m => m.MessageCase == ServerMessage.MessageOneofCase.TopicClosed && m.TopicClosed.SubId == subId, timeout, $"TopicClosed for sub {subId}")).TopicClosed;
+
+    /// <summary>Every delta of the subscription received so far, in order.</summary>
+    public IReadOnlyList<TopicDelta> Deltas(uint subId) =>
+        Received.Where(m => m.MessageCase == ServerMessage.MessageOneofCase.TopicDelta && m.TopicDelta.SubId == subId).Select(m => m.TopicDelta).ToList();
+
+    /// <summary>
+    /// Fails when a delta for the subscription arrives within <paramref name="window"/> (longer than the
+    /// topic's coalescing window, so one would have been sent by then) plus a ping round-trip.
+    /// </summary>
+    public async Task AssertNoDeltaAsync(uint subId, TimeSpan window, Func<TopicDelta, bool>? match = null)
+    {
+        var before = Deltas(subId).Count;
+        await Task.Delay(window);
+        await PingAsync();
+        var found = Deltas(subId).Skip(before).Where(d => match?.Invoke(d) ?? true).ToList();
+        if (found.Count > 0)
+            throw new InvalidOperationException($"Expected no delta for sub {subId}, got:\n  {string.Join("\n  ", found)}");
+    }
+
     /// <summary>
     /// Fails when an event of type T (matching) has arrived, or arrives before a ping round-trip
     /// completes. Publishing happens before the REST call or pipeline dispatch that caused it

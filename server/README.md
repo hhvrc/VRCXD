@@ -117,13 +117,16 @@ Table and column names are explicit snake_case in `VrcxContext`.
   produces) and the server side streams `ServerEvent`s (presence, user changes,
   friendships, notifications, instance visits, account sessions) plus `ClientAction`s for the
   PC. Auth is the same token, as a header or `?token=` for browsers. The web UI generates its
-  TypeScript from the same `.proto` (protobuf-es / buf).
+  TypeScript from the same `.proto` (protobuf-es / buf). Clients can also subscribe to live
+  topics: independent snapshot-then-delta streams with per-subscription revisions. The `friends`
+  topic replaces its REST refetches while a topic-capable server is connected; see
+  [`docs/live-topics.md`](../docs/live-topics.md).
 - Game-log lines become rows through `GameLogIngestor`: the PC's own instance visits
   (`source = game_log`), other players' visits from OnPlayerJoined/Left, video plays and portal
   spawns. Everything the ingestion writes is announced on `ILiveEventBus` after commit, so a
   REST read right after an event sees it.
-- Planned: pages subscribe to topics on `/1/ws` (friends first) and get a snapshot, then deltas,
-  instead of an event followed by a REST read. See `AGENTS.md`, Architecture rules.
+- Other event-backed reads move to topics feature by feature; topic design, recovery and extension
+  rules are in [`docs/live-topics.md`](../docs/live-topics.md).
 
 ## API
 

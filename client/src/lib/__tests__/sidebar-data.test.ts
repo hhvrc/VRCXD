@@ -8,7 +8,40 @@ vi.mock('#lib/api/client.js', async (original) => ({ ...(await original<typeof i
 const auth = vi.hoisted(() => ({ ownerUserId: 'usr_me' }));
 vi.mock('#lib/api/vrchat-auth.svelte.js', () => ({ vrchatAuth: auth, ownPath: (rest = '') => `/1/accounts/${encodeURIComponent(auth.ownerUserId)}${rest}` }));
 
-const { sidebarData } = await import('../people/sidebar-data.svelte.js');
+// The friends topic, handed in: 'unsupported' is a server older than topics (the REST and events
+// path the first describe covers), 'connecting' waits for the test to send the snapshot.
+type Listener = (value: unknown, status: string) => void;
+const topic = vi.hoisted(() => ({
+	mode: 'unsupported' as 'unsupported' | 'connecting',
+	listeners: [] as Listener[],
+	accounts: [] as string[],
+	released: [] as string[],
+	send(value: unknown, status = 'live') {
+		for (const listener of this.listeners) listener(value, status);
+	}
+}));
+vi.mock('#lib/live/topics/friends.svelte.js', () => ({
+	friendsTopic: (account: string) => {
+		topic.accounts.push(account);
+		const mine: Listener[] = [];
+		return {
+			value: undefined,
+			status: topic.mode,
+			listen(listener: Listener) {
+				mine.push(listener);
+				topic.listeners.push(listener);
+				listener(undefined, topic.mode);
+				return () => {};
+			},
+			release() {
+				topic.released.push(account);
+				topic.listeners = topic.listeners.filter((l) => !mine.includes(l));
+			}
+		};
+	}
+}));
+
+const { sidebarData, FRIENDS_TOPIC_WAIT_MS } = await import('../people/sidebar-data.svelte.js');
 
 const bob = { userId: 'usr_bob', displayName: 'Bob', state: 'offline', location: 'offline', platform: 'standalonewindows' };
 const ev = (event: ServerEvent['event']) => create(ServerEventSchema, { at: timestampFromDate(new Date('2026-11-18T12:00:00Z')), event });
@@ -149,5 +182,83 @@ describe('shared sidebar state', () => {
 		await vi.runAllTimersAsync();
 		expect(asked('/friends')).toBe(1);
 		expect(sidebarData.friendsLoaded).toBe(true);
+	});
+});
+
+describe('the friend list from the friends topic', () => {
+	const alice = { userId: 'usr_alice', displayName: 'Alice', state: 'online', location: 'wrld_a:1', friendNumber: 1 };
+	beforeEach(async () => {
+		topic.mode = 'connecting';
+		auth.ownerUserId = `usr_me${++account}`;
+		sidebarData.start();
+		await settle();
+		get.mockClear();
+	});
+	afterEach(() => {
+		topic.mode = 'unsupported';
+	});
+
+	test('the snapshot is the list, and friends are never read over REST', async () => {
+		const waiting = sidebarData.ensureFriends();
+		topic.send([alice, bob]);
+		expect(await waiting).toHaveLength(2);
+		expect(sidebarData.friendsLoaded).toBe(true);
+		expect(sidebarData.onlineCount).toBe(1);
+		await vi.advanceTimersByTimeAsync(FRIENDS_TOPIC_WAIT_MS * 2);
+		expect(asked('/friends')).toBe(0);
+	});
+
+	test('deltas replace the list; presence, status and friendship events read nothing and patch nothing', async () => {
+		topic.send([alice, bob]);
+		topic.send([alice, { ...bob, state: 'online', location: 'wrld_b:2' }]);
+		expect(sidebarData.friends[1]).toMatchObject({ state: 'online', location: 'wrld_b:2' });
+		sidebarData.apply(ev({ case: 'presence', value: create(PresenceChangedSchema, { userId: 'usr_bob', state: 'offline', location: 'offline' }) }));
+		sidebarData.apply(ev({ case: 'user', value: create(UserChangedSchema, { userId: 'usr_bob', changed: ['status'] }) }));
+		sidebarData.apply(ev({ case: 'friendship', value: create(FriendshipChangedSchema, { ownerUserId: me(), friendUserId: 'usr_new', isFriend: true }) }));
+		// The topic's row stands until the topic says otherwise.
+		expect(sidebarData.friends[1]).toMatchObject({ state: 'online', location: 'wrld_b:2' });
+		await vi.advanceTimersByTimeAsync(20_000);
+		expect(asked('/friends')).toBe(0);
+	});
+
+	test('a reconnect leaves the friends to the topic and reads the rest once', async () => {
+		topic.send([alice]);
+		sidebarData.resync();
+		await vi.advanceTimersByTimeAsync(5000);
+		expect(asked('/friends')).toBe(0);
+		for (const path of ['/favorites', '/me', '/game/instance', '/group-instances']) expect(asked(path)).toBe(1);
+	});
+
+	test('the refresh button asks VRChat and leaves the list to the deltas', async () => {
+		topic.send([alice]);
+		await sidebarData.refresh();
+		expect(asked('/friends')).toBe(0);
+	});
+
+	test('no snapshot in time reads the list over REST once; a snapshot later still takes over', async () => {
+		await vi.advanceTimersByTimeAsync(FRIENDS_TOPIC_WAIT_MS);
+		await settle();
+		expect(asked('/friends')).toBe(1);
+		expect(sidebarData.friends.map((f) => f.userId)).toEqual(['usr_bob']);
+		topic.send([alice]);
+		expect(sidebarData.friends.map((f) => f.userId)).toEqual(['usr_alice']);
+		await vi.advanceTimersByTimeAsync(FRIENDS_TOPIC_WAIT_MS * 2);
+		expect(asked('/friends')).toBe(1);
+	});
+
+	test('a server that turns out not to have the topic falls back to REST and the events', async () => {
+		topic.send(undefined, 'unsupported');
+		await settle();
+		expect(asked('/friends')).toBe(1);
+		sidebarData.apply(ev({ case: 'presence', value: create(PresenceChangedSchema, { userId: 'usr_bob', state: 'online', location: 'wrld_b:2' }) }));
+		expect(sidebarData.friends[0]).toMatchObject({ state: 'online', location: 'wrld_b:2' });
+	});
+
+	test('another account releases the old topic and follows its own', async () => {
+		const before = me();
+		auth.ownerUserId = `usr_me${++account}`;
+		sidebarData.start();
+		expect(topic.released).toContain(before);
+		expect(topic.accounts[topic.accounts.length - 1]).toBe(me());
 	});
 });

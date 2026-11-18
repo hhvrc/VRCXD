@@ -1,36 +1,38 @@
 ---
 name: add-live-topic
-description: PROVISIONAL. How new live data reaches pages over /1/ws as a subscribed topic (snapshot, then deltas) instead of a ServerEvent plus a REST refetch. The topic machinery is being built with the friends topic and is not on master yet. Use when adding or changing live data on the websocket.
+description: How new live data reaches pages over /1/ws as a subscribed topic (snapshot, then deltas) instead of a ServerEvent plus a REST refetch. Use when adding or changing live data on the websocket.
 ---
 
-# Add a live topic (provisional)
+# Add a live topic
 
-**Not built yet.** The friends topic, the first one, is being built in another worktree. Until it
-lands on `master` none of the types below exist, and this skill will be rewritten from that code.
-Before adding live data, ask the owner whether to wait for it. Do not build a second topic
-mechanism of your own.
+Use the existing `/1/ws` topic machinery described in `docs/live-topics.md`; do not build another
+transport. The friends topic is the reference implementation.
 
-## The design being built
+## Server
 
-- A `TopicHub` on the server holds subscriptions per connection on `/1/ws`.
-- `ClientMessage` gains `Subscribe` / `Unsubscribe`; `ServerMessage` gains `TopicSnapshot`,
-  `TopicDelta` and `TopicClosed` (`server/Common/Protos/vrcx_live.proto`; add `oneof` cases, never
-  renumber or reuse a number).
-- Every subscription carries a `rev`. A gap in `rev`, or an overflowing subscriber, means the
-  client resubscribes and gets a fresh snapshot. A reconnect resubscribes the same way.
-- Topics are independent streams, not request/response.
-- The feature's writer, for friends `FriendWriter` in `server/Common/Features/Friends/`, is the
-  only code that changes the topic's tables and emits its deltas. No `ExecuteUpdate` or
-  `ExecuteDelete` on them elsewhere: bulk writes bypass `LiveChangeInterceptor` and publish
-  nothing.
-- The snapshot builder is the same code that serves the feature's REST GET and its MCP read.
-- Client: `client/src/lib/live/topics/<topic>.svelte.ts`, a thin `$state` shell over a pure
-  reducer module `<topic>.ts` (`applySnapshot`, `applyDelta`) covered by vitest. Components use
-  the store, not `#lib/api/client`, for that feature.
+1. Read `server/AGENTS.md`, `TopicHub.cs`, `ILiveTopic.cs`, `FriendsTopic.cs` and `FriendWriter.cs`.
+2. Add protocol payload cases to `server/Common/Protos/vrcx_live.proto`. Never renumber or reuse an
+   existing field.
+3. Put the topic, its writer and query extensions in `server/Common/Features/<Feature>/`.
+4. Reuse the exact query used by REST and MCP for the snapshot. Deltas may reread just changed rows,
+   but must emit the same mapped rows.
+5. Make one feature writer own all relevant mutations and after-commit announcements. Bulk writes
+   must not bypass the publication path.
+6. Send an ordered snapshot followed by deltas. Close with the appropriate `TopicCloseReason`
+   instead of dropping a delta.
+7. Add scenario coverage for snapshot equivalence, all change sources, coalescing if used, revision
+   order, unsubscribe, reconnect, account isolation and overflow. Pin snapshot SQL round trips in
+   `QueryCountTests`.
 
-## Tests to expect
+## Client
 
-- Server: a scenario that subscribes, checks the snapshot, causes a change (pipeline frame, sync,
-  game log) and checks the delta and its `rev`; a gap forces a fresh snapshot. Pin SQL round trips
-  for the snapshot in `QueryCountTests`.
-- Client: reducer tests for `applySnapshot` and `applyDelta`, including an out-of-order `rev`.
+1. Add a pure `client/src/lib/live/topics/<topic>.ts` codec/reducer.
+2. Add `client/src/lib/live/topics/<topic>.svelte.ts` as the thin store over `subscribeTopic`.
+3. Cover snapshot mapping, ordered and out-of-order deltas, reconnect and unsupported servers.
+4. Move feature consumers to the store. Keep REST plus the old `ServerEvent` path as fallback for
+   servers that omit the topic or do not produce a snapshot in time.
+
+## Finish
+
+Run the checks for every part whose generated protobuf or live handling changed. Update
+`docs/live-topics.md` when the generic protocol, recovery, backpressure or extension rules change.

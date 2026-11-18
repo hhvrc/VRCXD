@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.Live;
 using VRCX.Common.VrcxDb;
 using VRCX.Testing;
@@ -50,6 +51,21 @@ public sealed class QueryCountTests
     }
 
     private const int MaxFriendSyncTrips = 16;
+
+    [Test]
+    public async Task A_friends_topic_snapshot_of_300_friends_takes_a_bounded_number_of_queries()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        await SeedFriendsAsync(app, 300);
+        await app.LoginAsync();
+        await using var live = await app.ConnectLiveAsync();
+
+        var trips = await app.Sql.CountAsync(() => live.SubscribeSnapshotAsync(1, FriendsTopic.TopicName, app.AccountId));
+
+        await Assert.That(trips).IsLessThanOrEqualTo(MaxFriendsSnapshotTrips).Because(app.Sql.Describe());
+    }
+
+    private const int MaxFriendsSnapshotTrips = 2;
 
     [Test]
     public async Task A_full_sync_takes_a_bounded_number_of_queries()

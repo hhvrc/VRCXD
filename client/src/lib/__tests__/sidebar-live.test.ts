@@ -15,6 +15,11 @@ vi.mock('#lib/api/live.svelte.js', () => ({
 	onReconnect: (listener: () => void) => (hooks.reconnects.push(listener), () => {})
 }));
 
+// A server without topics: the friend list comes over REST, as these tests count it.
+vi.mock('#lib/live/topics/friends.svelte.js', () => ({
+	friendsTopic: () => ({ value: undefined, status: 'unsupported', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'unsupported'), () => {}), release: () => {} })
+}));
+
 const { startSidebarLive } = await import('../people/sidebar-live.js');
 
 const asked = (suffix: string) => get.mock.calls.filter(([path]) => (path as string).endsWith(suffix)).length;

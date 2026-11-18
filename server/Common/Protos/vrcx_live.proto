@@ -22,7 +22,42 @@ message ClientMessage {
         ActionResult action_result = 4;
         GameState game_state = 5;
         IpcPacket ipc = 6;
+        Subscribe subscribe = 7;
+        Unsubscribe unsubscribe = 8;
     }
+}
+
+// ---------------------------------------------------------------------------
+// Topics (docs/live-topics.md)
+//
+// A topic is one piece of server state a client keeps a copy of (an account's friend list, ...).
+// Each subscription is its own stream: one TopicSnapshot with the whole state, then TopicDeltas that
+// each turn the state after the previous message into the state now. The stream replaces asking
+// over REST after a notify-style ServerEvent; the server says which topics it has in ServerHello.
+//
+// - rev is per subscription: the snapshot carries some rev N and every delta after it N+1, N+2, ...
+//   A client that sees a delta whose rev is not last+1 has missed something: it drops that delta and
+//   subscribes again (with a new sub_id), and keeps showing what it has until the new snapshot comes.
+// - A snapshot replaces whatever the client held for that subscription; it is never merged.
+// - Subscriptions live and die with the connection. After a reconnect the client subscribes again
+//   and gets a fresh snapshot: nothing is resumed, so nothing missed while away can be lost.
+// - The server ends a subscription with TopicClosed. For OVERFLOW and ERROR the client subscribes
+//   again (after a short wait); the other reasons are not retried on the same connection.
+
+// Starts a subscription. sub_id is the client's choice, unique among its open subscriptions on this
+// connection; a fresh one for every Subscribe (a resubscribe too) lets the client tell the old
+// stream's stragglers from the new one. Subscribing with an id already open replaces that stream.
+message Subscribe {
+    uint32 sub_id = 1;
+    // One of ServerHello.topics, e.g. "friends".
+    string topic = 2;
+    // The VRChat account (usr_...) the topic is about, for account-scoped topics.
+    string account_id = 3;
+}
+
+// Ends a subscription; nothing more is sent for it (not even a TopicClosed). Unknown ids are ignored.
+message Unsubscribe {
+    uint32 sub_id = 1;
 }
 
 // A packet another program wrote to the VRCX named pipe on this PC (the original's Dotnet/IPC and
@@ -265,7 +300,97 @@ message ServerMessage {
         ClientAction action = 4;
         Pong pong = 5;
         GameLogResume game_log_resume = 6;
+        TopicSnapshot topic_snapshot = 7;
+        TopicDelta topic_delta = 8;
+        TopicClosed topic_closed = 9;
     }
+}
+
+// The whole state of a subscription's topic, the first message of every subscription.
+message TopicSnapshot {
+    uint32 sub_id = 1;
+    uint64 rev = 2;
+    // The case matches the subscription's topic.
+    oneof payload {
+        FriendsSnapshot friends = 10;
+    }
+}
+
+// One change to a subscription's state: rev is exactly one more than the message before it.
+message TopicDelta {
+    uint32 sub_id = 1;
+    uint64 rev = 2;
+    oneof payload {
+        FriendsDelta friends = 10;
+    }
+}
+
+enum TopicCloseReason {
+    TOPIC_CLOSE_REASON_UNSPECIFIED = 0;
+    // No such topic on this server: the client falls back to what it did before topics.
+    TOPIC_CLOSE_REASON_UNKNOWN_TOPIC = 1;
+    // The account is not logged in to this server (what REST answers 404 for).
+    TOPIC_CLOSE_REASON_UNKNOWN_ACCOUNT = 2;
+    // This connection fell too far behind reading: the deltas were dropped, so subscribe again.
+    TOPIC_CLOSE_REASON_OVERFLOW = 3;
+    // The server could not read the state; subscribe again.
+    TOPIC_CLOSE_REASON_ERROR = 4;
+    // A Subscribe without what the topic needs (an account id).
+    TOPIC_CLOSE_REASON_BAD_REQUEST = 5;
+}
+
+message TopicClosed {
+    uint32 sub_id = 1;
+    TopicCloseReason reason = 2;
+    // For logs only.
+    string detail = 3;
+}
+
+// ---- topic "friends": an account's current friends, as GET /1/accounts/{id}/friends lists them ----
+
+message FriendsSnapshot {
+    // In friend-number order.
+    repeated FriendEntry friends = 1;
+}
+
+// Whole rows: an upsert replaces the friend's row (or adds it), a removal drops it (unfriended).
+message FriendsDelta {
+    repeated FriendEntry upserts = 1;
+    repeated string removed_user_ids = 2;
+}
+
+// One friend: their profile as stored, their presence from Redis, the account's memo on them.
+// Strings are empty and timestamps unset when unknown.
+message FriendEntry {
+    string user_id = 1;
+    int32 friend_number = 2;
+    google.protobuf.Timestamp friends_since = 3;
+    string display_name = 4;
+    string trust_level = 5;
+    // online, active, offline.
+    string state = 6;
+    string status = 7;
+    string status_description = 8;
+    string location = 9;
+    string traveling_to_location = 10;
+    // When they arrived at location.
+    google.protobuf.Timestamp location_since = 11;
+    // When they last came online, went active or went offline (the original's $online_for / $offline_for).
+    google.protobuf.Timestamp online_for = 12;
+    google.protobuf.Timestamp last_activity = 13;
+    google.protobuf.Timestamp last_login = 14;
+    string thumbnail_image_url = 15;
+    repeated string tags = 16;
+    string developer_type = 17;
+    // The original's computeUserPlatform.
+    string platform = 18;
+    // The first line of VRCXD's memo on them.
+    string nickname = 19;
+    // Reported offline or active but inside the original's 170 s grace period, so still listed online.
+    bool pending_offline = 20;
+    int32 name_hue = 21;
+    string icon_frame = 22;
+    string profile_effect = 23;
 }
 
 // Answer to a ClientHello with a client_id: how far this client's log was ingested, so it
@@ -282,6 +407,8 @@ message ServerHello {
     string server_version = 1;
     // Accounts with a live VRChat session right now.
     repeated string account_ids = 2;
+    // The topics this server streams (Subscribe.topic). Empty from a server older than topics.
+    repeated string topics = 4;
 }
 
 message Pong {}

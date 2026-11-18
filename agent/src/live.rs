@@ -218,7 +218,15 @@ impl Shipper {
                         Some(server_message::Message::Action(action)) => {
                             actions::perform(action, &ctx);
                         }
-                        Some(server_message::Message::Pong(_) | server_message::Message::Event(_)) | None => {}
+                        // The agent subscribes to no topics (yet), so the topic messages never come.
+                        Some(
+                            server_message::Message::Pong(_)
+                            | server_message::Message::Event(_)
+                            | server_message::Message::TopicSnapshot(_)
+                            | server_message::Message::TopicDelta(_)
+                            | server_message::Message::TopicClosed(_),
+                        )
+                        | None => {}
                     }
                 }
                 _ = ping.tick() => {

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
 using VRCX.Common.VrcxDb;
@@ -13,7 +14,7 @@ public interface IPipelineIngestor
 }
 
 /// <inheritdoc />
-public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, VrchatStore store, ILiveEventBus bus, PresenceDebouncer debouncer, ILogger<PipelineIngestor> logger, TimeProvider? time = null, VRCX.Common.Services.Live.DesktopClients? desktops = null, VRCX.Common.Services.Live.InstanceQueues? queues = null, Sessions.CurrentUserCache? currentUsers = null) : IPipelineIngestor
+public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, VrchatStore store, ILiveEventBus bus, PresenceDebouncer debouncer, FriendWriter friends, ILogger<PipelineIngestor> logger, TimeProvider? time = null, VRCX.Common.Services.Live.DesktopClients? desktops = null, VRCX.Common.Services.Live.InstanceQueues? queues = null, Sessions.CurrentUserCache? currentUsers = null) : IPipelineIngestor
 {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
 
@@ -236,13 +237,13 @@ public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, V
                 break;
             case "friend-add":
                 {
-                    var friendship = await store.AddFriendAsync(db, accountId, p.UserId, now, ct);
+                    var friendship = await friends.AddAsync(db, accountId, p.UserId, now, ct);
                     if (friendship is not null) published.Add(LiveEvents.Friendship(accountId, p.UserId, user.DisplayName, true, friendship.FriendNumber));
                     break;
                 }
             case "friend-delete":
                 {
-                    var friendship = await store.RemoveFriendAsync(db, accountId, p.UserId, now, ct);
+                    var friendship = await friends.RemoveAsync(db, accountId, p.UserId, now, ct);
                     if (friendship is not null) published.Add(LiveEvents.Friendship(accountId, p.UserId, user.DisplayName, false, friendship.FriendNumber));
                     break;
                 }

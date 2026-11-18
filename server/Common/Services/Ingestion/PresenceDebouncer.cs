@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.Services.Live;
 using VRCX.Common.Services.Presence;
 using VRCX.Common.VrcxDb;
@@ -14,7 +15,7 @@ namespace VRCX.Common.Services.Ingestion;
 /// is applied when it expires, with the time they left measured then. The waiting transitions
 /// are in Redis, so a restart inside the window does not forget them.
 /// </summary>
-public sealed class PresenceDebouncer(IDbContextFactory<VrcxContext> dbFactory, VrchatStore store, IPendingPresenceQueue queue, ILiveEventBus bus, ILogger<PresenceDebouncer> logger)
+public sealed class PresenceDebouncer(IDbContextFactory<VrcxContext> dbFactory, VrchatStore store, IPendingPresenceQueue queue, ILiveEventBus bus, FriendWriter friends, ILogger<PresenceDebouncer> logger)
 {
     public static readonly TimeSpan Delay = TimeSpan.FromMilliseconds(170_000);
 
@@ -24,6 +25,9 @@ public sealed class PresenceDebouncer(IDbContextFactory<VrcxContext> dbFactory, 
         try
         {
             await queue.ScheduleAsync(userId, new PendingPresence(kind, platform, now), ct);
+            // The friend list shows them online with the offline pending (the original's pendingOffline),
+            // which nothing else announces: the friends topic sends their row again.
+            friends.PresencePendingChanged(userId);
             return true;
         }
         catch (RedisException ex)
@@ -38,6 +42,7 @@ public sealed class PresenceDebouncer(IDbContextFactory<VrcxContext> dbFactory, 
         try
         {
             await queue.CancelAsync(userId, ct);
+            friends.PresencePendingChanged(userId);
         }
         catch (RedisException ex)
         {

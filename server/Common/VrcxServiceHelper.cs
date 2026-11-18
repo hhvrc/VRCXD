@@ -10,6 +10,8 @@ using Microsoft.OpenApi;
 using OpenShock.Internal.Common.ExceptionHandling;
 using OpenTelemetry.Metrics;
 using VRCX.Common.Authentication;
+using VRCX.Common.Features.Friends;
+using VRCX.Common.Live.Topics;
 using VRCX.Common.Authentication.AuthenticationHandlers;
 using VRCX.Common.HealthChecks;
 using VRCX.Common.Options;
@@ -40,11 +42,13 @@ public static class VrcxServiceHelper
         // mapping source ("Multiple enum definitions registered for CLR type ...").
         services.AddSingleton<PresenceFlushInterceptor>();
         services.AddSingleton<LiveChangeInterceptor>();
+        services.AddSingleton(sp => new FriendWriter.CommitHook(new Lazy<FriendWriter>(sp.GetRequiredService<FriendWriter>)));
         services.AddSingleton(sp => new Lazy<IPresenceCache>(sp.GetRequiredService<IPresenceCache>));
         services.AddPooledDbContextFactory<VrcxContext>((sp, builder) =>
         {
             VrcxContext.ConfigureOptionsBuilder(builder, options.Conn, options.Debug);
-            builder.AddInterceptors(sp.GetRequiredService<PresenceFlushInterceptor>(), sp.GetRequiredService<LiveChangeInterceptor>());
+            // The friend writer's hook after the presence flush: it announces changes that rows read from Redis show.
+            builder.AddInterceptors(sp.GetRequiredService<PresenceFlushInterceptor>(), sp.GetRequiredService<LiveChangeInterceptor>(), sp.GetRequiredService<FriendWriter.CommitHook>());
         });
         services.AddScoped(sp => sp.GetRequiredService<IDbContextFactory<VrcxContext>>().CreateDbContext());
 
@@ -224,6 +228,11 @@ public static class VrcxServiceHelper
         services.AddSingleton<IGameLogIngestor, GameLogIngestor>();
         services.AddSingleton<IpcIngestor>();
         services.AddSingleton<LiveSocketHandler>();
+        // Live topics (docs/live-topics.md): the hub, and one singleton per topic.
+        services.AddSingleton<TopicHub>();
+        services.AddSingleton<FriendsTopic>();
+        services.AddSingleton<ILiveTopic>(sp => sp.GetRequiredService<FriendsTopic>());
+        services.AddSingleton<FriendWriter>();
         services.AddSingleton<GameClientRegistry>();
         services.AddSingleton<VRCX.Common.Services.Sync.OwnAvatarsFetchLog>();
         services.AddSingleton<DesktopClients>();

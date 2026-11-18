@@ -275,7 +275,9 @@ public class StoreTests
         var dbs = await Postgres.NewDatabaseAsync(Presence);
         await using (var db = dbs.CreateDbContext()) await NewAccountAsync(db);
         var bus = new LiveEventBus(NullLogger<LiveEventBus>.Instance);
-        var ingestor = new PipelineIngestor(dbs, Store, bus, new PresenceDebouncer(dbs, Store, new InMemoryPendingPresenceQueue(), bus, NullLogger<PresenceDebouncer>.Instance), NullLogger<PipelineIngestor>.Instance);
+        var pending = new InMemoryPendingPresenceQueue();
+        var friends = new VRCX.Common.Features.Friends.FriendWriter(Store, new VRCX.Common.Features.Friends.FriendsTopic(dbs, Presence, pending, NullLogger<VRCX.Common.Features.Friends.FriendsTopic>.Instance));
+        var ingestor = new PipelineIngestor(dbs, Store, bus, new PresenceDebouncer(dbs, Store, pending, bus, friends, NullLogger<PresenceDebouncer>.Instance), friends, NullLogger<PipelineIngestor>.Instance);
 
         async Task Send(string frame) => await ingestor.HandleAsync("usr_me", PipelineEvent.Parse(frame), CancellationToken.None);
 
@@ -335,7 +337,9 @@ public class StoreTests
             await seed.SaveChangesAsync();
         }
         var bus = new LiveEventBus(NullLogger<LiveEventBus>.Instance);
-        var ingestor = new PipelineIngestor(dbs, Store, bus, new PresenceDebouncer(dbs, Store, new InMemoryPendingPresenceQueue(), bus, NullLogger<PresenceDebouncer>.Instance), NullLogger<PipelineIngestor>.Instance);
+        var pending = new InMemoryPendingPresenceQueue();
+        var friends = new VRCX.Common.Features.Friends.FriendWriter(Store, new VRCX.Common.Features.Friends.FriendsTopic(dbs, Presence, pending, NullLogger<VRCX.Common.Features.Friends.FriendsTopic>.Instance));
+        var ingestor = new PipelineIngestor(dbs, Store, bus, new PresenceDebouncer(dbs, Store, pending, bus, friends, NullLogger<PresenceDebouncer>.Instance), friends, NullLogger<PipelineIngestor>.Instance);
 
         await ingestor.HandleAsync("usr_me", PipelineEvent.Parse("""{"type":"instance-queue-ready","content":"{\"instanceLocation\":\"wrld_q:123~group(grp_q)~groupAccessType(public)\"}"}"""), CancellationToken.None);
         await ingestor.HandleAsync("usr_me", PipelineEvent.Parse("""{"type":"instance-closed","content":"{\"instanceLocation\":\"wrld_q:123\"}"}"""), CancellationToken.None);

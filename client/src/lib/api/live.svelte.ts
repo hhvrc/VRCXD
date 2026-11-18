@@ -3,9 +3,12 @@ import { timestampDate } from '@bufbuild/protobuf/wkt';
 import {
 	ClientMessageSchema,
 	ServerMessageSchema,
+	type ClientMessage,
 	type InstanceVisitChanged,
 	type PresenceChanged,
-	type ServerEvent
+	type ServerEvent,
+	type ServerHello,
+	type ServerMessage
 } from '#lib/gen/vrcx_live_pb.js';
 import { getServerToken } from '#lib/api/client.js';
 import { startKeepalive, type Keepalive } from '#lib/api/keepalive.js';
@@ -16,6 +19,8 @@ import { debounce } from '#lib/helpers/debounce.js';
 // ServerEvents here on top. Reconnects with backoff; the token rides along as ?token= since
 // browsers can't set headers on an upgrade. Events sent while the socket was down are gone, so
 // every reconnect is announced (onReconnect, live.reconnects) for the stores to read again.
+// Topics (topics.svelte.ts, docs/live-topics.md) ride the same socket: they subscribe after each
+// ServerHello (onHello) and read their snapshots and deltas through onTopicMessage.
 
 export type LiveState = {
 	connected: boolean;
@@ -31,6 +36,8 @@ export type LiveState = {
 	version: number;
 	/** Bumped each time the socket opens again after the first time: whatever came meanwhile was missed. */
 	reconnects: number;
+	/** The topics the server streams, from its last hello; null until one came. */
+	topics: string[] | null;
 };
 
 export const live = $state<LiveState>({
@@ -41,7 +48,8 @@ export const live = $state<LiveState>({
 	present: new Map(),
 	events: [],
 	version: 0,
-	reconnects: 0
+	reconnects: 0,
+	topics: null
 });
 
 const MAX_EVENTS = 500;
@@ -65,6 +73,44 @@ const reconnectListeners = new Set<() => void>();
 export function onReconnect(listener: () => void): () => void {
 	reconnectListeners.add(listener);
 	return () => reconnectListeners.delete(listener);
+}
+
+const helloListeners = new Set<(hello: ServerHello) => void>();
+
+/**
+ * Called for every ServerHello, the first and each one after a reconnect: the moment a topic
+ * subscribes (again), since the server forgets subscriptions with the connection. Returns the unsubscribe.
+ */
+export function onHello(listener: (hello: ServerHello) => void): () => void {
+	helloListeners.add(listener);
+	return () => helloListeners.delete(listener);
+}
+
+/** A topic's snapshot, delta or closing. */
+export type TopicMessage = Extract<ServerMessage['message'], { case: 'topicSnapshot' | 'topicDelta' | 'topicClosed' }>;
+const topicListeners = new Set<(message: TopicMessage) => void>();
+
+/** Called for every topic message on the socket; returns the unsubscribe. */
+export function onTopicMessage(listener: (message: TopicMessage) => void): () => void {
+	topicListeners.add(listener);
+	return () => topicListeners.delete(listener);
+}
+
+/** The socket has said hello and the server answered: Subscribe now reaches a server that knows the topics. */
+let helloSeen = false;
+
+/** Whether the current connection has had its ServerHello. */
+export const liveReady = () => helloSeen;
+
+/** Sends on the socket when it is open and greeted; false when it is not (the next hello is the time to try again). */
+export function sendLive(message: ClientMessage['message']): boolean {
+	if (!socket || !helloSeen) return false;
+	try {
+		socket.send(toBinary(ClientMessageSchema, create(ClientMessageSchema, { message })));
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 let socket: WebSocket | undefined;
@@ -140,12 +186,24 @@ function open() {
 		if (socket === ws) keepalive?.received();
 		const decoded = fromBinary(ServerMessageSchema, new Uint8Array(message.data));
 		switch (decoded.message.case) {
-			case 'hello':
-				live.serverVersion = decoded.message.value.serverVersion;
+			case 'hello': {
+				const hello = decoded.message.value;
+				live.serverVersion = hello.serverVersion;
+				live.topics = [...hello.topics];
+				helloSeen = socket === ws;
+				for (const listener of helloListeners) listener(hello);
 				break;
+			}
 			case 'event':
 				apply(decoded.message.value);
 				break;
+			case 'topicSnapshot':
+			case 'topicDelta':
+			case 'topicClosed': {
+				const message = decoded.message;
+				for (const listener of topicListeners) listener(message);
+				break;
+			}
 		}
 	};
 	ws.onerror = () => {
@@ -163,6 +221,7 @@ const PING = toBinary(ClientMessageSchema, create(ClientMessageSchema, { message
 /** The socket is gone: stop its heartbeat and, while a page still wants it, try again after the backoff. */
 function lost() {
 	socket = undefined;
+	helloSeen = false;
 	keepalive?.stop();
 	keepalive = undefined;
 	live.connected = false;
@@ -194,6 +253,7 @@ function close() {
 	keepalive = undefined;
 	const ws = socket;
 	socket = undefined;
+	helloSeen = false;
 	ws?.close(1000, 'bye');
 	live.connected = false;
 }
