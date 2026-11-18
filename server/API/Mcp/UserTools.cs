@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using VRCX.Common.Features.Friends;
+using VRCX.Common.Features.Locations;
 using VRCX.Common.Services.Presence;
 using VRCX.Common.Services.Queries;
 using VRCX.Common.VrcxDb;
@@ -33,7 +34,7 @@ public sealed record McpUserChange(
 public sealed record McpUserHistory(string UserId, string DisplayName, IReadOnlyList<McpUserChange> Items, bool Truncated, DateTimeOffset? NextBefore);
 
 [McpServerToolType]
-public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPresenceCache presence, FriendQueries friends, UserQueries users)
+public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPresenceCache presence, FriendQueries friends, UserQueries users, LocationQueries locations)
 {
     private static readonly string[] HistoryKinds = ["displayName", "trust", "status", "bio", "avatar", "presence", "visit"];
 
@@ -125,7 +126,7 @@ public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPres
             ?? throw new McpException($"This server has never seen {id}. Use find_user to search the stored users by name.");
 
         var now = await presence.GetAsync(id, cancellationToken);
-        var name = await McpLocations.NamerAsync(db, [now.Location, now.TravelingToLocation], cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, [now.Location, now.TravelingToLocation], cancellationToken);
         var memo = await db.UserMemos.AsNoTracking().Where(m => m.UserId == id).Select(m => m.Memo).FirstOrDefaultAsync(cancellationToken);
         var note = await db.UserNotes.AsNoTracking().Where(n => n.OwnerUserId == who.Id && n.TargetUserId == id).Select(n => n.Note).FirstOrDefaultAsync(cancellationToken);
         var friendship = await db.Friendships.AsNoTracking().Where(f => f.OwnerUserId == who.Id && f.FriendUserId == id && f.EndedAt == null)
@@ -168,7 +169,7 @@ public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPres
 
         // Each list is read newest first with one row more than asked, so the merge knows whether any is left.
         var history = await users.HistoryAsync(id, limit + 1, before, cancellationToken);
-        var name = await McpLocations.NamerAsync(db, history.Presence.SelectMany(p => new[] { p.Location, p.PreviousLocation }).Concat(history.Visits.Select(v => v.InstanceLocation)), cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, history.Presence.SelectMany(p => new[] { p.Location, p.PreviousLocation }).Concat(history.Visits.Select(v => v.InstanceLocation)), cancellationToken);
 
         var changes = new List<McpUserChange>();
         if (wanted.Contains("displayName")) changes.AddRange(history.DisplayNames.Select(c => new McpUserChange(c.ChangedAt, "displayName", c.DisplayName, c.PreviousDisplayName)));

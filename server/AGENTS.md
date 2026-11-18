@@ -42,7 +42,9 @@ is where its code lives.
   applies. The list may only shrink.
 - Friends is the moved feature to copy: `Common/Features/Friends/` (`FriendQueries`,
   `FriendActions` for what goes to VRChat, `FriendWriter`, `FriendsTopic`) and
-  `API/Controller/Friends/FriendsController.cs`.
+  `API/Controller/Friends/FriendsController.cs`. GameLog, Memos and Feed have moved the same
+  way. `Features/Accounts/AccountQueries` answers a feature controller's "is this account logged
+  in", and `Features/Locations/LocationQueries` names location tags for the MCP tools.
 - Never: a Domain / Application / Infrastructure project split, a generic `IRepository<T>`,
   MediatR or pipeline behaviours, route or proto shape changes inside a refactor, or large file
   moves while other worktrees are active.

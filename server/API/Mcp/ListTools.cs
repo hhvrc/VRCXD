@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using VRCX.Common.Features.Locations;
 using VRCX.Common.Services.Queries;
 using VRCX.Common.VrcxDb;
 
@@ -15,7 +16,7 @@ public sealed record McpFavorites(McpAccount Account, string Type, IReadOnlyList
 public sealed record McpModeration(string Type, string TargetUserId, string TargetDisplayName, DateTimeOffset? CreatedAt);
 
 [McpServerToolType]
-public sealed class ListTools(McpAccountResolver accounts, AccountListQueries lists, VrcxContext db)
+public sealed class ListTools(McpAccountResolver accounts, AccountListQueries lists, LocationQueries locations)
 {
     [McpServerTool(Name = "get_notifications", Title = "Notifications", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("""
@@ -63,7 +64,7 @@ public sealed class ListTools(McpAccountResolver accounts, AccountListQueries li
         };
         var who = await accounts.ResolveAsync(account, cancellationToken);
         var result = await lists.FavoritesAsync(who.Id, kind, cancellationToken);
-        var name = await McpLocations.NamerAsync(db, result.Favorites.Select(f => f.Location), cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, result.Favorites.Select(f => f.Location), cancellationToken);
         var rows = result.Favorites.Select(f => new McpFavorite(f.TargetId, f.TargetName, f.GroupDisplayName ?? f.GroupName, f.CreatedAt, f.AuthorName, f.State,
             kind == FavoriteType.Friend ? name(f.Location) : null, f.Missing));
         return new McpFavorites(who, kind.ToString().ToLowerInvariant(), result.Groups.Select(g => g.DisplayName).ToList(), McpPaging.Page(null, rows, offset, limit, result.Favorites.Count));

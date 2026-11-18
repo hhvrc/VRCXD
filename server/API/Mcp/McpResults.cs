@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol;
+using VRCX.Common.Features.Locations;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 
@@ -50,20 +51,16 @@ public static class McpPaging
 public static class McpLocations
 {
     /// <summary>World and group names for location tags, from the stored worlds and groups.</summary>
-    public static async Task<Func<string?, McpLocation?>> NamerAsync(VrcxContext db, IEnumerable<string?> tags, CancellationToken cancellationToken)
+    public static async Task<Func<string?, McpLocation?>> NamerAsync(LocationQueries locations, IEnumerable<string?> tags, CancellationToken cancellationToken)
     {
-        var parsed = tags.OfType<string>().Distinct().Select(VrchatLocation.Parse).ToList();
-        var worldIds = parsed.Select(l => l.WorldId).Where(id => id.Length > 0).Distinct().ToList();
-        var groupIds = parsed.Select(l => l.GroupId).OfType<string>().Distinct().ToList();
-        var worlds = worldIds.Count == 0 ? new Dictionary<string, string>() : await db.Worlds.AsNoTracking().Where(w => worldIds.Contains(w.Id)).ToDictionaryAsync(w => w.Id, w => w.Name, cancellationToken);
-        var groups = groupIds.Count == 0 ? new Dictionary<string, string>() : await db.Groups.AsNoTracking().Where(g => groupIds.Contains(g.Id)).ToDictionaryAsync(g => g.Id, g => g.Name, cancellationToken);
+        var names = await locations.NamesAsync(tags, cancellationToken);
         return tag =>
         {
             if (string.IsNullOrEmpty(tag)) return null;
             var location = VrchatLocation.Parse(tag);
             if (location.WorldId.Length == 0) return new McpLocation(tag, null, null, null, null);
-            return new McpLocation(tag, location.WorldId, worlds.GetValueOrDefault(location.WorldId), location.AccessTypeName,
-                location.GroupId is { } group ? groups.GetValueOrDefault(group) : null);
+            return new McpLocation(tag, location.WorldId, names.Worlds.GetValueOrDefault(location.WorldId), location.AccessTypeName,
+                location.GroupId is { } group ? names.Groups.GetValueOrDefault(group) : null);
         };
     }
 

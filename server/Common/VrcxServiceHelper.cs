@@ -253,6 +253,7 @@ public static class VrcxServiceHelper
         // Read models over what is stored, per request on the request's context: the endpoints and
         // the MCP tools share them, so neither carries query logic of its own.
         services.AddScoped<VRCX.Common.Features.Accounts.AccountQueries>();
+        services.AddScoped<VRCX.Common.Features.Locations.LocationQueries>();
         services.AddScoped<FriendQueries>();
         services.AddScoped<FriendActions>();
         services.AddScoped<VRCX.Common.Features.GameLog.GameLogQueries>();

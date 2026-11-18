@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using VRCX.Common.Features.Locations;
 using VRCX.Common.Features.GameLog;
 using VRCX.Common.VrcxDb;
 
@@ -28,7 +29,7 @@ public sealed record McpPreviousInstance(McpLocation Location, string? OwnerUser
 public sealed record McpPreviousPlayer(string UserId, string DisplayName, DateTimeOffset FirstJoinedAt, long TimeMs, int Stays, bool IsFriend, bool IsFavorite);
 
 [McpServerToolType]
-public sealed class GameLogTools(McpAccountResolver accounts, GameLogQueries gameLog, PreviousInstanceQueries previous, VrcxContext db)
+public sealed class GameLogTools(McpAccountResolver accounts, GameLogQueries gameLog, PreviousInstanceQueries previous, LocationQueries locations)
 {
     private const int SessionPlayerCap = 50;
 
@@ -55,7 +56,7 @@ public sealed class GameLogTools(McpAccountResolver accounts, GameLogQueries gam
         limit = McpPaging.Limit(limit);
         var rows = await gameLog.ListAsync(who.Id, types, search, vip: false, offset + limit + 1, cancellationToken);
         var page = McpPaging.Page(who, rows, offset, limit);
-        var name = await McpLocations.NamerAsync(db, page.Items.Select(r => r.Location), cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, page.Items.Select(r => r.Location), cancellationToken);
         return new McpPage<McpGameLogRow>(who, page.Items.Select(r => new McpGameLogRow(
             r.Type, r.CreatedAt, name(r.Location) is { } l ? l with { WorldName = r.Type == "Location" ? r.WorldName ?? l.WorldName : l.WorldName } : null,
             r.UserId, r.DisplayName, r.IsFriend, r.TimeMs, r.VideoUrl, r.VideoName,
@@ -81,7 +82,7 @@ public sealed class GameLogTools(McpAccountResolver accounts, GameLogQueries gam
     {
         var who = await accounts.ResolveAsync(account, cancellationToken);
         var result = await gameLog.SessionsAsync(who.Id, beforeSessionId, from, to, Math.Clamp(limit, 1, 50), cancellationToken);
-        var name = await McpLocations.NamerAsync(db, result.Locations.Select(l => l.Location), cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, result.Locations.Select(l => l.Location), cancellationToken);
         var sessions = result.Locations.Select(s =>
         {
             var end = s.TimeMs is { } ms ? s.CreatedAt.AddMilliseconds(ms) : DateTimeOffset.MaxValue;
@@ -114,7 +115,7 @@ public sealed class GameLogTools(McpAccountResolver accounts, GameLogQueries gam
     {
         var who = await accounts.ResolveAsync(account, cancellationToken);
         var list = await gameLog.PlayerListAsync(who.Id, cancellationToken);
-        var name = await McpLocations.NamerAsync(db, [list.Location], cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, [list.Location], cancellationToken);
         var location = name(list.Location);
         if (location is not null && list.World is not null) location = location with { WorldName = list.World.Name };
         var players = list.Players.Select(p => new McpInstancePlayer(p.UserId, p.DisplayName, p.JoinedAt, p.IsFriend,
@@ -142,7 +143,7 @@ public sealed class GameLogTools(McpAccountResolver accounts, GameLogQueries gam
             throw new McpException("Give exactly one of userId, worldId or groupId.");
         var who = await accounts.ResolveAsync(account, cancellationToken);
         var rows = await previous.ListAsync(who.Id, NullIfBlank(userId), NullIfBlank(worldId), NullIfBlank(groupId), cancellationToken);
-        var name = await McpLocations.NamerAsync(db, rows.Select(r => r.Location), cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, rows.Select(r => r.Location), cancellationToken);
         return McpPaging.Page(who, rows.Select(r =>
         {
             var location = name(r.Location)!;

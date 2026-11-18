@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using VRCX.Common.Features.Locations;
 using VRCX.Common.Services.Charts;
 using VRCX.Common.Features.Friends;
 using VRCX.Common.VrcxDb;
@@ -18,7 +19,7 @@ public sealed record McpMutualFriend(string UserId, string DisplayName);
 public sealed record McpMutualFriends(McpAccount Account, string UserId, string? DisplayName, bool IsFriend, DateTimeOffset? FetchedAt, bool UserOptedOut, bool AccountOptedOut, McpPage<McpMutualFriend> Mutuals);
 
 [McpServerToolType]
-public sealed class FriendTools(McpAccountResolver accounts, FriendQueries friends, MutualGraphService mutuals, VrcxContext db)
+public sealed class FriendTools(McpAccountResolver accounts, FriendQueries friends, MutualGraphService mutuals, LocationQueries locations)
 {
     [McpServerTool(Name = "get_online_friends", Title = "Online friends", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("""
@@ -41,7 +42,7 @@ public sealed class FriendTools(McpAccountResolver accounts, FriendQueries frien
             .Where(f => f.State == UserState.Online || (includeActive && f.State == UserState.Active))
             .OrderBy(f => f.State == UserState.Online ? 0 : 1).ThenBy(f => f.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var name = await McpLocations.NamerAsync(db, online.SelectMany(f => new[] { f.Location, f.TravelingToLocation }), cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, online.SelectMany(f => new[] { f.Location, f.TravelingToLocation }), cancellationToken);
         return McpPaging.Page(who, online.Select(f => new McpOnlineFriend(
             f.UserId, f.DisplayName, McpLocations.State(f.State), f.Status, f.StatusDescription,
             name(f.Location), name(f.TravelingToLocation), f.LocationSince, f.OnlineFor, f.Platform, f.Nickname, f.PendingOffline)), offset, limit, online.Count);

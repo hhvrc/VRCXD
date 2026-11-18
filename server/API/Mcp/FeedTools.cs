@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using VRCX.Common.Features.Locations;
 using VRCX.Common.Services.Charts;
 using VRCX.Common.Features.Feed;
 using VRCX.Common.VrcxDb;
@@ -18,7 +19,7 @@ public sealed record McpHotWorld(string WorldId, string WorldName, int UniqueFri
 public sealed record McpHotWorlds(McpAccount Account, int Days, IReadOnlyList<McpHotWorld> Worlds);
 
 [McpServerToolType]
-public sealed class FeedTools(McpAccountResolver accounts, IFeedService feed, IChartsService charts, VrcxContext db)
+public sealed class FeedTools(McpAccountResolver accounts, IFeedService feed, IChartsService charts, LocationQueries locations)
 {
     [McpServerTool(Name = "search_feed", Title = "Search the feed", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("""
@@ -50,7 +51,7 @@ public sealed class FeedTools(McpAccountResolver accounts, IFeedService feed, IC
         // The feed reads its newest rows per source; asking for the rows up to the end of this page is enough.
         var rows = await feed.QueryAsync(who.Id, new FeedQuery { Types = typeList, Search = search ?? "", Vip = favoritesOnly, From = from, To = to, Limit = offset + limit + 1 }, cancellationToken);
         var page = McpPaging.Page(who, rows, offset, limit);
-        var name = await McpLocations.NamerAsync(db, page.Items.SelectMany(r => new[] { r.Location, r.PreviousLocation }), cancellationToken);
+        var name = await McpLocations.NamerAsync(locations, page.Items.SelectMany(r => new[] { r.Location, r.PreviousLocation }), cancellationToken);
         return new McpPage<McpFeedRow>(who, page.Items.Select(r => new McpFeedRow(
             r.Type, r.CreatedAt, r.UserId, r.DisplayName,
             Location: name(r.Location) is { } l ? l with { WorldName = l.WorldName ?? r.WorldName, GroupName = l.GroupName ?? r.GroupName } : null,
