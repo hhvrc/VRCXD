@@ -15,19 +15,18 @@
 	import { Switch } from '#lib/components/ui/switch/index.js';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
-	import { ApiError } from '#lib/api/client.js';
 	import type { Friend } from '#lib/api/types.js';
-	import { loadFriendsWithGroups, searchFriends, sameInstanceGroups, type FriendGroup } from '#lib/people/friend-groups.js';
+	import { searchFriends, sameInstanceGroups, type FriendGroup } from '#lib/people/friend-groups.js';
 	import { friendComparator } from '#lib/people/friend-sort.js';
-	import { watchLive } from '#lib/api/live.svelte.js';
 	import { parseLocation } from '#lib/instances/location.js';
 	import { worldNames } from '#lib/people/names.svelte.js';
 	import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
 	import { readSetting, storeSetting } from '#lib/settings/table-settings.svelte.js';
 	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 
-	// The original's FriendsLocations over GET /friends and the friend favorites. Rows are skipped by
-	// the browser while off screen, which stands in for the original's virtual list.
+	// The original's FriendsLocations over GET /friends and the friend favorites: the sidebar's copy
+	// (sidebarData), which the live socket keeps current, so this page reads nothing of its own. Rows
+	// are skipped by the browser while off screen, which stands in for the original's virtual list.
 	type Group = FriendGroup;
 	type Row =
 		| { type: 'header'; key: string; instanceId: string; count: number }
@@ -38,10 +37,10 @@
 	const BASE_WIDTH = 220;
 	const BASE_GAP = 14;
 
-	let friends = $state.raw<Friend[]>([]);
-	let groups = $state.raw<Group[]>([]);
-	let ready = $state(false);
-	let loadError = $state('');
+	const friends = $derived(sidebarData.friends);
+	const groups = $derived<Group[]>(sidebarData.groups);
+	const ready = $derived(sidebarData.friendsLoaded || !!sidebarData.error);
+	const loadError = $derived(sidebarData.error);
 	let segment = $state('online');
 	let search = $state('');
 	let gridWidth = $state(0);
@@ -150,18 +149,6 @@
 
 	const showLocation = $derived(segment !== 'active' && segment !== 'offline');
 
-	async function load() {
-		if (!vrchatAuth.ownerUserId) return;
-		try {
-			({ friends, groups } = await loadFriendsWithGroups());
-			loadError = '';
-		} catch (err) {
-			loadError = ApiError.from(err).message;
-		} finally {
-			ready = true;
-		}
-	}
-
 	function setShowSameInstance(value: boolean) {
 		showSameInstance = value;
 		storeSetting('VRCX_FriendLocationShowSameInstance', value);
@@ -186,15 +173,7 @@
 	}
 
 	$effect(() => {
-		if (!vrchatAuth.ownerUserId) return;
-		untrack(load);
-		void sidebarData.loadGameInstance();
-		const stopGame = watchLive(['visit', 'desktop'], () => sidebarData.loadGameInstance(), 1500);
-		const stopFriends = watchLive(['presence', 'user', 'friendship'], load, 1500);
-		return () => {
-			stopGame();
-			stopFriends();
-		};
+		if (vrchatAuth.ownerUserId) untrack(() => sidebarData.start());
 	});
 </script>
 

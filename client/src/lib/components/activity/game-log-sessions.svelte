@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { gameLogEventMatters } from '#lib/people/sidebar-events.js';
 	import { COUNT_BADGE } from '#lib/styles.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { openExternalLink } from '#lib/nav/external-link.svelte.js';
@@ -246,7 +247,7 @@
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId) return;
 		untrack(reload);
-		return watchLive(['visit', 'gameLog'], () => {
+		return watchLive((event) => gameLogEventMatters(event, vrchatAuth.ownerUserId), () => {
 			if (!search.trim() && !hasDateFilter) void refreshNewest();
 		}, 1000);
 	});

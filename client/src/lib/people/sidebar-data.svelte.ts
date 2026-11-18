@@ -1,8 +1,12 @@
-import { loadFriendsWithGroups } from '#lib/people/friend-groups.js';
+import { loadFriendGroups } from '#lib/people/friend-groups.js';
 import { isRealInstance } from '#lib/instances/location.js';
 import { accountPath, api, ApiError } from '#lib/api/client.js';
 import type { Friend } from '#lib/api/types.js';
+import type { ServerEvent } from '#lib/gen/vrcx_live_pb.js';
+import { timestampDate } from '@bufbuild/protobuf/wkt';
 import type { FriendGroup } from '#lib/components/sidebar/sidebar-utils.js';
+import { debounce } from '#lib/helpers/debounce.js';
+import { patchFriendPresence, planSidebarEvent, type SidebarPlan } from '#lib/people/sidebar-events.js';
 import { sidebarSettings } from '#lib/settings/sidebar-settings.svelte.js';
 import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 
@@ -32,6 +36,12 @@ export type Me = {
 };
 export type GroupInstance = { location: string; groupId: string; groupName: string; groupIconUrl?: string | null; userCount: number; capacity: number; ageGate: boolean };
 
+type GameInstance = { location: string | null; playerIds: Set<string>; joinedAt?: string | null };
+
+// One copy for the whole app: the sidebar, Friends Locations, the feed's menus, the user dialog,
+// the notifications and the wrist overlay all read these. start() loads them once per account and
+// keeps them current from the live socket (sidebar-live.ts), so a page or the sidebar mounting
+// again reads them as they are instead of asking the server again.
 class SidebarData {
 	friends = $state.raw<Friend[]>([]);
 	groups = $state.raw<FriendGroup[]>([]);
@@ -39,9 +49,24 @@ class SidebarData {
 	groupInstances = $state.raw<GroupInstance[]>([]);
 	currentLocation = $state<string | null>(null);
 	/** The game's instance by the desktop app's game log and who is in it: the original's lastLocation.friendList. */
-	gameInstance = $state.raw<{ location: string | null; playerIds: Set<string>; joinedAt?: string | null }>({ location: null, playerIds: new Set() });
+	gameInstance = $state.raw<GameInstance>({ location: null, playerIds: new Set() });
+	/** The friend list has been read for this account (Friends Locations shows its spinner until then). */
+	friendsLoaded = $state(false);
 	refreshing = $state(false);
 	error = $state('');
+
+	/** The account the data above belongs to. */
+	#owner = '';
+	#running = new Map<string, Promise<void>>();
+	#ids: { of: Friend[]; ids: Set<string> } = { of: [], ids: new Set() };
+
+	// Reads the events can't stand in for, held while events keep coming but run at least every
+	// 10 seconds (the original's friend store has no such reads: its pipeline events carry the users).
+	#reloadFriends = debounce(() => this.loadFriends(true), { wait: 1500, maxWait: 10_000 });
+	#reloadFavorites = debounce(() => this.loadFavorites(true), { wait: 1500, maxWait: 10_000 });
+	#reloadMe = debounce(() => this.loadMe(true), { wait: 1500, maxWait: 10_000 });
+	#reloadGame = debounce(() => this.loadGameInstance(true), { wait: 1500, maxWait: 10_000 });
+	#reloadGroups = debounce(() => this.loadGroupInstances(true), { wait: 1500, maxWait: 10_000 });
 
 	/** The favorite groups the sidebar shows, all of them when none are picked: the original's VIP groups. */
 	get vipGroups() {
@@ -58,30 +83,145 @@ class SidebarData {
 		return this.friends.filter((f) => f.state === 'online').length;
 	}
 
-	async loadFriends() {
-		if (!vrchatAuth.ownerUserId) return;
-		try {
-			({ friends: this.friends, groups: this.groups } = await loadFriendsWithGroups());
-			this.error = '';
-		} catch (err) {
-			this.error = ApiError.from(err).message;
+	isFriend(userId: string | undefined): boolean {
+		if (!userId) return false;
+		if (this.#ids.of !== this.friends) this.#ids = { of: this.friends, ids: new Set(this.friends.map((f) => f.userId)) };
+		return this.#ids.ids.has(userId);
+	}
+
+	/**
+	 * Loads everything for the signed-in account the first time, and again only when the account
+	 * changes. Safe to call from every page and component that reads this; the live socket keeps it
+	 * current afterwards.
+	 */
+	start(): void {
+		const owner = vrchatAuth.ownerUserId;
+		if (!owner || owner === this.#owner) return;
+		this.#reset(owner);
+		void this.loadFriends();
+		void this.loadFavorites();
+		void this.loadMe();
+		void this.loadGameInstance();
+		void this.loadGroupInstances();
+	}
+
+	/** The friend list, read once: what a page that only looks friends up waits for. */
+	async ensureFriends(): Promise<Friend[]> {
+		this.start();
+		if (!this.friendsLoaded) await (this.#running.get('friends') ?? this.loadFriends());
+		return this.friends;
+	}
+
+	/** What a live event changes: applied here when the event carries it, read again (debounced) otherwise. */
+	apply(event: ServerEvent): SidebarPlan {
+		const owner = vrchatAuth.ownerUserId;
+		if (!owner || owner !== this.#owner) return {};
+		const plan = planSidebarEvent(event, { owner, isFriend: (id) => this.isFriend(id), gameLocation: this.gameInstance.location });
+		if (plan.presence) {
+			const at = (event.at ? timestampDate(event.at) : new Date()).toJSON();
+			const next = patchFriendPresence(this.friends, plan.presence, at);
+			if (next) this.friends = next;
 		}
+		if (plan.player) {
+			const playerIds = new Set(this.gameInstance.playerIds);
+			if (plan.player.joined) playerIds.add(plan.player.userId);
+			else playerIds.delete(plan.player.userId);
+			this.gameInstance = { ...this.gameInstance, playerIds };
+		}
+		if (plan.friends) this.#reloadFriends();
+		if (plan.favorites) this.#reloadFavorites();
+		if (plan.me) this.#reloadMe();
+		if (plan.game) this.#reloadGame();
+		if (plan.groups) this.#reloadGroups();
+		return plan;
 	}
 
-	async loadMe() {
-		const account = vrchatAuth.ownerUserId;
-		if (!account) return;
-		const me = await api.get<Me>(accountPath(account, '/me')).catch(() => null);
-		if (!me) return;
-		this.me = me;
-		this.currentLocation = me.currentLocation ?? null;
+	/** The live socket came back: whatever changed while it was down was never seen, so read it all once. */
+	resync(): void {
+		if (!vrchatAuth.ownerUserId || vrchatAuth.ownerUserId !== this.#owner) return;
+		for (const held of [this.#reloadFriends, this.#reloadFavorites, this.#reloadMe, this.#reloadGame, this.#reloadGroups]) held.cancel();
+		void this.loadFriends(true);
+		void this.loadFavorites(true);
+		void this.loadMe(true);
+		void this.loadGameInstance(true);
+		void this.loadGroupInstances(true);
 	}
 
-	async loadGameInstance() {
-		const account = vrchatAuth.ownerUserId;
-		if (!account) return;
-		const data = await api.get<{ location: string | null; playerIds: string[]; joinedAt?: string | null }>(accountPath(account, '/game/instance')).catch(() => null);
-		if (data) this.gameInstance = { location: data.location, playerIds: new Set(data.playerIds), joinedAt: data.joinedAt ?? null };
+	/** Friend favorites were changed from this app (the favorites pages, a user's favorite button). */
+	favoritesChanged(): void {
+		this.#reloadFavorites();
+	}
+
+	#reset(owner: string) {
+		this.#owner = owner;
+		this.#running.clear();
+		for (const held of [this.#reloadFriends, this.#reloadFavorites, this.#reloadMe, this.#reloadGame, this.#reloadGroups]) held.cancel();
+		this.friends = [];
+		this.groups = [];
+		this.me = null;
+		this.groupInstances = [];
+		this.currentLocation = null;
+		this.gameInstance = { location: null, playerIds: new Set() };
+		this.friendsLoaded = false;
+		this.error = '';
+	}
+
+	/**
+	 * One read of a kind at a time: a second ask while one runs shares it, unless it must see
+	 * something newer than that read (`fresh`: an event said it changed), which runs once more after
+	 * it. What comes back for an account that is no longer signed in is dropped.
+	 */
+	#once(key: string, fresh: boolean, work: (owner: string, current: () => boolean) => Promise<void>): Promise<void> {
+		const owner = vrchatAuth.ownerUserId;
+		if (!owner) return Promise.resolve();
+		// A read asked for before anything started (a dialog opened first) starts it all.
+		this.start();
+		const running = this.#running.get(key);
+		if (running && !fresh) return running;
+		const promise = (running ? running.then(() => undefined) : Promise.resolve())
+			.then(() => work(owner, () => vrchatAuth.ownerUserId === owner && this.#owner === owner))
+			.finally(() => {
+				if (this.#running.get(key) === promise) this.#running.delete(key);
+			});
+		this.#running.set(key, promise);
+		return promise;
+	}
+
+	loadFriends(fresh = false): Promise<void> {
+		return this.#once('friends', fresh, async (owner, current) => {
+			try {
+				const friends = await api.get<Friend[]>(accountPath(owner, '/friends'));
+				if (!current()) return;
+				this.friends = friends;
+				this.friendsLoaded = true;
+				this.error = '';
+			} catch (err) {
+				if (current()) this.error = ApiError.from(err).message;
+			}
+		});
+	}
+
+	loadFavorites(fresh = false): Promise<void> {
+		return this.#once('favorites', fresh, async (_owner, current) => {
+			const groups = await loadFriendGroups().catch(() => undefined);
+			if (groups && current()) this.groups = groups;
+		});
+	}
+
+	loadMe(fresh = false): Promise<void> {
+		return this.#once('me', fresh, async (owner, current) => {
+			const me = await api.get<Me>(accountPath(owner, '/me')).catch(() => null);
+			if (!me || !current()) return;
+			this.me = me;
+			this.currentLocation = me.currentLocation ?? null;
+		});
+	}
+
+	loadGameInstance(fresh = false): Promise<void> {
+		return this.#once('game', fresh, async (owner, current) => {
+			const data = await api.get<{ location: string | null; playerIds: string[]; joinedAt?: string | null }>(accountPath(owner, '/game/instance')).catch(() => null);
+			if (data && current()) this.gameInstance = { location: data.location, playerIds: new Set(data.playerIds), joinedAt: data.joinedAt ?? null };
+		});
 	}
 
 	/**
@@ -94,10 +234,11 @@ class SidebarData {
 		return location;
 	}
 
-	async loadGroupInstances() {
-		const account = vrchatAuth.ownerUserId;
-		if (!account) return;
-		this.groupInstances = await api.get<GroupInstance[]>(accountPath(account, '/group-instances')).catch(() => this.groupInstances);
+	loadGroupInstances(fresh = false): Promise<void> {
+		return this.#once('groups', fresh, async (owner, current) => {
+			const list = await api.get<GroupInstance[]>(accountPath(owner, '/group-instances')).catch(() => undefined);
+			if (list && current()) this.groupInstances = list;
+		});
 	}
 
 	/** The refresh button: read the friend list from VRChat again, then reload. */
@@ -107,7 +248,7 @@ class SidebarData {
 		this.refreshing = true;
 		try {
 			await api.post(accountPath(account, '/friends/refresh'), {}).catch(() => {});
-			await Promise.all([this.loadFriends(), this.loadMe()]);
+			await Promise.all([this.loadFriends(true), this.loadFavorites(true), this.loadMe(true)]);
 		} finally {
 			this.refreshing = false;
 		}

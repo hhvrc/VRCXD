@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { gameLogEventMatters } from '#lib/people/sidebar-events.js';
 	import { CENTERED_NOTE } from '#lib/styles.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { openExternalLink } from '#lib/nav/external-link.svelte.js';
@@ -54,7 +55,7 @@
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId) return;
 		untrack(load);
-		return watchLive(['visit', 'gameLog'], load, 1000);
+		return watchLive((event) => gameLogEventMatters(event, vrchatAuth.ownerUserId), load, 1000);
 	});
 
 	const open = (id: string | null | undefined) => id && userDialog.open(id);

@@ -13,6 +13,8 @@ import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
 import { appearance } from '#lib/settings/appearance.svelte.js';
 import { addWristEntry, wristFeedSettings, watchWristStatus, wristArrived, wristTravelling } from '#lib/notifications/wrist-feed.svelte.js';
 import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
+import { worldNames } from '#lib/people/names.svelte.js';
+import { playerModerations } from '#lib/people/player-moderations.js';
 import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 
 // The original's notification store playNoty: desktop notifications, XSOverlay and OVR Toolkit on the
@@ -251,11 +253,10 @@ function queue(noty: Omit<Noty, 'isFriend' | 'isFavorite'>, source: 'notificatio
 	void playNoty(full);
 }
 
+// Through the shared name cache, as the original's getWorldName reads its cached world refs: a
+// friend hopping between instances of one world asks for its name once, not once per move.
 async function worldName(location: string | undefined): Promise<string> {
-	const worldId = parseLocation(location ?? '').worldId;
-	if (!worldId) return '';
-	const world = await api.get<{ name?: string }>(`/1/worlds/${encodeURIComponent(worldId)}`).catch(() => null);
-	return world?.name ?? '';
+	return (await worldNames.load(parseLocation(location ?? '').worldId)) ?? '';
 }
 
 async function notificationDetails(account: string, id: string): Promise<Noty['details'] & { imageUrl?: string }> {
@@ -275,14 +276,11 @@ async function notificationDetails(account: string, id: string): Promise<Noty['d
 // When the account itself moves, the joins and leaves of that switch are not news (the original's
 // 30 seconds after arriving and 5 seconds after leaving).
 /** Your blocks and mutes (the original's cachedPlayerModerations), read again after a minute. */
-let moderations: { at: number; list: PlayerModeration[] } = { at: 0, list: [] };
+let moderations: PlayerModeration[] = [];
 
 async function moderationsOf(userId: string): Promise<('Blocked' | 'Muted')[]> {
-	if (Date.now() - moderations.at > 60_000) {
-		const list = await api.get<PlayerModeration[]>(ownPath('/moderations')).catch(() => null);
-		moderations = { at: Date.now(), list: list ?? moderations.list };
-	}
-	return moderations.list
+	moderations = await playerModerations().catch(() => moderations);
+	return moderations
 		.filter((m) => m.targetUserId === userId && (m.type === 'block' || m.type === 'mute'))
 		.map((m) => (m.type === 'block' ? 'Blocked' : 'Muted'));
 }

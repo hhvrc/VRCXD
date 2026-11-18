@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { debounce } from '#lib/helpers/debounce.js';
 	import { EMPTY_STATE } from '#lib/styles.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { goto } from '$app/navigation';
@@ -56,15 +57,14 @@
 			untrack(() => (quickSearch.query = ''));
 			return;
 		}
-		let timer: ReturnType<typeof setTimeout> | undefined;
+		const reload = debounce(() => quickSearch.open && quickSearch.load(), { wait: 200 });
 		const unsubscribe = onLiveEvent((event) => {
 			const kind = event.event.case;
 			if (kind !== 'friendship' && kind !== 'user' && kind !== 'content') return;
-			clearTimeout(timer);
-			timer = setTimeout(() => quickSearch.open && quickSearch.load(), 200);
+			reload();
 		});
 		return () => {
-			clearTimeout(timer);
+			reload.cancel();
 			unsubscribe();
 		};
 	});

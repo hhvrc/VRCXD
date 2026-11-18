@@ -16,12 +16,10 @@
 	import { Switch } from '#lib/components/ui/switch/index.js';
 	import * as Tabs from '#lib/components/ui/tabs/index.js';
 	import * as ContextMenu from '#lib/components/ui/context-menu/index.js';
-	import { onLiveEvent } from '#lib/api/live.svelte.js';
 	import { notificationCenter } from '#lib/notifications/notification-center.svelte.js';
 	import { quickSearch } from '#lib/nav/quick-search.svelte.js';
 	import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
 	import { SORT_OPTIONS, sidebarSettings } from '#lib/settings/sidebar-settings.svelte.js';
-	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 	import FriendsPanel from './friends-panel.svelte';
 	import GroupOrderDialog from './group-order-dialog.svelte';
 	import GroupsPanel from './groups-panel.svelte';
@@ -42,44 +40,8 @@
 	const shownGroups = $derived(sidebarSettings.favoriteGroups.length ? sidebarSettings.favoriteGroups : allKeys);
 	const sortLabel = (value: string) => SORT_OPTIONS.find((o) => o.value === value)?.label ?? m.view_settings_appearance_side_panel_sorting_placeholder();
 
-	$effect(() => {
-		if (!vrchatAuth.ownerUserId) return;
-		sidebarData.loadFriends();
-		sidebarData.loadMe();
-		sidebarData.loadGameInstance();
-		sidebarData.loadGroupInstances();
-		notificationCenter.load();
-		const groupsTimer = setInterval(() => sidebarData.loadGroupInstances(), 5 * 60 * 1000);
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		let meTimer: ReturnType<typeof setTimeout> | undefined;
-		let noteTimer: ReturnType<typeof setTimeout> | undefined;
-		const unsubscribe = onLiveEvent((event) => {
-			const kind = event.event.case;
-			if (kind === 'presence' || kind === 'user' || kind === 'friendship') {
-				clearTimeout(timer);
-				timer = setTimeout(() => sidebarData.loadFriends(), 1500);
-			}
-			if (kind === 'notification') {
-				clearTimeout(noteTimer);
-				noteTimer = setTimeout(() => notificationCenter.load(), 500);
-			}
-			if (kind === 'content' && event.event.value.kind === 'group') sidebarData.loadGroupInstances();
-			if (kind === 'visit' || kind === 'desktop' || kind === 'account') {
-				clearTimeout(meTimer);
-				meTimer = setTimeout(() => {
-					sidebarData.loadMe();
-					sidebarData.loadGameInstance();
-				}, 1500);
-			}
-		});
-		return () => {
-			unsubscribe();
-			clearInterval(groupsTimer);
-			clearTimeout(timer);
-			clearTimeout(meTimer);
-			clearTimeout(noteTimer);
-		};
-	});
+	// What this shows is loaded and kept current by sidebar-live.ts for the whole session, not here:
+	// the sidebar mounts again on leaving every page that hides it.
 </script>
 
 {#snippet toggle(label: string, value: boolean, set: (v: boolean) => void)}

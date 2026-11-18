@@ -3,6 +3,7 @@
 </script>
 
 <script lang="ts">
+	import { debounce } from '#lib/helpers/debounce.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { onMount, tick } from 'svelte';
 	import * as ContextMenu from '#lib/components/ui/context-menu/index.js';
@@ -110,7 +111,7 @@
 			return;
 		}
 		loadNowPlaying(account);
-		let timer: ReturnType<typeof setTimeout> | undefined;
+		const reload = debounce(() => loadNowPlaying(account), { wait: 1000 });
 		const unsubscribe = onLiveEvent((event) => {
 			if (event.event.case === 'nowPlayingSpec') {
 				const p = event.event.value;
@@ -137,12 +138,12 @@
 				}
 				return;
 			}
-			if (event.event.case !== 'visit' && event.event.case !== 'gameLog') return;
-			clearTimeout(timer);
-			timer = setTimeout(() => loadNowPlaying(account), 1000);
+			// Your own move or your game log, not anyone else's (the stream carries every account's).
+			const e = event.event;
+			if ((e.case === 'visit' && e.value.userId === account) || (e.case === 'gameLog' && e.value.accountId === account)) reload();
 		});
 		return () => {
-			clearTimeout(timer);
+			reload.cancel();
 			unsubscribe();
 		};
 	});

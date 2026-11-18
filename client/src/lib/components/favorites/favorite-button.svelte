@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { untrack } from 'svelte';
 	import Check from '@lucide/svelte/icons/check';
@@ -95,6 +96,8 @@
 		error = '';
 		try {
 			await send();
+			// The sidebar's favorite groups don't come over the live socket.
+			if (type === 'friend') sidebarData.favoritesChanged();
 			await refreshStatus(targetId);
 			onchange?.();
 			if (done) toast.success(done);

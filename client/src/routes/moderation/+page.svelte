@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { forgetPlayerModerations } from '#lib/people/player-moderations.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { untrack } from 'svelte';
 	import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -44,6 +45,7 @@
 		table.loading = true;
 		try {
 			await api.post(ownPath('/moderations/refresh'));
+			forgetPlayerModerations();
 			await table.load();
 		} catch (err) {
 			table.error = ApiError.from(err).message;
@@ -55,6 +57,7 @@
 		table.confirming = undefined;
 		try {
 			await api.delete(ownPath(`/moderations/${encodeURIComponent(row.targetUserId)}/${row.type}`));
+			forgetPlayerModerations();
 			table.rows = table.rows.filter((r) => r.id !== row.id);
 			table.error = '';
 		} catch (err) {

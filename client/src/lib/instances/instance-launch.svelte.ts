@@ -274,28 +274,38 @@ export function canInvite(location: string, ownUserId: string, currentLocation?:
 /** The original's instanceCategories and instanceVibes: VRChat's lists, loaded once per sign-in. */
 export const instanceCatalog = $state<{ categories: InstanceCategory[]; vibes: InstanceVibe[] }>({ categories: [], vibes: [] });
 let catalogFor = '';
+let catalogLoading: Promise<void> | undefined;
 
 /**
  * The original's loadInstanceCategoriesAndVibes: both lists in one instanceOptions fetch (upstream
  * fd9fff94), tried again until both have loaded.
  */
-export async function loadInstanceCategoriesAndVibes(): Promise<void> {
+export function loadInstanceCategoriesAndVibes(): Promise<void> {
 	const owner = vrchatAuth.ownerUserId;
-	if (!owner) return;
+	if (!owner) return Promise.resolve();
 	if (catalogFor !== owner) {
 		catalogFor = owner;
+		catalogLoading = undefined;
 		instanceCatalog.categories = [];
 		instanceCatalog.vibes = [];
 	}
-	if (instanceCatalog.categories.length > 0 && instanceCatalog.vibes.length > 0) return;
-	try {
-		const catalog = await api.get<{ categories?: InstanceCategory[]; vibes?: InstanceVibe[] }>(accountPath(owner, '/instances/catalog'));
-		if (catalogFor !== owner) return;
-		instanceCatalog.categories = usableCategories(catalog?.categories);
-		instanceCatalog.vibes = usableVibes(catalog?.vibes);
-	} catch {
-		// Tried again the next time a list is needed.
-	}
+	if (instanceCatalog.categories.length > 0 && instanceCatalog.vibes.length > 0) return Promise.resolve();
+	// The layout asks at sign-in while the sidebar's instance tooltips ask too: one read for all of them.
+	if (catalogLoading) return catalogLoading;
+	const loading: Promise<void> = (async () => {
+		try {
+			const catalog = await api.get<{ categories?: InstanceCategory[]; vibes?: InstanceVibe[] }>(accountPath(owner, '/instances/catalog'));
+			if (catalogFor !== owner) return;
+			instanceCatalog.categories = usableCategories(catalog?.categories);
+			instanceCatalog.vibes = usableVibes(catalog?.vibes);
+		} catch {
+			// Tried again the next time a list is needed.
+		}
+	})().finally(() => {
+		if (catalogLoading === loading) catalogLoading = undefined;
+	});
+	catalogLoading = loading;
+	return loading;
 }
 
 export const instanceDialogs = $state<{

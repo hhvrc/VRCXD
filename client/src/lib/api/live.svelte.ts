@@ -8,11 +8,14 @@ import {
 	type ServerEvent
 } from '#lib/gen/vrcx_live_pb.js';
 import { getServerToken } from '#lib/api/client.js';
+import { startKeepalive, type Keepalive } from '#lib/api/keepalive.js';
+import { debounce } from '#lib/helpers/debounce.js';
 
 // One websocket (/1/ws, binary protobuf frames) for the whole UI, shared by every page that
 // wants live state. The stream is live-only: pages seed their state from REST and apply the
 // ServerEvents here on top. Reconnects with backoff; the token rides along as ?token= since
-// browsers can't set headers on an upgrade.
+// browsers can't set headers on an upgrade. Events sent while the socket was down are gone, so
+// every reconnect is announced (onReconnect, live.reconnects) for the stores to read again.
 
 export type LiveState = {
 	connected: boolean;
@@ -26,6 +29,8 @@ export type LiveState = {
 	events: { at: Date; event: ServerEvent }[];
 	/** Bumped on every event, so pages can refetch cheaply when anything changed. */
 	version: number;
+	/** Bumped each time the socket opens again after the first time: whatever came meanwhile was missed. */
+	reconnects: number;
 };
 
 export const live = $state<LiveState>({
@@ -35,7 +40,8 @@ export const live = $state<LiveState>({
 	presence: new Map(),
 	present: new Map(),
 	events: [],
-	version: 0
+	version: 0,
+	reconnects: 0
 });
 
 const MAX_EVENTS = 500;
@@ -49,10 +55,24 @@ export function onLiveEvent(listener: Listener): () => void {
 	return () => listeners.delete(listener);
 }
 
+const reconnectListeners = new Set<() => void>();
+
+/**
+ * Called each time the socket is back after having been open before (a dropped connection, the
+ * server restarting, a dead socket found by the heartbeat, or the last page closing it), since the
+ * events in between were never seen. Not called for the first connection. Returns the unsubscribe.
+ */
+export function onReconnect(listener: () => void): () => void {
+	reconnectListeners.add(listener);
+	return () => reconnectListeners.delete(listener);
+}
+
 let socket: WebSocket | undefined;
 let wanted = 0;
 let retryDelay = 1000;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
+let everOpened = false;
+let keepalive: Keepalive | undefined;
 
 function apply(event: ServerEvent) {
 	switch (event.event.case) {
@@ -103,9 +123,21 @@ function open() {
 			}
 		});
 		ws.send(toBinary(ClientMessageSchema, hello));
+		keepalive?.stop();
+		keepalive = startKeepalive(
+			() => ws.send(PING),
+			() => drop(ws)
+		);
+		const again = everOpened;
+		everOpened = true;
+		if (again) {
+			live.reconnects += 1;
+			for (const listener of reconnectListeners) listener();
+		}
 	};
 	ws.onmessage = (message: MessageEvent<ArrayBuffer>) => {
 		messageCount += 1;
+		if (socket === ws) keepalive?.received();
 		const decoded = fromBinary(ServerMessageSchema, new Uint8Array(message.data));
 		switch (decoded.message.case) {
 			case 'hello':
@@ -120,18 +152,46 @@ function open() {
 		live.error = 'Live connection failed';
 	};
 	ws.onclose = (event) => {
-		if (socket === ws) socket = undefined;
-		live.connected = false;
-		if (wanted <= 0) return;
+		if (socket !== ws) return;
 		if (event.code === 1008 || event.code === 4401) live.error = 'The server rejected the token';
-		retryTimer = setTimeout(open, retryDelay);
-		retryDelay = Math.min(retryDelay * 2, 30000);
+		lost();
 	};
+}
+
+const PING = toBinary(ClientMessageSchema, create(ClientMessageSchema, { message: { case: 'ping', value: {} } }));
+
+/** The socket is gone: stop its heartbeat and, while a page still wants it, try again after the backoff. */
+function lost() {
+	socket = undefined;
+	keepalive?.stop();
+	keepalive = undefined;
+	live.connected = false;
+	if (wanted <= 0) return;
+	clearTimeout(retryTimer);
+	retryTimer = setTimeout(open, retryDelay);
+	retryDelay = Math.min(retryDelay * 2, 30000);
+}
+
+/**
+ * The heartbeat found the socket silent: give it up now rather than waiting for the browser's close
+ * handshake, which on a dead connection can take minutes.
+ */
+function drop(ws: WebSocket) {
+	if (socket !== ws) return;
+	ws.onopen = ws.onmessage = ws.onerror = ws.onclose = null;
+	try {
+		ws.close(4000, 'no answer');
+	} catch {
+		// Already closing.
+	}
+	lost();
 }
 
 function close() {
 	if (retryTimer) clearTimeout(retryTimer);
 	retryTimer = undefined;
+	keepalive?.stop();
+	keepalive = undefined;
 	const ws = socket;
 	socket = undefined;
 	ws?.close(1000, 'bye');
@@ -169,8 +229,8 @@ export function connectLive(): () => void {
  * reload can itself fetch from VRChat and move live counts again.
  */
 export function onItemChanged(kind: 'user' | 'world' | 'group' | 'avatar', id: () => string | undefined, reload: () => unknown): () => void {
-	let timer: ReturnType<typeof setTimeout> | undefined;
-	let last = Date.now();
+	// The page has just loaded the item, so the first reload waits out the interval from now too.
+	const run = debounce(reload, { wait: 1000, maxWait: 30_000, minInterval: 30_000, lastRun: Date.now() });
 	const unsubscribe = onLiveEvent((event) => {
 		const target = id();
 		if (!target) return;
@@ -178,15 +238,10 @@ export function onItemChanged(kind: 'user' | 'world' | 'group' | 'avatar', id: (
 			kind === 'user'
 				? event.event.case === 'user' && event.event.value.userId === target
 				: event.event.case === 'content' && event.event.value.kind === kind && event.event.value.id === target;
-		if (!matches) return;
-		clearTimeout(timer);
-		timer = setTimeout(() => {
-			last = Date.now();
-			reload();
-		}, Math.max(1000, 30_000 - (Date.now() - last)));
+		if (matches) run();
 	});
 	return () => {
-		clearTimeout(timer);
+		run.cancel();
 		unsubscribe();
 	};
 }
@@ -194,22 +249,23 @@ export function onItemChanged(kind: 'user' | 'world' | 'group' | 'avatar', id: (
 export type LiveEventKind = NonNullable<ServerEvent['event']['case']>;
 
 /**
- * The usual page wiring: keeps the socket open and calls `run`, debounced by `delay` ms, for each
- * event that `matches` (a list of event kinds, or a test). Returns the cleanup, so an $effect can
- * return it as it is.
+ * The usual page wiring: keeps the socket open and calls `run`, debounced by `delay` ms (and at
+ * least every `maxWait` ms while matching events keep coming), for each event that `matches` (a
+ * list of event kinds, or a test), and once after a reconnect, since the events in between were
+ * missed. Returns the cleanup, so an $effect can return it as it is.
  */
-export function watchLive(matches: readonly LiveEventKind[] | ((event: ServerEvent) => boolean), run: () => unknown, delay: number): () => void {
+export function watchLive(matches: readonly LiveEventKind[] | ((event: ServerEvent) => boolean), run: () => unknown, delay: number, maxWait?: number): () => void {
 	const test = typeof matches === 'function' ? matches : (event: ServerEvent) => !!event.event.case && matches.includes(event.event.case);
 	const disconnect = connectLive();
-	let timer: ReturnType<typeof setTimeout> | undefined;
+	const refresh = debounce(run, { wait: delay, maxWait });
 	const unsubscribe = onLiveEvent((event) => {
-		if (!test(event)) return;
-		clearTimeout(timer);
-		timer = setTimeout(run, delay);
+		if (test(event)) refresh();
 	});
+	const unsubscribeReconnect = onReconnect(refresh);
 	return () => {
-		clearTimeout(timer);
+		refresh.cancel();
 		unsubscribe();
+		unsubscribeReconnect();
 		disconnect();
 	};
 }

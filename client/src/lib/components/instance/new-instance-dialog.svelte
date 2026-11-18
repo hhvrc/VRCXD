@@ -129,7 +129,7 @@
 			},
 			(err) => (error = ApiError.from(err).message)
 		);
-		api.get<Friend[]>(accountPath(account, '/friends')).then((data) => (friends = data), () => (friends = []));
+		sidebarData.ensureFriends().then((data) => (friends = data), () => (friends = []));
 		languageOptions(account).then((names) => (languageNames = names));
 		void loadInstanceCategoriesAndVibes();
 	});

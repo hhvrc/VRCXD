@@ -6,7 +6,7 @@ import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 // getGroupName. Each id is asked for once, and a name the server has never seen is fetched through it.
 class NameCache {
 	#names = new SvelteMap<string, string>();
-	#asked = new Set<string>();
+	#asked = new Map<string, Promise<void>>();
 
 	constructor(
 		private readonly path: string,
@@ -16,11 +16,26 @@ class NameCache {
 	get(id: string | null | undefined): string | undefined {
 		if (!id) return undefined;
 		const known = this.#names.get(id);
-		if (known === undefined && !this.#asked.has(id)) {
-			this.#asked.add(id);
-			void this.#fetch(id);
-		}
+		if (known === undefined) void this.#ask(id);
 		return known;
+	}
+
+	/** The name once it is known, for code that needs it now (a notification's text): asked for once, like get. */
+	async load(id: string | null | undefined): Promise<string | undefined> {
+		if (!id) return undefined;
+		const known = this.#names.get(id);
+		if (known !== undefined) return known;
+		await this.#ask(id);
+		return this.#names.get(id);
+	}
+
+	#ask(id: string): Promise<void> {
+		let asked = this.#asked.get(id);
+		if (!asked) {
+			asked = this.#fetch(id);
+			this.#asked.set(id, asked);
+		}
+		return asked;
 	}
 
 	async #fetch(id: string) {

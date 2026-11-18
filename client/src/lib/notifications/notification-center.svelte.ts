@@ -26,11 +26,22 @@ class NotificationCenter {
 		return this.rows.filter((n) => n.seen && notificationCategory(n.type) === category && ts(n) > cutoff).sort((a, b) => ts(b) - ts(a));
 	}
 
+	#for = '';
+
+	/** Loads once per account; the live socket keeps it current after (sidebar-live.ts). */
+	start() {
+		const account = vrchatAuth.ownerUserId;
+		if (!account || account === this.#for) return;
+		this.#for = account;
+		this.rows = [];
+		void this.load();
+	}
+
 	async load() {
 		const account = vrchatAuth.ownerUserId;
 		if (!account) return;
 		const page = await api.get<PagedResult<Notification>>(accountPath(account, '/notifications'), { page: 1, pageSize: 500 }).catch(() => null);
-		if (page) this.rows = page.items;
+		if (page && account === vrchatAuth.ownerUserId) this.rows = page.items;
 		this.now = Date.now();
 	}
 

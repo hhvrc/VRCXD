@@ -44,13 +44,18 @@ export function searchFriends(lists: Friend[][], term: string, worldName: (frien
 	return [...unique.values()].filter((friend) => `${friend.displayName} ${friend.statusDescription ?? ''} ${worldName(friend)}`.toLowerCase().includes(needle));
 }
 
-/** The friends list with the favorite groups that sort it, as the sidebar and Friends Locations show it. */
-export async function loadFriendsWithGroups(): Promise<{ friends: Friend[]; groups: FriendGroup[] }> {
-	const [friends, favorites, local, localGroups] = await Promise.all([
-		api.get<Friend[]>(ownPath('/friends')),
+/** The friend favorite groups that sort the sidebar and Friends Locations: VRChat's and the local ones. */
+export async function loadFriendGroups(): Promise<FriendGroup[]> {
+	const [favorites, local, localGroups] = await Promise.all([
 		api.get<Favorites>(ownPath('/favorites'), { type: 'friend' }),
 		api.get<LocalFavorite[]>(ownPath('/favorites/local'), { type: 'friend' }),
 		api.get<{ name: string }[]>(ownPath('/favorites/local/groups'), { type: 'friend' }).catch(() => [])
 	]);
-	return { friends, groups: buildFriendGroups(favorites, local, localGroups.map((g) => g.name)) };
+	return buildFriendGroups(favorites, local, localGroups.map((g) => g.name));
+}
+
+/** The friends list with the favorite groups that sort it, as the sidebar and Friends Locations show it. */
+export async function loadFriendsWithGroups(): Promise<{ friends: Friend[]; groups: FriendGroup[] }> {
+	const [friends, groups] = await Promise.all([api.get<Friend[]>(ownPath('/friends')), loadFriendGroups()]);
+	return { friends, groups };
 }

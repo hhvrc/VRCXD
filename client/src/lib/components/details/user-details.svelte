@@ -15,6 +15,7 @@
 	import { onItemChanged } from '#lib/api/live.svelte.js';
 	import { noteInstance } from '#lib/instances/instance-launch.svelte.js';
 	import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
+	import { forgetPlayerModerations, playerModerations } from '#lib/people/player-moderations.js';
 	import { recentActions } from '#lib/api/recent-actions.svelte.js';
 	import Clock from '@lucide/svelte/icons/clock';
 	import PreviousInstancesDialog from '#lib/components/instance/previous-instances-dialog.svelte';
@@ -220,8 +221,9 @@
 			const [u, h, friends, mods] = await Promise.all([
 				api.get<User>(`/1/users/${encodeURIComponent(id)}`, { refresh, account: ownerUserId }),
 				api.get<UserHistory>(`/1/users/${encodeURIComponent(id)}/history`).catch(() => undefined),
-				api.get<Friend[]>(accountPath(ownerUserId, '/friends')),
-				api.get<PlayerModeration[]>(accountPath(ownerUserId, '/moderations'))
+				// The shared friend list and moderations, not a copy per profile opened.
+				sidebarData.ensureFriends(),
+				playerModerations(refresh ? 0 : undefined)
 			]);
 			const [nextRelationship, own] = await Promise.all([
 				api.get<NonNullable<typeof relationship>>(`${accountPath(ownerUserId)}/users/${encodeURIComponent(id)}/relationship`).catch(() => undefined),
@@ -386,7 +388,8 @@
 		const path = `${userPath}/moderations/${encodedId}/${type}`;
 		if (on) await api.post(path);
 		else await api.delete(path);
-		const mods = await api.get<PlayerModeration[]>(ownPath('/moderations'));
+		forgetPlayerModerations();
+		const mods = await playerModerations();
 		moderations = mods.filter((item) => item.targetUserId === userId);
 	}
 

@@ -32,10 +32,12 @@
 	import Location from '#lib/components/instance/location.svelte';
 	import UserContextMenu from '#lib/components/common/user-context-menu.svelte';
 	import { accountPath, api, ApiError } from '#lib/api/client.js';
-	import { FEED_TYPES, type FeedEntry, type FeedType, type Friend } from '#lib/api/types.js';
+	import { FEED_TYPES, type FeedEntry, type FeedType } from '#lib/api/types.js';
 	import { formatDateFilter, formatDifference, getFaviconUrl, replaceBioSymbols, statusClass, timeToText } from '#lib/helpers/format.js';
 	import { live, watchLive } from '#lib/api/live.svelte.js';
-	import { vrchatAuth, ownPath } from '#lib/api/vrchat-auth.svelte.js';
+	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
+	import { feedEventMatters } from '#lib/people/sidebar-events.js';
+	import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
 	import { appearance } from '#lib/settings/appearance.svelte.js';
 
 	// The original's Feed view over GET /1/accounts/{id}/feed. Filters (type set, favorites
@@ -58,7 +60,6 @@
 	let rows = $state<FeedEntry[]>([]);
 	let loading = $state(false);
 	let loadError = $state('');
-	let friends = $state<Map<string, Friend>>(new Map());
 
 	// The sort and page size stay across visits under the original's vrcx:table:feed name (upstream
 	// issue 1230); with no saved page size the Table Page Size setting is used.
@@ -127,28 +128,16 @@
 		}
 	}
 
-	async function loadFriends() {
-		if (!vrchatAuth.ownerUserId) return;
-		try {
-			const list = await api.get<Friend[]>(ownPath('/friends'));
-			friends = new Map(list.map((f) => [f.userId, f]));
-		} catch {
-			// Only the context menu uses this.
-		}
-	}
-
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId) return;
-		untrack(() => {
-			lookup();
-			loadFriends();
-		});
+		untrack(lookup);
 	});
 
-	// Refetch (debounced) when the feed can have grown.
+	// Refetch (debounced) when the feed can have grown: a friend's presence, or a status, avatar or
+	// bio change (the feed's rows), not every user the server hears about.
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId) return;
-		return watchLive(['presence', 'user'], lookup, 750);
+		return watchLive((event) => feedEventMatters(event, (id) => !sidebarData.friendsLoaded || sidebarData.isFriend(id)), lookup, 750);
 	});
 
 	function handleFeedFilterChange(value: string[]) {
@@ -205,11 +194,15 @@
 		if (next !== pageSize) untrack(() => setPageSize(String(next)));
 	});
 
+	// The context menu's state and location: the shared friend list, which the live socket keeps current.
+	const friendsById = $derived(new Map(sidebarData.friends.map((f) => [f.userId, f])));
+	const friendOf = (userId: string) => friendsById.get(userId);
+
 	function friendState(userId: string): string {
-		return live.presence.get(userId)?.state ?? friends.get(userId)?.state ?? '';
+		return live.presence.get(userId)?.state ?? friendOf(userId)?.state ?? '';
 	}
 	function friendLocation(userId: string): string {
-		return live.presence.get(userId)?.location ?? friends.get(userId)?.location ?? '';
+		return live.presence.get(userId)?.location ?? friendOf(userId)?.location ?? '';
 	}
 
 	function bioLinkDifference(previousLinks: string[] | null | undefined, links: string[] | null | undefined) {

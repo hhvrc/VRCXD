@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../app.css';
+	import { untrack } from 'svelte';
 	import favicon from '#lib/assets/favicon.svg';
 	import ChevronLeft from '@lucide/svelte/icons/chevron-left';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -35,6 +36,7 @@
 	import { desktop, loadInstanceCategoriesAndVibes, refreshDesktop } from '#lib/instances/instance-launch.svelte.js';
 	import { connectLive, live, onLiveEvent } from '#lib/api/live.svelte.js';
 	import { startNoty } from '#lib/notifications/noty.svelte.js';
+	import { startSidebarLive } from '#lib/people/sidebar-live.js';
 	import { page } from '$app/state';
 	import { getServerToken } from '#lib/api/client.js';
 	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
@@ -52,6 +54,8 @@
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId || !getServerToken()) return;
 		const disconnect = connectLive();
+		// Before the notifications: they and the wrist overlay tell friends and favorites by this list.
+		untrack(startSidebarLive);
 		startNoty();
 		// The original's login flow loads the instance categories and vibes the instance tooltip names.
 		void loadInstanceCategoriesAndVibes();

@@ -14,6 +14,7 @@
 	import { FEED_TYPES, type FeedEntry } from '#lib/api/types.js';
 	import { formatDateFilter, statusClass } from '#lib/helpers/format.js';
 	import { live, watchLive } from '#lib/api/live.svelte.js';
+	import { feedEventMatters } from '#lib/people/sidebar-events.js';
 	import { userDialog } from '#lib/people/user-dialog.svelte.js';
 	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 	import WidgetHeader from './widget-header.svelte';
@@ -42,7 +43,7 @@
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId) return;
 		untrack(load);
-		return watchLive(['presence', 'user'], load, 750);
+		return watchLive((event) => feedEventMatters(event, (id) => !sidebarData.friendsLoaded || sidebarData.isFriend(id)), load, 750);
 	});
 
 	const presenceState = (id: string) => live.presence.get(id)?.state ?? '';

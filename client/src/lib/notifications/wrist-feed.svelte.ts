@@ -7,6 +7,7 @@ import { m } from '#lib/paraglide/messages.js';
 import { hour12Setting } from '#lib/activity/charts.js';
 import { displayLocation, filterPasses, notificationMessage, notyMessage, notyName, type FilterValue, type Noty } from '#lib/notifications/noty.js';
 import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
+import { debounce } from '#lib/helpers/debounce.js';
 import { customTag } from '#lib/people/custom-tags.svelte.js';
 import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
 
@@ -226,19 +227,28 @@ export async function sendWristFeed() {
 		.catch((err) => console.error('Failed to update the wrist overlay:', err));
 }
 
+/**
+ * Whether to read the overlay's history now: once, when the PC's agent draws the overlay
+ * (openvr) and the friends and the account are known, as the original waited for its friend and
+ * favorite lists. Without an overlay the three reads would only feed rows nobody sees.
+ */
+export function wristHistoryDue(loaded: boolean): boolean {
+	return !loaded && agentCan('openvr') && sidebarData.friendsLoaded && !!sidebarData.me;
+}
+
 let watching = false;
 
 /** Sends the feed again when the bottom bar's numbers change: the instance, its players, the game and friends online. */
 export function watchWristStatus(filters: () => Record<string, FilterValue | undefined>) {
 	if (watching) return;
 	watching = true;
-	let timer: ReturnType<typeof setTimeout> | undefined;
+	const send = debounce(() => sendWristFeed(), { wait: 500, maxWait: 5000 });
 	let last = '';
 	let loaded = false;
 	$effect.root(() => {
-		// The history once friends are in, as the original waited for its friend and favorite lists.
+		// Runs again when the agent connects with the overlay, or the friend list comes in.
 		$effect(() => {
-			if (loaded || !sidebarData.friends.length || !sidebarData.me) return;
+			if (!wristHistoryDue(loaded)) return;
 			loaded = true;
 			void loadWristHistory(filters());
 		});
@@ -246,8 +256,7 @@ export function watchWristStatus(filters: () => Record<string, FilterValue | und
 			const key = JSON.stringify([wristStatus(), wristRows().map((r) => r.colour ?? '')]);
 			if (key === last) return;
 			last = key;
-			clearTimeout(timer);
-			timer = setTimeout(() => void sendWristFeed(), 500);
+			send();
 		});
 	});
 }

@@ -260,7 +260,14 @@
 		} catch (err) {
 			notice = ApiError.from(err).message;
 		}
-		await load();
+		await changed();
+	}
+
+	// After a change here: the page's lists, and the sidebar's favorite groups, which don't come over
+	// the live socket.
+	function changed() {
+		if (type === 'friend') sidebarData.favoritesChanged();
+		return load();
 	}
 
 	function choose(kind: 'remote' | 'local' | 'history', key: string) {
@@ -867,7 +874,7 @@
 </Tooltip.Provider>
 
 {#if editTarget}
-	<FavoriteButton type={type} targetId={editTarget} showButton={false} bind:open={editOpen} onchange={load} />
+	<FavoriteButton type={type} targetId={editTarget} showButton={false} bind:open={editOpen} onchange={changed} />
 {/if}
 
 <Dialog.Root open={!!renaming} onOpenChange={(open) => !open && (renaming = undefined)}>
@@ -893,7 +900,7 @@
 	</Dialog.Content>
 </Dialog.Root>
 
-<FavoritesTransfer {type} {account} {slots} {localGroups} {favorites} {localFavorites} bind:importOpen bind:importText bind:exportOpen onchange={load} />
+<FavoritesTransfer {type} {account} {slots} {localGroups} {favorites} {localFavorites} bind:importOpen bind:importText bind:exportOpen onchange={changed} />
 
 <ActionDialogs bind:confirming />
 {#if boopFor}

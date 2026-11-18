@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { gameLogEventMatters } from '#lib/people/sidebar-events.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { openExternalLink } from '#lib/nav/external-link.svelte.js';
 	import { lookupUser } from '#lib/people/user-lookup.js';
@@ -130,7 +131,7 @@
 	$effect(() => {
 		if (!vrchatAuth.ownerUserId || viewMode !== 'table') return;
 		untrack(load);
-		return watchLive(['visit', 'gameLog'], load, 1000);
+		return watchLive((event) => gameLogEventMatters(event, vrchatAuth.ownerUserId), load, 1000);
 	});
 
 	const columns: Column<GameLogRow>[] = [
