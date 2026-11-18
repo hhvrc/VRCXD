@@ -18,8 +18,8 @@ public sealed class InstanceQueueTests
         return content;
     }
 
-    [Test]
-    public async Task Joining_then_moving_up_reports_the_place_and_leaving_clears_it()
+    [Test, Regressions.Issue(1420)]
+    public async Task Issue_1420_joining_then_moving_up_reports_the_place_and_leaving_clears_it()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();
@@ -37,8 +37,8 @@ public sealed class InstanceQueueTests
         await Assert.That(queues.GetArrayLength()).IsEqualTo(0);
     }
 
-    [Test]
-    public async Task Ready_or_moving_elsewhere_clears_the_queue()
+    [Test, Regressions.Issue(1420)]
+    public async Task Issue_1420_ready_or_moving_elsewhere_clears_the_queue()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

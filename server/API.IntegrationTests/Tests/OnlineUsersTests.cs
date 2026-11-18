@@ -6,8 +6,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // GET instances/count.
 public sealed class OnlineUsersTests
 {
-    [Test]
-    public async Task Online_users_and_active_instances_are_returned()
+    [Test, Regressions.Issue(122)]
+    public async Task Issue_122_online_users_and_active_instances_are_returned()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

@@ -5,8 +5,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // Upstream issue 674: the favorite worlds' Players sort needs each world's current player count.
 public sealed class FavoriteWorldOccupantsTests
 {
-    [Test]
-    public async Task Favorite_and_local_worlds_report_their_players()
+    [Test, Regressions.Issue(674)]
+    public async Task Issue_674_favorite_and_local_worlds_report_their_players()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

@@ -7,8 +7,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // now carries the author name and tags the search matches on.
 public sealed class LocalFavoriteSearchTests
 {
-    [Test]
-    public async Task Local_world_favorites_carry_the_author_and_tags()
+    [Test, Regressions.Issue(735)]
+    public async Task Issue_735_local_world_favorites_carry_the_author_and_tags()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();
@@ -28,8 +28,8 @@ public sealed class LocalFavoriteSearchTests
     }
 
     // Upstream issue 984: the export's Author ID column was empty for local favorites.
-    [Test]
-    public async Task Local_avatar_favorites_carry_the_author_id()
+    [Test, Regressions.Issue(984)]
+    public async Task Issue_984_local_avatar_favorites_carry_the_author_id()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

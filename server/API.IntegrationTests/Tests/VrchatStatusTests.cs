@@ -32,8 +32,8 @@ public sealed class VrchatStatusTests
         return (app, stub);
     }
 
-    [Test]
-    public async Task An_outage_reports_the_description_and_affected_components()
+    [Test, Regressions.Issue(1396)]
+    public async Task Issue_1396_an_outage_reports_the_description_and_affected_components()
     {
         var (app, stub) = await StartAsync("Major System Outage", "major");
         await using var _ = app;
@@ -50,8 +50,8 @@ public sealed class VrchatStatusTests
         await Assert.That(stub.Calls).IsEqualTo(2);
     }
 
-    [Test]
-    public async Task All_systems_operational_is_no_issue()
+    [Test, Regressions.Issue(1396)]
+    public async Task Issue_1396_all_systems_operational_is_no_issue()
     {
         var (app, stub) = await StartAsync("All Systems Operational", "none");
         await using var _ = app;

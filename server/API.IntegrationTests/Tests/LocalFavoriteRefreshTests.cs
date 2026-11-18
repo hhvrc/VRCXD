@@ -8,8 +8,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // The original's local favorites Refresh, and upstream PR 1525's unavailable avatar detection.
 public sealed class LocalFavoriteRefreshTests
 {
-    [Test]
-    public async Task Refresh_stores_what_vrchat_has_and_reports_what_is_gone()
+    [Test, Regressions.Pr(1525)]
+    public async Task Pr_1525_refresh_stores_what_vrchat_has_and_reports_what_is_gone()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

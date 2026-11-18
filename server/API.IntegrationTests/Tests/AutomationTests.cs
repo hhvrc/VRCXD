@@ -120,8 +120,11 @@ public sealed class AutomationTests
         }
     }
 
-    [Test]
-    public async Task Invite_requests_are_answered_for_favorites()
+    // Auto accept for "VRCX Favorites" with picked groups answered nobody (issue 889), later only
+    // members of local groups and not of the account's VRChat groups (issue 1751). PR 999 also hides
+    // the request once answered.
+    [Test, Regressions.Issue(889), Regressions.Pr(999), Regressions.Issue(1751)]
+    public async Task Issue_889_invite_requests_from_the_selected_vrchat_favorite_groups_are_answered_and_hidden()
     {
         using var client = await SetUpAsync();
         var settings = $"/1/accounts/{Account}/settings";

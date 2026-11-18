@@ -6,8 +6,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // Upstream PR 1717: My Avatars' Impostor column, the last impostor package's impostorizer version.
 public sealed class AvatarImpostorTests
 {
-    [Test]
-    public async Task Own_avatars_carry_the_impostor_version()
+    [Test, Regressions.Pr(1717)]
+    public async Task Pr_1717_own_avatars_carry_the_impostor_version()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

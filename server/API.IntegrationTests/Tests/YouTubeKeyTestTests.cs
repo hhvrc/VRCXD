@@ -26,8 +26,8 @@ public sealed class YouTubeKeyTestTests
         }
     }
 
-    [Test]
-    public async Task A_key_is_valid_only_when_youtube_answers_with_the_video()
+    [Test, Regressions.Pr(1450)]
+    public async Task Pr_1450_a_key_is_valid_only_when_youtube_answers_with_the_video()
     {
         var stub = new YouTubeStub();
         await using var app = await VRCX.Testing.VrcxScenario.StartAsync(new()

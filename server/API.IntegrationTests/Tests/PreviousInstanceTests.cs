@@ -62,8 +62,8 @@ public sealed class PreviousInstanceTests
     }
 
     // Upstream PR 1305: a 24/7 instance visited on different days is a row per session, not one row.
-    [Test]
-    public async Task A_user_in_a_24_7_instance_gets_one_row_per_session()
+    [Test, Regressions.Pr(1305)]
+    public async Task Pr_1305_a_user_in_a_24_7_instance_gets_one_row_per_session()
     {
         await SeedAsync();
         const string Regular = "usr_previous_regular";

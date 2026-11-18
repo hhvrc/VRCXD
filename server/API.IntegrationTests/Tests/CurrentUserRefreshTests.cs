@@ -12,8 +12,8 @@ public sealed class CurrentUserRefreshTests
         lock (app.Vrchat.Calls) return app.Vrchat.Calls.Count(c => c.StartsWith(prefix, StringComparison.Ordinal));
     }
 
-    [Test]
-    public async Task The_five_minute_job_refreshes_the_current_user_and_not_a_fresh_friend_list()
+    [Test, Regressions.Pr(881)]
+    public async Task Pr_881_the_five_minute_job_refreshes_the_current_user_and_not_a_fresh_friend_list()
     {
         await using var app = await VrcxScenario.StartAsync();
         app.Vrchat.Friend("usr_pal", "Pal");
@@ -27,8 +27,8 @@ public sealed class CurrentUserRefreshTests
         await Assert.That(Count(app, "GET auth/user") - Count(app, "GET auth/user/friends")).IsGreaterThan(userCalls);
     }
 
-    [Test]
-    public async Task A_friend_list_over_an_hour_old_is_fetched_again()
+    [Test, Regressions.Pr(881)]
+    public async Task Pr_881_a_friend_list_over_an_hour_old_is_fetched_again()
     {
         await using var app = await VrcxScenario.StartAsync();
         app.Vrchat.Friend("usr_pal", "Pal");

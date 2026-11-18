@@ -9,8 +9,8 @@ public sealed class RepresentedGroupTests
 {
     private const string Groups = """[{"id":"gmem_1","groupId":"grp_a","name":"A","memberCount":3,"isRepresenting":true},{"id":"gmem_2","groupId":"grp_b","name":"B","memberCount":5,"isRepresenting":true}]""";
 
-    [Test]
-    public async Task Representing_is_taken_from_the_represented_endpoint()
+    [Test, Regressions.Issue(1301)]
+    public async Task Issue_1301_representing_is_taken_from_the_represented_endpoint()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

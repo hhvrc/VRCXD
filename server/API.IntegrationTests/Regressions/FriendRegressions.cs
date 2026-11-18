@@ -14,6 +14,9 @@ public sealed class FriendRegressions
 
     // A friend whose name changed (a Steam "Name 1a2b" account getting a real VRChat name) showed
     // up as unfriended. It must be a name change, through both the pipeline and the next friend sync.
+    // This pins the port's behaviour for a rename under the same usr_ id. It does not reproduce the
+    // reported trigger, a Steam account moved to a VRChat account under a new usr_ id: friendships
+    // follow the id, so that would still read as an unfriend and a new friend.
     [Test, Issue(1228)]
     public async Task Issue_1228_a_friend_changing_their_name_is_a_name_change_not_an_unfriend()
     {
@@ -118,6 +121,7 @@ public sealed class FriendRegressions
             var memberships = await db.GroupMembers.Where(m => m.UserId == me.Id).ToListAsync();
             await Assert.That(memberships.Count).IsEqualTo(2);
             await Assert.That(memberships.All(m => m.LeftAt == null)).IsTrue();
+            await Assert.That(await db.Notifications.CountAsync(n => n.OwnerUserId == me.Id && n.Type == "groupChange")).IsEqualTo(0);
         }
 
         app.Vrchat.LeaveGroup(me.Id, guild.Id);
@@ -129,6 +133,9 @@ public sealed class FriendRegressions
             await Assert.That(memberships.Single(m => m.GroupId == club.Id).LeftAt).IsNull();
             await Assert.That(memberships.Count(m => m.GroupId == guild.Id)).IsEqualTo(1);
             await Assert.That(memberships.Single(m => m.GroupId == guild.Id).LeftAt).IsNotNull();
+            var notices = await db.Notifications.Where(n => n.OwnerUserId == me.Id && n.Type == "groupChange").Select(n => new { n.Message, n.Link }).ToListAsync();
+            await Assert.That(notices.Count).IsEqualTo(1);
+            await Assert.That((notices[0].Message, notices[0].Link)).IsEqualTo(("Left group", $"group:{guild.Id}"));
         }
     }
 
@@ -155,8 +162,8 @@ public sealed class FriendRegressions
     }
 
     // VRChat moved the user icon from userIcon to iconUrl; a friend with only iconUrl must keep it.
-    [Test, Issue(1886)]
-    public async Task Issue_1886_the_icon_vrchat_sends_as_iconUrl_is_kept_and_preferred()
+    [Test, Pr(1886)]
+    public async Task Pr_1886_the_icon_vrchat_sends_as_iconUrl_is_kept_and_preferred()
     {
         await using var app = await VrcxScenario.StartAsync();
         const string Icon = "https://api.vrchat.cloud/api/1/file/file_icon-1886/1/file";

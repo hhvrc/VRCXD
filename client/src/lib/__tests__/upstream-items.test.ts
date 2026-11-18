@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-// Upstream issues and PRs whose behaviour lives in a client module.
+// Upstream issues and PRs whose behaviour lives in a client module. A describe or test title
+// starting "upstream #n" is what server/Testing/upstream-coverage.py counts.
 
 vi.mock('#lib/api/client.js', async (importOriginal) => {
 	const actual = await importOriginal<typeof import('#lib/api/client.js')>();
@@ -16,7 +17,7 @@ const { vrchatImageAt } = await import('#lib/api/links.js');
 const { openInGame } = await import('#lib/instances/instance-launch.svelte.js');
 const { formatDifference, replaceBioSymbols } = await import('#lib/helpers/format.js');
 
-describe('upstream issue 1178', () => {
+describe('upstream #1178 small icons load the image at their size', () => {
 	test('a VRChat file url becomes the image endpoint at the asked size', () => {
 		expect(vrchatImageAt('https://api.vrchat.cloud/api/1/file/file_0e8c4e32-7444-44ea-ade4-313c010d4bae/3/file')).toBe(
 			'https://api.vrchat.cloud/api/1/image/file_0e8c4e32-7444-44ea-ade4-313c010d4bae/3/128'
@@ -33,7 +34,7 @@ describe('upstream issue 1178', () => {
 	});
 });
 
-describe('upstream issue 1384', () => {
+describe('upstream #1384 a quick second open in VRChat is ignored', () => {
 	beforeEach(() => vi.useFakeTimers());
 	afterEach(() => vi.useRealTimers());
 

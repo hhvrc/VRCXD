@@ -47,8 +47,8 @@ public sealed class LiveInstanceTests
     }
 
     // Upstream issue 1394: Refresh must show VRChat's current count, not a stale one.
-    [Test]
-    public async Task Each_read_has_vrchats_current_user_count()
+    [Test, Regressions.Issue(1394)]
+    public async Task Issue_1394_each_read_has_vrchats_current_user_count()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

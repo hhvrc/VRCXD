@@ -6,8 +6,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // VRChat's rate limit. Like the original, they are fetched once and again on Refresh.
 public sealed class OwnAvatarsCacheTests
 {
-    [Test]
-    public async Task Own_avatars_are_not_refetched_on_every_visit()
+    [Test, Regressions.Issue(1611), Regressions.Issue(1758)]
+    public async Task Issue_1611_own_avatars_are_not_refetched_on_every_visit()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();

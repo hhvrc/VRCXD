@@ -8,8 +8,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // original's resendEmail2fa, logging in again from a fresh session does that, and gives a new pending id.
 public sealed class EmailTwoFactorResendTests
 {
-    [Test]
-    public async Task Logging_in_again_during_email_2fa_asks_vrchat_again_with_a_new_pending_id()
+    [Test, Regressions.Issue(445), Regressions.Issue(732)]
+    public async Task Issue_445_logging_in_again_during_email_2fa_asks_vrchat_again_with_a_new_pending_id()
     {
         await using var app = await VrcxScenario.StartAsync();
         var me = app.Vrchat.SetMe();

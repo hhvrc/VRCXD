@@ -97,12 +97,12 @@ describe('searchSessions', () => {
 			[...['ann', 'bob', 'cat', 'dan', 'eve'].map((u, i) => join(1 + i * 0.2, u, A)), join(1100, 'zed', B), video(1200, 'https://video/song', B)]
 		);
 
-	test('no search keeps every stay, empty ones too', () => {
+	test('upstream #1948 no search keeps every stay, empty ones too', () => {
 		const some = buildGameLogSessions([stay(0, A), stay(100, B)], [join(110, 'x', B)]);
 		expect(searchSessions(some, '', 10)).toHaveLength(2);
 	});
 
-	test('no search is not cut at the search limit', () => {
+	test('upstream #1948 no search is not cut at the search limit', () => {
 		const many = buildGameLogSessions([stay(0, A), stay(100, B), stay(200, A)], []);
 		expect(searchSessions(many, '', 1)).toHaveLength(3);
 	});

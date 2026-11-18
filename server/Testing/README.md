@@ -101,6 +101,18 @@ into the repo.
      `app.Vrchat.AssertCalled` / `AssertNotCalled` / `Bodies`.
    - Reproduce the original's trigger, not only the fixed code path: if the bug came from
      ordering (a restart, a refresh, a sync after a pipeline event), do those steps.
+   - Outside `Regressions/` (a feature's own test class) the same holds: `[Test, Regressions.Issue(1234)]`
+     and the `Issue_1234_` name. `server/Common.Tests` has its own `Issue`/`Pr` attributes
+     (`Upstream.cs`) and the same naming check. A comment alone ("Upstream issue 1234") is not counted.
+   - **Web client** (vitest, `client/src/**/*.test.ts`): a `describe`, `test` or `it` title that starts
+     with `upstream #1234`, then what must hold, for example
+     `test('upstream #1610 private to bottom puts private locations last', ...)`. Several items:
+     `upstream #1611 #1758 ...`. Issues and PRs share GitHub's numbers, so `#n` names either.
+   - **Agent** (Rust, `agent/src/**/*.rs`): the test function is named `upstream_1234_<what must hold>`
+     (`upstream_1611_1758_...` for several), for example
+     `fn upstream_1020_names_with_zero_width_or_combining_characters_split_at_the_last_paren()`.
+
+   `upstream-coverage.py` counts all three.
 5. **Run it.** If it fails because the port has the bug, keep the test, mark it
    `[Skip("Bug: <one line>, see <file>")]` and report it. Do not change production code from a
    regression test change. If it fails because the fake does not model something, extend the

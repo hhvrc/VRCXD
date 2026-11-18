@@ -7,8 +7,8 @@ namespace VRCX.API.IntegrationTests.Regressions;
 /// </summary>
 public static class NotApplicable
 {
-    public const string Desktop = "desktop app (desktop/): ";
-    public const string Overlay = "VR overlay, which the port does not have: ";
+    public const string Desktop = "the PC's agent (agent/), tested there if at all: ";
+    public const string Overlay = "the agent's VR overlay (agent/src/vr), no server behaviour: ";
     public const string Packaging = "the original's Electron/CEF packaging: ";
     public const string ClientOnly = "client only, no server behaviour; a Playwright test (client/e2e) if anything: ";
     public const string Question = "a question or support request, nothing to test: ";

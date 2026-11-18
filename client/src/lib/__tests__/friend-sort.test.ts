@@ -14,7 +14,7 @@ describe('friend sort', () => {
 		expect(compare(bob, alice)).toBeGreaterThan(0);
 	});
 
-	test('private to bottom puts private locations last', () => {
+	test('upstream #1610 private to bottom puts private locations last', () => {
 		const compare = friendComparator(['Sort Private to Bottom']);
 		const open = friend({ location: 'wrld_1:1', displayName: 'Same' });
 		const hidden = friend({ location: 'private', displayName: 'Same' });

@@ -12,8 +12,8 @@ public sealed class UserLookupTests
         return found.TryGetProperty("userId", out var id) ? id.GetString() : null;
     }
 
-    [Test]
-    public async Task A_display_name_finds_the_friend_then_vrchats_exact_match()
+    [Test, Regressions.Issue(110), Regressions.Issue(519)]
+    public async Task Issue_110_a_display_name_finds_the_friend_then_vrchats_exact_match()
     {
         await using var app = await VrcxScenario.StartAsync();
         app.Vrchat.Friend("usr_pal", "Pal");

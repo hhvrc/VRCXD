@@ -102,8 +102,8 @@ public sealed class BadgeTests
         await Assert.That(counts.GetProperty("groups").GetInt32()).IsEqualTo(2);
     }
 
-    [Test]
-    public async Task The_public_profile_carries_the_theme_and_background_live_from_vrchat()
+    [Test, Regressions.Issue(1846)]
+    public async Task Issue_1846_the_public_profile_carries_the_theme_background_and_economy_creator_flag_live_from_vrchat()
     {
         await using var app = await VrcxScenario.StartAsync();
         var friend = app.Vrchat.Friend("usr_themed", "Themed");
