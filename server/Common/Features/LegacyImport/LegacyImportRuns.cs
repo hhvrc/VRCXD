@@ -238,11 +238,15 @@ public sealed class LegacyImportRuns(
     private static bool StartsLikeSqlite(ReadOnlySpan<byte> start) =>
         start[..Math.Min(start.Length, SqliteHeader.Length)].SequenceEqual(SqliteHeader.AsSpan(0, Math.Min(start.Length, SqliteHeader.Length)));
 
-    /// <summary>Reads the uploaded file and reports what an import would add, writing nothing.</summary>
-    public Result<LegacyImportStatus> Check(string uploadId) => Begin(uploadId, dryRun: true);
+    /// <summary>Reads the uploaded file and reports what an import would add (and, replacing history, delete), writing nothing.</summary>
+    public Result<LegacyImportStatus> Check(string uploadId, bool replaceHistory = false) => Begin(uploadId, dryRun: true, replaceHistory);
 
-    /// <summary>Imports the uploaded file. Safe to run again: rows already there are not added twice.</summary>
-    public Result<LegacyImportStatus> Import(string uploadId) => Begin(uploadId, dryRun: false);
+    /// <summary>
+    /// Imports the uploaded file. Safe to run again: rows already there are not added twice. With
+    /// <paramref name="replaceHistory"/> the server's history of the kinds the file holds goes first
+    /// (<see cref="LegacyImportOptions.ReplaceHistory"/>).
+    /// </summary>
+    public Result<LegacyImportStatus> Import(string uploadId, bool replaceHistory = false) => Begin(uploadId, dryRun: false, replaceHistory);
 
     /// <summary>Forgets the upload and deletes the file.</summary>
     public async Task<VrcxProblem?> DiscardAsync(CancellationToken ct)
@@ -283,7 +287,7 @@ public sealed class LegacyImportRuns(
 
     private bool IsRunning => _state is LegacyImportState.Checking or LegacyImportState.Importing;
 
-    private Result<LegacyImportStatus> Begin(string uploadId, bool dryRun)
+    private Result<LegacyImportStatus> Begin(string uploadId, bool dryRun, bool replaceHistory)
     {
         Restore();
         lock (_lock)
@@ -296,13 +300,13 @@ public sealed class LegacyImportRuns(
             _progress = null;
             _error = null;
             _finishedAt = null;
-            _running = Task.Run(() => RunAsync(uploadId, dryRun));
+            _running = Task.Run(() => RunAsync(uploadId, dryRun, replaceHistory));
         }
         Announce();
         return Status();
     }
 
-    private async Task RunAsync(string uploadId, bool dryRun)
+    private async Task RunAsync(string uploadId, bool dryRun, bool replaceHistory)
     {
         try
         {
@@ -311,6 +315,7 @@ public sealed class LegacyImportRuns(
                 SqlitePath = FilePath,
                 ConnectionString = dryRun ? null : database.Conn,
                 DryRun = dryRun,
+                ReplaceHistory = replaceHistory,
                 Progress = new StepProgress(this, uploadId),
             }, lifetime.ApplicationStopping);
             logger.LogInformation("Legacy import {Kind} finished in {Elapsed}", dryRun ? "dry run" : "import", report.Elapsed);

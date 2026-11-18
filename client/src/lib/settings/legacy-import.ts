@@ -47,15 +47,16 @@ export type LegacyImportTransport = {
 };
 
 export const legacyImportApi: LegacyImportTransport & {
-	dryRun(uploadId: string): Promise<unknown>;
-	import(uploadId: string): Promise<unknown>;
+	/** With replaceHistory the report also says what of this server's history an import would delete. */
+	dryRun(uploadId: string, replaceHistory?: boolean): Promise<unknown>;
+	import(uploadId: string, replaceHistory?: boolean): Promise<unknown>;
 	discard(): Promise<void>;
 } = {
 	start: (size) => api.post<UploadPosition>('/1/legacy-import', { size }),
 	put: (uploadId, offset, part) => api.putBytes<UploadPosition>(`/1/legacy-import/${encodeURIComponent(uploadId)}`, part, { offset }),
 	position: () => api.get<UploadPosition>('/1/legacy-import'),
-	dryRun: (uploadId) => api.post(`/1/legacy-import/${encodeURIComponent(uploadId)}/dry-run`),
-	import: (uploadId) => api.post(`/1/legacy-import/${encodeURIComponent(uploadId)}/import`),
+	dryRun: (uploadId, replaceHistory = false) => api.post(`/1/legacy-import/${encodeURIComponent(uploadId)}/dry-run${replaceHistory ? '?replaceHistory=true' : ''}`),
+	import: (uploadId, replaceHistory = false) => api.post(`/1/legacy-import/${encodeURIComponent(uploadId)}/import${replaceHistory ? '?replaceHistory=true' : ''}`),
 	discard: () => api.delete('/1/legacy-import')
 };
 

@@ -983,6 +983,8 @@
 	"view_settings_advanced_legacy_import_check": "Check",
 	"view_settings_advanced_legacy_import_import": "Import",
 	"view_settings_advanced_legacy_import_discard": "Discard",
+	"view_settings_advanced_legacy_import_replace_history": "Replace this server's history",
+	"view_settings_advanced_legacy_import_replace_history_description": "Deletes what this server recorded of friends' locations, status, bio and avatar changes, name and trust changes, friend requests and the game log, up to the newest entry the file has of each, so the file's copy is the only one. What came after the file and everything else stay. Check first: its notes say what would be deleted.",
 	"view_settings_advanced_legacy_import_cancel": "Cancel",
 	"view_settings_advanced_legacy_import_checking": "Checking, step {step} of {steps}: {name}",
 	"view_settings_advanced_legacy_import_importing": "Importing, step {step} of {steps}: {name}",

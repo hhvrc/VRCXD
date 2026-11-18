@@ -22,6 +22,7 @@ The endpoints, under the API token like everything else:
 | `PUT /1/legacy-import/{uploadId}?offset=n` | One part as the raw body, at most 64 MiB, starting where the file ends. A 409 says where that is |
 | `POST /1/legacy-import/{uploadId}/dry-run` | Reads the file in the background and reports what an import would add |
 | `POST /1/legacy-import/{uploadId}/import` | Imports in the background and deletes the file |
+| `...?replaceHistory=true` on either | First deletes this server's history of the kinds the file holds; see below. The check only lists what would go |
 | `DELETE /1/legacy-import` | Forgets the upload and deletes the file |
 
 ## From the command line
@@ -41,6 +42,7 @@ dotnet run --project LegacyImport -- --connection "Host=...;Database=vrcx;Userna
 | --- | --- |
 | `--sqlite PATH` | The file. Defaults to `%APPDATA%\VRCX\VRCX.sqlite3`. |
 | `--dry-run` | Read the file only and print what would be imported. Postgres is not contacted. |
+| `--replace-history` | First delete this server's history of the kinds the file holds; see below. |
 | `--connection CONN` | Npgsql connection string. `VRCX__DB__CONN` works as well. |
 | `--game-log-account ID` | Owner of game log stays that the log cannot attribute. Defaults to the account with most stays. |
 | `--match-window-seconds N` | How close a feed row and one this server recorded must be to count as the same event. Defaults to 120. |
@@ -60,6 +62,29 @@ The original and this server may both have watched the same things.
 - **Feed rows.** A presence event, status, bio or avatar change for the same user and the same value within the match window is the same event.
 - **Friendships.** Friend sync records a friendship as starting at this server's first sync. If the original knew of it earlier, it now starts then, and it takes the original's friend number.
 - **Everything else** has a real key: notification ids, avatar and world ids, (owner, target) pairs, and (at, url) for video plays and resource loads.
+
+### Replacing this server's history
+
+What the two apps logged as they watched has no key, and two apps log the same moment differently:
+seconds apart, or not at all when one missed it. The match above can then keep both copies. The
+switch "Replace this server's history" on the Settings page (or `--replace-history`) first deletes
+this server's rows of those kinds, each up to the newest row the file has of it, so the file's
+copy is the only one:
+
+| Deleted here | Up to the file's newest row in |
+| --- | --- |
+| `presence_events` | `P_feed_gps`, `P_feed_online_offline` (every account) |
+| `user_status_changes`, `user_bio_changes`, `user_avatar_changes` | `P_feed_status`, `P_feed_bio`, `P_feed_avatar` |
+| `user_display_name_changes`, `user_trust_changes` | `P_friend_log_history` |
+| `friend_request_events` of each account in the file | that account's `P_friend_log_history` |
+| `stored_instance_visits` with source `game_log`, `unidentified_visits` | `gamelog_location`, `gamelog_join_leave` |
+| `video_plays`, `portal_spawns`, `resource_loads` | `gamelog_video_play`, `gamelog_portal_spawn`, `gamelog_resource_load` |
+| `game_log_events` of kind `Event` and `External` | `gamelog_event`, `gamelog_external` |
+
+Rows after the file's newest are kept: the file says nothing about that time. Friendships,
+notifications, memos, notes, favorites and everything else with a real key are not touched, and
+neither are the visits this server saw over the pipeline. The deletes run in one transaction
+before the import; the report's notes say how many rows of each went. Off by default.
 
 ## Mapping
 

@@ -366,6 +366,52 @@ public sealed class LegacyImportTests
         await Assert.That(Directory.EnumerateFileSystemEntries(UploadDirectory(app))).IsEmpty();
     }
 
+    // Two apps watching the same friends log the same moves seconds apart, or one misses them; the
+    // import's window match then keeps both copies. Replacing history deletes this server's rows of
+    // those kinds up to the file's newest, so the file's copy is the only one, and keeps the rest.
+    [Test]
+    public async Task Replacing_history_deletes_the_servers_feeds_and_game_log_up_to_the_files_newest_row_and_keeps_what_came_after()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        app.Vrchat.SetMe(Me, "Me");
+        app.Vrchat.Friend(Alice, "Alice");
+        await app.LoginAsync();
+        var t0 = Second(app.Time.GetUtcNow().AddDays(-3));
+
+        // The server's own copy of the same evening: Dave, whom the original never logged, and
+        // Alice coming online at a moment the original did not see.
+        await using (var pc = await app.ConnectDesktopAsync("pc-legacy"))
+            await pc.SendLogAsync(GameLog.Location(Here, "Club").At(t0), GameLog.PlayerJoined("Dave", "usr_dave").At(t0.AddSeconds(30)));
+        await ExecuteAsync(app, $"""
+            INSERT INTO presence_events (user_id, at, kind, location, instance_location, previous_state) VALUES
+              ('{Alice}', '{Iso(t0.AddHours(2).AddMinutes(45))}', 'online', '{Here}', '{Here}', 'offline'),
+              ('{Alice}', '{Iso(t0.AddHours(6))}', 'online', '{Here}', '{Here}', 'offline')
+            """);
+        using var fixture = Fixture.Create(t0);
+        var uploadId = await UploadAsync(app, await File.ReadAllBytesAsync(fixture.Path), parts: 1);
+
+        // The check says what would go and deletes nothing.
+        var check = await RunAsync(app, $"/1/legacy-import/{uploadId}/dry-run?replaceHistory=true");
+        var notes = check.GetProperty("report").GetProperty("notes").EnumerateArray().Select(n => n.GetString()!).ToList();
+        await Assert.That(notes).Contains(n => n.StartsWith("replace history: would delete this server's friends' locations", StringComparison.Ordinal));
+        await Assert.That(await ScalarAsync(app, "SELECT count(*) FROM stored_instance_visits WHERE user_id = 'usr_dave'")).IsEqualTo(1);
+
+        var imported = await RunAsync(app, $"/1/legacy-import/{uploadId}/import?replaceHistory=true");
+        await Assert.That(imported.GetProperty("state").GetString()).IsEqualTo("imported");
+        await Assert.That(await ScalarAsync(app, "SELECT count(*) FROM stored_instance_visits WHERE user_id = 'usr_dave'")).IsEqualTo(0);
+        await Assert.That(await ScalarAsync(app, $"SELECT count(*) FROM presence_events WHERE user_id = '{Alice}' AND at = '{Iso(t0.AddHours(2).AddMinutes(45))}'")).IsEqualTo(0);
+        // After the file's newest presence row: the file says nothing about it, so it stays.
+        await Assert.That(await ScalarAsync(app, $"SELECT count(*) FROM presence_events WHERE user_id = '{Alice}' AND at = '{Iso(t0.AddHours(6))}'")).IsEqualTo(1);
+        // The file's own rows are all there: the feed's three and the stays it logged.
+        await Assert.That(await ScalarAsync(app, $"SELECT count(*) FROM presence_events WHERE user_id = '{Alice}' AND at <= '{Iso(t0.AddHours(4))}'")).IsEqualTo(3);
+        await Assert.That(await ScalarAsync(app, $"SELECT count(*) FROM stored_instance_visits WHERE user_id = '{Me}' AND source = 'game_log'")).IsEqualTo(2);
+        // What has a real key is not history to replace.
+        await Assert.That(await ScalarAsync(app, "SELECT count(*) FROM user_memos")).IsGreaterThan(0);
+        var deleted = imported.GetProperty("report").GetProperty("notes").EnumerateArray().Select(n => n.GetString()!)
+            .Single(n => n.StartsWith("replace history: deleted", StringComparison.Ordinal) && n.Contains("friends' locations"));
+        await Assert.That(deleted).StartsWith("replace history: deleted 1 ");
+    }
+
     // The Settings page follows an upload, a check and an import on the "legacy_import" topic: the
     // snapshot is the status GET /1/legacy-import returns, and every change after it is a delta
     // carrying the whole status again, numbered without gaps.

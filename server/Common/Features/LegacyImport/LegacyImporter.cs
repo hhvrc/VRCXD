@@ -26,6 +26,13 @@ public sealed record LegacyImportOptions
     /// the same event (both apps watching the same friend). Exact re-imports always match.
     /// </summary>
     public TimeSpan MatchWindow { get; init; } = TimeSpan.FromMinutes(2);
+    /// <summary>
+    /// Delete this server's history of the kinds the file also holds (friend feeds, name and trust
+    /// changes, friend requests, the game log), up to the newest row the file has of each, before
+    /// importing it: the file's copy replaces what the two apps both watched and logged differently.
+    /// A dry run only says what would go.
+    /// </summary>
+    public bool ReplaceHistory { get; init; }
     /// <summary>Told as each step starts, so a page can show how far the import is.</summary>
     public IProgress<LegacyImportProgress>? Progress { get; init; }
 }
@@ -99,7 +106,7 @@ public sealed partial class LegacyImporter
     private async Task ImportAsync()
     {
         _accounts = _src.Accounts();
-        var steps = 7 + _accounts.Count;
+        var steps = 7 + _accounts.Count + (_options.ReplaceHistory ? 1 : 0);
         var step = 0;
         void Starting(string name) => _options.Progress?.Report(new LegacyImportProgress(++step, steps, name));
 
@@ -109,6 +116,11 @@ public sealed partial class LegacyImporter
 
         Starting("accounts");
         await AccountsAsync();
+        if (_options.ReplaceHistory)
+        {
+            Starting("replacing this server's history");
+            await ReplaceHistoryAsync();
+        }
         Starting("cached avatars and worlds");
         await CachedEntitiesAsync();
         Starting("game log");

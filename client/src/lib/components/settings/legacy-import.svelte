@@ -5,6 +5,7 @@
 	import SettingsItem from '#lib/components/settings/settings-item.svelte';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Progress } from '#lib/components/ui/progress/index.js';
+	import { Switch } from '#lib/components/ui/switch/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import { ApiError } from '#lib/api/client.js';
 	import {
@@ -40,6 +41,8 @@
 	let uploading = $state<{ received: number; size: number; abort: AbortController } | undefined>();
 	let error = $state('');
 	let busy = $state(false);
+	// Off by default: it deletes what this server recorded. The check runs with it too, so its report says what would go.
+	let replaceHistory = $state(false);
 
 	const running = $derived(!!status && isRunning(status.state));
 	const rows = $derived(status?.report ? reportRows(status.report) : []);
@@ -105,10 +108,13 @@
 		</div>
 	{:else}
 		{#if canRun(status)}
+			<SettingsItem label={m.view_settings_advanced_legacy_import_replace_history()} description={m.view_settings_advanced_legacy_import_replace_history_description()}>
+				<Switch checked={replaceHistory} disabled={busy} aria-label={m.view_settings_advanced_legacy_import_replace_history()} onCheckedChange={(v) => (replaceHistory = v)} />
+			</SettingsItem>
 			<SettingsItem label={m.view_settings_advanced_legacy_import_uploaded({ size: formatBytes(status.size) })}>
 				<div class="flex gap-2">
-					<Button size="sm" variant="outline" disabled={busy} onclick={() => act(() => legacyImportApi.dryRun(status!.uploadId!))}>{m.view_settings_advanced_legacy_import_check()}</Button>
-					<Button size="sm" disabled={busy || status.state !== 'checked'} onclick={() => act(() => legacyImportApi.import(status!.uploadId!))}>{m.view_settings_advanced_legacy_import_import()}</Button>
+					<Button size="sm" variant="outline" disabled={busy} onclick={() => act(() => legacyImportApi.dryRun(status!.uploadId!, replaceHistory))}>{m.view_settings_advanced_legacy_import_check()}</Button>
+					<Button size="sm" disabled={busy || status.state !== 'checked'} onclick={() => act(() => legacyImportApi.import(status!.uploadId!, replaceHistory))}>{m.view_settings_advanced_legacy_import_import()}</Button>
 					<Button size="sm" variant="ghost" disabled={busy} onclick={() => act(() => legacyImportApi.discard())}>{m.view_settings_advanced_legacy_import_discard()}</Button>
 				</div>
 			</SettingsItem>

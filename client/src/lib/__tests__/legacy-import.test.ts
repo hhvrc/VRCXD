@@ -1,6 +1,6 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { ApiError } from '../api/client.js';
-import { canRun, formatBytes, formatElapsed, reportRows, reportTotal, uploadInParts, type LegacyImportStatus, type LegacyImportTransport, type LegacyTableReport } from '../settings/legacy-import.js';
+import { canRun, formatBytes, legacyImportApi, formatElapsed, reportRows, reportTotal, uploadInParts, type LegacyImportStatus, type LegacyImportTransport, type LegacyTableReport } from '../settings/legacy-import.js';
 
 /** A server that keeps what it was sent, as /1/legacy-import does: a part must start where the copy ends. */
 function fakeServer(script: { failPut?: (call: number, offset: number) => 'network' | 'lostAnswer' | 'refuse' | undefined } = {}) {
@@ -129,4 +129,28 @@ test('sizes read as the page shows them', () => {
 	expect(formatBytes(512)).toBe('512 B');
 	expect(formatBytes(776_000_000)).toBe('776.0 MB');
 	expect(formatBytes(1_200_000_000)).toBe('1.2 GB');
+});
+
+describe('replacing history', () => {
+	test('is asked for only when the switch is on, for the check and the import alike', async () => {
+		const urls: string[] = [];
+		vi.stubGlobal('fetch', async (url: string) => {
+			urls.push(url);
+			return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+		});
+		try {
+			await legacyImportApi.dryRun('up 1');
+			await legacyImportApi.dryRun('up 1', true);
+			await legacyImportApi.import('up 1', true);
+			await legacyImportApi.import('up 1');
+		} finally {
+			vi.unstubAllGlobals();
+		}
+		expect(urls).toEqual([
+			'/1/legacy-import/up%201/dry-run',
+			'/1/legacy-import/up%201/dry-run?replaceHistory=true',
+			'/1/legacy-import/up%201/import?replaceHistory=true',
+			'/1/legacy-import/up%201/import'
+		]);
+	});
 });

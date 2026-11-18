@@ -73,9 +73,13 @@ public sealed class LegacyImportController(LegacyImportRuns runs) : VrcxControll
     [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public IActionResult DryRun([FromRoute] string uploadId) => Answer(runs.Check(uploadId));
+    public IActionResult DryRun([FromRoute] string uploadId, [FromQuery] bool replaceHistory = false) => Answer(runs.Check(uploadId, replaceHistory));
 
-    /// <summary>Imports the uploaded file in the background and deletes it after. Safe to repeat.</summary>
+    /// <summary>
+    /// Imports the uploaded file in the background and deletes it after. Safe to repeat. With
+    /// replaceHistory, this server's feeds, name and trust changes, friend requests and game log up
+    /// to the file's newest row of each are deleted first, and the file's rows take their place.
+    /// </summary>
     /// <response code="200">The import has started</response>
     /// <response code="404">No such upload</response>
     /// <response code="409">The file is not all there (or was imported already), or a run is already going</response>
@@ -84,7 +88,7 @@ public sealed class LegacyImportController(LegacyImportRuns runs) : VrcxControll
     [ProducesResponseType<VrcxProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<VrcxProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public IActionResult Import([FromRoute] string uploadId) => Answer(runs.Import(uploadId));
+    public IActionResult Import([FromRoute] string uploadId, [FromQuery] bool replaceHistory = false) => Answer(runs.Import(uploadId, replaceHistory));
 
     /// <summary>Forgets the upload and deletes the file.</summary>
     /// <response code="204">Gone</response>
