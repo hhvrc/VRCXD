@@ -22,7 +22,8 @@
 	import { directAccess } from '#lib/nav/direct-access.svelte.js';
 	import { setOwnerUserId, vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 	import { onLiveEvent } from '#lib/api/live.svelte.js';
-	import { navNotify } from '#lib/nav/nav-notify.svelte.js';
+	import { NOTIFICATION_FILTERS_KEY, navNotify, notificationLightsNav } from '#lib/nav/nav-notify.svelte.js';
+	import { readSetting } from '#lib/settings/settings-storage.js';
 
 	// The active entry comes from the path; a tool page lights its pinned tool, or else Tools.
 	const activeKey = $derived(activeNavKey(navLayout.entries, routeNavKeys(page.url.pathname, navLayout.definitions)));
@@ -55,7 +56,9 @@
 	$effect(() =>
 		onLiveEvent((event) => {
 			const account = vrchatAuth.ownerUserId;
-			if (event.event.case === 'notification' && event.event.value.ownerUserId === account) navNotify.notify('notification', page.url.pathname);
+			if (event.event.case === 'notification' && event.event.value.ownerUserId === account) {
+				if (notificationLightsNav(event.event.value, readSetting<string[]>(NOTIFICATION_FILTERS_KEY, []), account)) navNotify.notify('notification', page.url.pathname);
+			}
 			else if (event.event.case === 'friendship' && event.event.value.ownerUserId === account) navNotify.notify('friend-log', page.url.pathname);
 		})
 	);

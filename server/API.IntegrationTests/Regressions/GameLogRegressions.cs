@@ -29,6 +29,33 @@ public sealed class GameLogRegressions
         await Assert.That(rows.All(r => r.GetProperty("userId").GetString() == "usr_stranger")).IsTrue();
     }
 
+    // Upstream db7cb63b: the Player List showed no rank, status or bio links for players who are
+    // not friends. The original fetches everyone it sees join (users/{id} and profile/{id}).
+    [Test]
+    public async Task Players_seen_joining_are_fetched_for_the_player_list()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        app.Vrchat.User("usr_stranger", "Stranger", u => u.Bio("hello", "https://example.com/stranger").Status("busy", "exploring"));
+        await app.LoginAsync();
+        await using var pc = await app.ConnectDesktopAsync("pc-db7cb63b");
+        await pc.SendLogAsync(GameLog.Location(Here, "Club"), GameLog.PlayerJoined("Stranger", "usr_stranger"));
+        app.Vrchat.ClearRequests();
+
+        await app.Jobs.ProfileRefreshAsync();
+
+        app.Vrchat.AssertCalled("GET", "users/usr_stranger");
+        app.Vrchat.AssertCalled("GET", "profile/usr_stranger");
+        var players = (await app.GetJsonAsync(app.AccountPath("player-list"))).GetProperty("players").EnumerateArray().ToList();
+        var stranger = players.Single(p => p.GetProperty("userId").GetString() == "usr_stranger");
+        await Assert.That(stranger.GetProperty("statusDescription").GetString()).IsEqualTo("exploring");
+        await Assert.That(stranger.GetProperty("bioLinks")[0].GetString()).IsEqualTo("https://example.com/stranger");
+
+        // Fetched once: the next tick does not ask again.
+        app.Vrchat.ClearRequests();
+        await app.Jobs.ProfileRefreshAsync();
+        app.Vrchat.AssertNotCalled("GET", "users/usr_stranger");
+    }
+
     // After quitting VRChat the app kept showing the old location. The quit line ends the stay:
     // everyone's visit closes and the player list is empty.
     [Test, Issue(357)]

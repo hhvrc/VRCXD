@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { vrchatImageAt } from '../api/links.js';
+import { imageViewer } from '../content/image-viewer.svelte.js';
 
 // The original's convertFileUrlToImageUrl, which the port always points at VRChat's API host.
 describe('vrchatImageAt', () => {
@@ -28,5 +29,24 @@ describe('vrchatImageAt', () => {
 		expect(vrchatImageAt('')).toBe('');
 		expect(vrchatImageAt(null)).toBe('');
 		expect(vrchatImageAt(undefined)).toBe('');
+	});
+});
+
+// Upstream 119199b6 and 4552bb67: the full-size viewer showed a VRChat icon at the small size
+// VRChat links it at; the original asks the image endpoint for the largest size.
+describe('the full-size image viewer', () => {
+	test('a VRChat image is asked for at the largest size', () => {
+		imageViewer.show('https://api.vrchat.cloud/api/1/image/file_abc123-def456/3/256');
+		expect(imageViewer.url).toBe('https://api.vrchat.cloud/api/1/image/file_abc123-def456/3/10000');
+		imageViewer.show('https://api.vrchat.cloud/api/1/file/file_abc123-def456/1/file', 'print.png');
+		expect(imageViewer.url).toBe('https://api.vrchat.cloud/api/1/image/file_abc123-def456/1/10000');
+		expect(imageViewer.fileName).toBe('print.png');
+	});
+
+	test('any other picture is shown as it is', () => {
+		imageViewer.show('/1/images?url=https%3A%2F%2Fapi.vrchat.cloud%2Fapi%2F1%2Ffile%2Ffile_x%2F1%2Ffile&token=t');
+		expect(imageViewer.url).toBe('/1/images?url=https%3A%2F%2Fapi.vrchat.cloud%2Fapi%2F1%2Ffile%2Ffile_x%2F1%2Ffile&token=t');
+		imageViewer.close();
+		expect(imageViewer.url).toBe('');
 	});
 });

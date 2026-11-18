@@ -7,7 +7,7 @@
 	import ShieldAlert from '@lucide/svelte/icons/shield-alert';
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
-	import { trustInfo } from '#lib/people/user-display.js';
+	import { avatarInfoImage, trustInfo } from '#lib/people/user-display.js';
 	import IconFrame from '#lib/components/cosmetics/icon-frame.svelte';
 	import NameplateEffect from '#lib/components/cosmetics/nameplate-effect.svelte';
 	import ProfileEffect from '#lib/components/cosmetics/profile-effect.svelte';
@@ -73,7 +73,7 @@
 	import { formatDateFilter, replaceBioSymbols, statusClass } from '#lib/helpers/format.js';
 	import type { Friend, Instance, Memo, PlayerModeration, User, UserBadge, UserHistory } from '#lib/api/types.js';
 	import type { Together } from './user/user-info-tab.svelte';
-	import { openAvatarFromImage } from '#lib/content/avatar-lookup.js';
+	import { lookupAvatar, openAvatarFromImage, type AvatarLookup } from '#lib/content/avatar-lookup.js';
 	import BadgeCheck from '@lucide/svelte/icons/badge-check';
 	import { toast } from 'svelte-sonner';
 	import { credits, refreshCredits } from '#lib/content/credits.svelte.js';
@@ -151,7 +151,21 @@
 	}
 	const bannerUrl = $derived(user?.profilePicOverride || user?.currentAvatarImageUrl || user?.currentAvatarThumbnailImageUrl);
 	const iconUrl = $derived(user?.iconUrl || user?.userIcon || user?.profilePicOverride || user?.currentAvatarThumbnailImageUrl || user?.currentAvatarImageUrl);
-	const avatarUrl = $derived(user?.currentAvatarThumbnailImageUrl || user?.currentAvatarImageUrl);
+	// Avatar Info: someone else's profile icon stands in for their avatar when it is an avatar's image.
+	const profileIcon = $derived(isSelf ? undefined : user?.iconUrl);
+	let iconAvatar = $state<{ url: string; lookup: AvatarLookup } | undefined>();
+	$effect(() => {
+		const url = profileIcon;
+		iconAvatar = undefined;
+		if (!url) return;
+		lookupAvatar(url, userId).then(
+			(lookup) => {
+				if (url === profileIcon) iconAvatar = { url, lookup };
+			},
+			() => {}
+		);
+	});
+	const avatarUrl = $derived(avatarInfoImage(isSelf, user?.currentAvatarImageUrl, iconAvatar?.url, !!iconAvatar?.lookup.ownerId));
 	const platform = $derived(user?.platform || user?.lastPlatform);
 	// The original's $customTag: what a program on the PC pipe tagged this user with.
 	const tag = $derived(vrchatAuth.ownerUserId ? customTag(vrchatAuth.ownerUserId, userId) : undefined);
@@ -674,8 +688,12 @@
 				</div>
 				<div class="flex justify-between gap-2 text-xs">
 					{#if avatarUrl}
-						<AvatarInfo imageUrl={user.currentAvatarImageUrl || avatarUrl} {userId} resolve />
-						<ViewableImage src={avatarUrl} full={user.currentAvatarImageUrl} class="flex-none" imageClass="h-12 w-16 rounded-lg object-cover" />
+						{#if isSelf}
+							<AvatarInfo imageUrl={avatarUrl} {userId} resolve />
+						{:else}
+							<AvatarInfo imageUrl={avatarUrl} {userId} ownerId={iconAvatar?.lookup.ownerId} avatarName={iconAvatar?.lookup.avatarName} />
+						{/if}
+						<ViewableImage src={isSelf ? user.currentAvatarThumbnailImageUrl || avatarUrl : avatarUrl} full={avatarUrl} class="flex-none" imageClass="h-12 w-16 rounded-lg object-cover" />
 					{:else}
 						<div class="text-xs text-muted-foreground">{NONE}</div>
 					{/if}

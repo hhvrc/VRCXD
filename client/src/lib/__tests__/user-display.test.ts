@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { friendedInfo, languageClass, sortStatus, trustInfo, userOnlineFor } from '../people/user-display.js';
+import { avatarInfoImage, friendedInfo, languageClass, sortStatus, trustInfo, userOnlineFor } from '../people/user-display.js';
 import { timeAgo } from '../helpers/format.js';
 
 // The original's computeTrustLevel, languageClass and sortStatus.
@@ -143,5 +143,26 @@ describe('friended or unfriended', () => {
 
 	test('no rows is Friended with no time', () => {
 		expect(friendedInfo(undefined, false)).toEqual({ unfriended: false, at: null, entries: [] });
+	});
+});
+
+// Upstream fd921c17 and bab6d519: VRChat stopped sending other users' current avatar, so the user
+// dialog's Avatar Info shows their profile icon when it is an avatar's image.
+describe('avatar info picture', () => {
+	const icon = 'https://api.vrchat.cloud/api/1/image/file_icon/1/256';
+	const stale = 'https://api.vrchat.cloud/api/1/file/file_old/1/file';
+
+	test("someone else's icon that is an avatar image is shown", () => {
+		expect(avatarInfoImage(false, stale, icon, true)).toBe(icon);
+	});
+
+	test('a custom icon shows nothing, not an avatar stored from before', () => {
+		expect(avatarInfoImage(false, stale, icon, false)).toBe('');
+		expect(avatarInfoImage(false, stale, undefined, false)).toBe('');
+	});
+
+	test('the account itself shows its current avatar', () => {
+		expect(avatarInfoImage(true, stale, icon, true)).toBe(stale);
+		expect(avatarInfoImage(true, null, icon, true)).toBe('');
 	});
 });

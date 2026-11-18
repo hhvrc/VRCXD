@@ -295,6 +295,11 @@ public sealed class ScenarioJobs(VrcxScenario scenario)
     public Task<int> SweepPendingPresenceAsync() =>
         scenario.Services.GetRequiredService<PresenceDebouncer>().SweepAsync(scenario.Time.GetUtcNow(), CancellationToken.None);
 
+    /// <summary>One tick of the profile refresh loop (ProfileRefreshService) for an account: a never-fetched player in its instance, else the stalest friend.</summary>
+    public Task ProfileRefreshAsync(string? accountId = null) =>
+        ActivatorUtilities.CreateInstance<ProfileRefreshService>(scenario.Services)
+            .RefreshOneAsync(accountId ?? scenario.AccountId ?? throw new InvalidOperationException("Log in first"), CancellationToken.None);
+
     /// <summary>One tick of the auto status loop (AutoStatusService) for an account.</summary>
     public Task<string?> AutoStatusAsync(string? accountId = null) =>
         scenario.Services.GetRequiredService<Common.Services.Automation.AccountAutomation>()

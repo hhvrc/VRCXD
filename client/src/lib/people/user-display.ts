@@ -169,6 +169,17 @@ export function userOnlineFor(state: string | undefined | null, since: string | 
 	return { online: state === 'online' && !!at, at };
 }
 
+/**
+ * The picture the user dialog's Avatar Info shows (the original's avatarImageUrl, upstream fd921c17
+ * and bab6d519). VRChat no longer sends anyone else's current avatar, so for others it is their
+ * profile icon when that icon is an avatar's image (its file has an owner), else nothing; a current
+ * avatar stored from before the change is not shown as theirs. The account itself shows its own.
+ */
+export function avatarInfoImage(isSelf: boolean, currentAvatarImageUrl: string | null | undefined, profileIcon: string | null | undefined, iconIsAvatar: boolean): string {
+	if (isSelf) return currentAvatarImageUrl || '';
+	return iconIsAvatar && profileIcon ? profileIcon : '';
+}
+
 /** A Friend or Unfriend row of the account's friend log, as GET .../users/{id}/together sends them, newest first. */
 export type FriendLogDate = { type: string; createdAt: string };
 
