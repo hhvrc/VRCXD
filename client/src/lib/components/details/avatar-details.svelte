@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openItem } from '#lib/helpers/open-item.svelte.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { loadFileAnalysis, type FileAnalysis } from '#lib/content/file-analysis.js';
 	import CopyId from '#lib/components/common/copy-id.svelte';
@@ -162,9 +163,10 @@
 		refreshing = false;
 	}
 
-	$effect(() => {
-		const id = avatarId;
-		if (owner && id) {
+	openItem(
+		() => owner,
+		() => avatarId,
+		(id) => {
 			avatar = undefined;
 			fileAnalysis = {};
 			actions.reset();
@@ -172,7 +174,7 @@
 			imageError = false;
 			load(id);
 		}
-	});
+	);
 
 
 

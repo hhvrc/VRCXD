@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openItem } from '#lib/helpers/open-item.svelte.js';
 	import { toastError } from '#lib/helpers/feedback.js';
 	import { SMALL_DIALOG } from '#lib/styles.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -270,8 +271,8 @@
 	const theme = $derived(appearance.displayVRCProfileThemes.value ? profileTheme(userDialog.profileOf(userId), appearance.isDarkMode) : DEFAULT_PROFILE_THEME);
 	const iconStyle = $derived(`color: ${theme.iconColor === DEFAULT_PROFILE_THEME.iconColor ? 'var(--foreground)' : theme.iconColor}`);
 
+	// A reload keeps showing what it had until the answer is in; openUser clears it for another user.
 	async function loadTogether(id: string) {
-		together = undefined;
 		const ownerUserId = vrchatAuth.ownerUserId;
 		if (!ownerUserId || id === ownerUserId) return;
 		const totals = await api.get<NonNullable<typeof together>>(`${accountPath(ownerUserId)}/users/${encodeURIComponent(id)}/together`).catch(() => undefined);
@@ -281,7 +282,6 @@
 	// The original asks for the shared friend and group counts of anyone but yourself, unless your
 	// account hides its shared connections.
 	async function loadMutualCounts(id: string) {
-		mutualCounts = undefined;
 		const ownerUserId = vrchatAuth.ownerUserId;
 		if (!ownerUserId || id === ownerUserId) return;
 		if (!sidebarData.me) await sidebarData.loadMe();
@@ -310,10 +310,12 @@
 	}
 
 	async function loadInstance(id: string, u: User) {
-		instance = undefined;
-		worldThumbnail = undefined;
 		const location = u.location;
-		if (u.state !== 'online' || !location || !parseLocation(location).isRealInstance) return;
+		if (u.state !== 'online' || !location || !parseLocation(location).isRealInstance) {
+			instance = undefined;
+			worldThumbnail = undefined;
+			return;
+		}
 		const [i, w] = await Promise.all([
 			api.get<Instance>(`/1/instances/${encodeURIComponent(location)}`).then(noteInstance, () => undefined),
 			api.get<{ thumbnailImageUrl?: string }>(`/1/worlds/${encodeURIComponent(location.split(':')[0])}`).catch(() => undefined)
@@ -333,26 +335,28 @@
 		}
 	}
 
-	$effect(() => {
-		const id = userId;
-		if (vrchatAuth.ownerUserId && id) {
-			user = undefined;
-			history = undefined;
-			friend = undefined;
-			moderations = [];
-			localAvatar = 0;
-			untrack(() => loadLocalAvatar(id));
-			instance = undefined;
-			relationship = undefined;
-			actions.reset();
-			activeTab = 'info';
-			tabs.reset();
-			bannerError = false;
-			iconError = false;
-			load(id);
-			untrack(() => announceUserDialog(vrchatAuth.ownerUserId, id));
-		}
-	});
+	openItem(() => vrchatAuth.ownerUserId, () => userId, openUser);
+
+	function openUser(id: string) {
+		user = undefined;
+		history = undefined;
+		friend = undefined;
+		moderations = [];
+		localAvatar = 0;
+		loadLocalAvatar(id);
+		instance = undefined;
+		worldThumbnail = undefined;
+		together = undefined;
+		mutualCounts = undefined;
+		relationship = undefined;
+		actions.reset();
+		activeTab = 'info';
+		tabs.reset();
+		bannerError = false;
+		iconError = false;
+		load(id);
+		announceUserDialog(vrchatAuth.ownerUserId, id);
+	}
 
 	function editNoteAndMemo() {
 		draftNote = note;

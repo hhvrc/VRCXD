@@ -44,3 +44,25 @@ test('a friend coming online over the pipeline moves to ONLINE in the sidebar, l
 	await expect(header('ONLINE', 1)).toBeVisible();
 	await expect(header('OFFLINE', 1)).toBeVisible();
 });
+
+// Every open dialog went back to loading for a moment when the friend list changed or the live
+// socket reconnected: the dialog's start read the shared friend list while loading, so a change to
+// that list started it over.
+test("a friend list change does not reload an open user's dialog", async ({ page }) => {
+	const profileLoads: string[] = [];
+	page.on('request', (request) => {
+		if (new URL(request.url()).pathname === `/1/users/${friends.alice.id}`) profileLoads.push(request.url());
+	});
+	await page.goto(`/user?id=${friends.alice.id}`);
+	await expect(page.getByText(friends.alice.name).first()).toBeVisible();
+	await page.waitForLoadState('networkidle');
+	const before = profileLoads.length;
+
+	await control(`/friends/${friends.bob.id}/online`);
+	await expect(page.getByText(/^ONLINE\s*―\s*2$/)).toBeVisible();
+	await page.waitForLoadState('networkidle');
+
+	expect(profileLoads.length).toBe(before);
+	await expect(page.getByText(friends.alice.name).first()).toBeVisible();
+	await control(`/friends/${friends.bob.id}/offline`);
+});

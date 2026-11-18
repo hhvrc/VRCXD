@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openItem } from '#lib/helpers/open-item.svelte.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { clock } from '#lib/helpers/clock.svelte.js';
 	import LocationWorld from '#lib/components/instance/location-world.svelte';
@@ -226,9 +227,10 @@
 		refreshing = false;
 	}
 
-	$effect(() => {
-		const id = worldId;
-		if (owner && id) {
+	openItem(
+		() => owner,
+		() => worldId,
+		(id) => {
 			world = undefined;
 			stats = undefined;
 			fileAnalysis = {};
@@ -237,7 +239,7 @@
 			imageError = false;
 			load(id);
 		}
-	});
+	);
 
 
 	function promptSave(title: string, description: string, errorMessage: string, field: string, value: string, done: string, options: { multiline?: boolean; numeric?: boolean } = {}) {

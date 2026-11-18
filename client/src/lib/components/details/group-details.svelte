@@ -5,6 +5,7 @@
 </script>
 
 <script lang="ts">
+	import { openItem } from '#lib/helpers/open-item.svelte.js';
 	import { toastError } from '#lib/helpers/feedback.js';
 	import { RAIL, PANEL, HEADER_CARD, NONE, SECTION, SECTION_ROW, TAB_CONTENT, TAB_LIST, TAB_LIST_WRAP, TAB_TRIGGER } from '#lib/details.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -182,9 +183,10 @@
 		lastActiveTab = tab;
 	}
 
-	$effect(() => {
-		const id = groupId;
-		if (owner && id) {
+	openItem(
+		() => owner,
+		() => groupId,
+		(id) => {
 			group = undefined;
 			posts = undefined;
 			calendar = [];
@@ -195,7 +197,7 @@
 			bannerError = iconError = false;
 			load(id);
 		}
-	});
+	);
 
 	$effect(() => {
 		if (owner) languageOptions(owner).then((names) => (languageNames = names));
