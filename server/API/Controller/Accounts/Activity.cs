@@ -2,6 +2,7 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Features.GameLog;
 using VRCX.Common.VrcxDb;
 
 namespace VRCX.API.Controller.Accounts;
@@ -63,7 +64,7 @@ public sealed partial class AccountsController
         return Ok(new UserActivityResponse
         {
             Events = events,
-            SelfVisits = stays.Select(s => new ActivityVisitRow(s.JoinedAt, StayMs(s.JoinedAt, s.LeftAt))).ToList(),
+            SelfVisits = stays.Select(s => new ActivityVisitRow(s.JoinedAt, PreviousInstanceQueries.StayMs(s.JoinedAt, s.LeftAt))).ToList(),
         });
 
         static ActivityPresenceRow Row(PresenceEvent e) => new(e.At, e.Kind == PresenceKind.Online ? "Online" : "Offline");
@@ -85,7 +86,7 @@ public sealed partial class AccountsController
             WorldName = g.Select(r => r.WorldName).FirstOrDefault(n => !string.IsNullOrEmpty(n)) ?? g.Key,
             ThumbnailImageUrl = g.Select(r => r.ThumbnailImageUrl).FirstOrDefault(u => !string.IsNullOrEmpty(u)),
             VisitCount = g.Count(),
-            TotalTime = g.Sum(r => StayMs(r.JoinedAt, r.LeftAt)),
+            TotalTime = g.Sum(r => PreviousInstanceQueries.StayMs(r.JoinedAt, r.LeftAt)),
         });
         worlds = sortBy == "count" ? worlds.OrderByDescending(w => w.VisitCount) : worlds.OrderByDescending(w => w.TotalTime);
         return Ok(worlds.Take(Math.Clamp(limit, 1, 100)).ToList());

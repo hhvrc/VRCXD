@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Services;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.Common.Services.Queries;
+namespace VRCX.Common.Features.GameLog;
 
 public sealed class PreviousInstanceResponse
 {

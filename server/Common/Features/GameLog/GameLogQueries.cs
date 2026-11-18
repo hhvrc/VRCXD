@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Services;
 using VRCX.Common.Services.Presence;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.Common.Services.Queries;
+namespace VRCX.Common.Features.GameLog;
 
 /// <summary>One game log row. Which fields are set depends on Type.</summary>
 public sealed class GameLogRowResponse

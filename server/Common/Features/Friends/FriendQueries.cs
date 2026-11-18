@@ -257,10 +257,6 @@ public sealed class FriendQueries(VrcxContext db, IPresenceCache presence, IPend
         };
     }
 
-    /// <summary>Whether the account is logged into this server: what the friend endpoints answer 404 on.</summary>
-    public Task<bool> AccountExistsAsync(string accountId, CancellationToken cancellationToken) =>
-        db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken);
-
     /// <summary>The original's random name colour hue for a user id, 0 to 65535.</summary>
     public static int NameHue(string userId)
     {

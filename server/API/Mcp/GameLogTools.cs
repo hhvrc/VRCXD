@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using VRCX.Common.Services.Queries;
+using VRCX.Common.Features.GameLog;
 using VRCX.Common.VrcxDb;
 
 namespace VRCX.API.Mcp;

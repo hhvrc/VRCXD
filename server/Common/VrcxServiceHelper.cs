@@ -252,10 +252,12 @@ public static class VrcxServiceHelper
 
         // Read models over what is stored, per request on the request's context: the endpoints and
         // the MCP tools share them, so neither carries query logic of its own.
+        services.AddScoped<VRCX.Common.Features.Accounts.AccountQueries>();
         services.AddScoped<FriendQueries>();
         services.AddScoped<FriendActions>();
-        services.AddScoped<VRCX.Common.Services.Queries.GameLogQueries>();
-        services.AddScoped<VRCX.Common.Services.Queries.PreviousInstanceQueries>();
+        services.AddScoped<VRCX.Common.Features.GameLog.GameLogQueries>();
+        services.AddScoped<VRCX.Common.Features.GameLog.GameLogActions>();
+        services.AddScoped<VRCX.Common.Features.GameLog.PreviousInstanceQueries>();
         services.AddScoped<VRCX.Common.Services.Queries.UserQueries>();
         services.AddScoped<VRCX.Common.Services.Queries.AccountListQueries>();
         services.AddScoped<MemoStore>();

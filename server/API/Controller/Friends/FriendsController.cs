@@ -6,6 +6,7 @@ using OpenShock.Internal.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
+using VRCX.Common.Features.Accounts;
 using VRCX.Common.Features.Friends;
 
 namespace VRCX.API.Controller.Friends;
@@ -20,7 +21,7 @@ namespace VRCX.API.Controller.Friends;
 [ApiVersion("1")]
 [Route("/{version:apiVersion}/accounts")]
 [Authorize(AuthenticationSchemes = VrcxAuthSchemes.ApiToken)]
-public sealed class FriendsController(FriendQueries queries, FriendActions actions) : VrcxControllerBase
+public sealed class FriendsController(AccountQueries accounts, FriendQueries queries, FriendActions actions) : VrcxControllerBase
 {
     /// <summary>
     /// The account's current friends with their latest known presence, in friend-number order.
@@ -33,7 +34,7 @@ public sealed class FriendsController(FriendQueries queries, FriendActions actio
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListFriends([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        if (!await queries.AccountExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await queries.ListFriendsAsync(accountId, cancellationToken));
     }
 
@@ -120,7 +121,7 @@ public sealed class FriendsController(FriendQueries queries, FriendActions actio
     [MapToApiVersion("1")]
     public async Task<IActionResult> FriendLog([FromRoute] string accountId, [FromQuery] int? limit, [FromQuery] DateTimeOffset? before, CancellationToken cancellationToken)
     {
-        if (!await queries.AccountExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await queries.FriendLogAsync(accountId, cancellationToken, limit, before));
     }
 
@@ -133,7 +134,7 @@ public sealed class FriendsController(FriendQueries queries, FriendActions actio
     [MapToApiVersion("1")]
     public async Task<IActionResult> HideFriendLogEntry([FromRoute] string accountId, [FromRoute] string key, CancellationToken cancellationToken)
     {
-        if (!await queries.AccountExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         await actions.HideLogEntryAsync(accountId, key, cancellationToken);
         return NoContent();
     }

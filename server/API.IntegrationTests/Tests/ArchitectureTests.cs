@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.AspNetCore.Mvc;
 using ModelContextProtocol.Server;
 using VRCX.API.Controller.Friends;
+using VRCX.API.Controller.GameLog;
 using VRCX.Common.Services.Sessions;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
@@ -78,8 +79,10 @@ public sealed class ArchitectureTests
     }
 
     [Test]
-    public async Task The_friends_feature_has_moved()
+    [Arguments(typeof(FriendsController))]
+    [Arguments(typeof(GameLogController))]
+    public async Task A_moved_feature_takes_none_of_them(Type controller)
     {
-        await Assert.That(Violations().Where(v => v.StartsWith(nameof(FriendsController) + ":", StringComparison.Ordinal)).ToList()).IsEmpty();
+        await Assert.That(Violations().Where(v => v.StartsWith(controller.Name + ":", StringComparison.Ordinal)).ToList()).IsEmpty();
     }
 }
