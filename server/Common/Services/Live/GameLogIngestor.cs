@@ -692,6 +692,17 @@ public sealed class GameLogIngestor(
 
         if (session.AccountId is null) return;
         var me = await store.EnsureUserAsync(db, session.AccountId, null, at, ct);
+        // A visit of the account's own left open elsewhere (logged from VRChat's location while no PC
+        // reported the game, or before this PC reconnected) ends here: the account is in one place.
+        var stale = await db.InstanceVisits
+            .Where(v => v.UserId == me.Id && v.Source == VisitSource.GameLog && v.LeftAt == null && v.InstanceLocation != instance.Location)
+            .ToListAsync(ct);
+        foreach (var visit in stale.Union(db.InstanceVisits.Local.Where(v => v.UserId == me.Id && v.Source == VisitSource.GameLog && v.InstanceLocation != instance.Location)).ToList())
+        {
+            if (visit.LeftAt is not null) continue;
+            visit.LeftAt = at;
+            published.Add(LiveEvents.Visit(me.Id, me.DisplayName, visit.InstanceLocation, VrchatLocation.Parse(visit.InstanceLocation).WorldId, joined: false, VisitSource.GameLog));
+        }
         if (await AlreadyStoredAsync(db, me.Id, instance.Location, at, ct)) return;
         db.InstanceVisits.Add(new InstanceVisit { UserId = me.Id, InstanceLocation = instance.Location, JoinedAt = at, Source = VisitSource.GameLog });
         published.Add(LiveEvents.Visit(me.Id, me.DisplayName, instance.Location, instance.WorldId, joined: true, VisitSource.GameLog));
@@ -742,14 +753,17 @@ public sealed class GameLogIngestor(
         var location = session.CurrentInstanceLocation;
         session.CurrentInstanceLocation = null;
 
+        // Stays this batch added are not saved yet, so they are looked for in the context too.
         var open = await db.InstanceVisits.Include(v => v.User)
             .Where(v => v.InstanceLocation == location && v.Source == VisitSource.GameLog && v.LeftAt == null)
             .ToListAsync(ct);
         var worldId = VrchatLocation.Parse(location).WorldId;
-        foreach (var visit in open)
+        foreach (var visit in open.Union(db.InstanceVisits.Local.Where(v => v.InstanceLocation == location && v.Source == VisitSource.GameLog)).ToList())
         {
+            if (visit.LeftAt is not null) continue;
             visit.LeftAt = at;
-            published.Add(LiveEvents.Visit(visit.UserId, visit.User.DisplayName, location, worldId, joined: false, VisitSource.GameLog));
+            var name = visit.User?.DisplayName ?? (await db.Users.FindAsync([visit.UserId], ct))?.DisplayName ?? "";
+            published.Add(LiveEvents.Visit(visit.UserId, name, location, worldId, joined: false, VisitSource.GameLog));
         }
     }
 
