@@ -6,7 +6,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 /// <summary>
 /// A role's fields. Each is optional: the original's GroupRolesDialog leaves out what the role does not
@@ -27,7 +27,7 @@ public sealed class GroupRoleBody
 
 // The original's GroupRolesDialog: getGroupPermissionList, createGroupRole, editGroupRole and
 // deleteGroupRole. VRChat answers each write with the group's roles.
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>Every permission a role in this group can hold, as VRChat sends them.</summary>
     /// <response code="200">VRChat's answer</response>

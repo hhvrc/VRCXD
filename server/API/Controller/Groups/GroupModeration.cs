@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 /// <summary>Accept or reject a join request; block also blocks the user from asking again (reject only).</summary>
 public sealed record GroupJoinRequestResponseBody(string Action, bool Block = false);
@@ -12,7 +12,7 @@ public sealed record GroupJoinRequestResponseBody(string Action, bool Block = fa
 // The original's GroupMemberModerationDialog: members, bans, sent invites, join requests, blocked
 // requests and the audit log, and the bulk actions on the selected users. Each call is one VRChat
 // call, as the original makes them; the paging loops and the progress stay in the browser.
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>One member of a group, or 204 when the user is not one.</summary>
     /// <response code="200">The membership</response>

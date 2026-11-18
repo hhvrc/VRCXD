@@ -6,7 +6,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 /// <summary>A group post's fields, as the original's GroupPostEditDialog sends them.</summary>
 public sealed class GroupPostBody
@@ -22,7 +22,7 @@ public sealed class GroupPostBody
 
 // The original's createGroupPost, editGroupPost and deleteGroupPost. Its bodies carry the group id (and
 // the post id when editing) as well as the path does.
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>Create a group post.</summary>
     /// <response code="200">The new post, as VRChat sends it</response>

@@ -6,7 +6,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 /// <summary>A group event's fields, as the original's GroupEventEditDialog sends them.</summary>
 public sealed class GroupEventBody : IValidatableObject
@@ -40,7 +40,7 @@ public sealed class GroupEventBody : IValidatableObject
 
 // The original's createGroupEvent, editGroupEvent and deleteGroupEvent, plus the single event it fetches
 // before an edit (Edit Parent Event, the Tools calendar's pencil).
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>One group event, as VRChat sends it.</summary>
     /// <response code="200">VRChat's answer</response>

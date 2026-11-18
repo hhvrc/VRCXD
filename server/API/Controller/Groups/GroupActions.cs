@@ -10,12 +10,12 @@ using VRCX.Common.Errors;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Vrchat;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 public sealed record GroupRepresentationBody(bool IsRepresenting);
 
 // The group pop-up, and turning an avatar picture back into the avatar it shows.
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>A group as VRChat has it now, its open instances, and this account's history with it.</summary>
     /// <response code="200">The details</response>
@@ -29,10 +29,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetGroupDetails([FromRoute] string accountId, [FromRoute] string groupId, CancellationToken cancellationToken)
     {
-        var groupTag = $"~group({groupId})";
-        var visits = _db.InstanceVisits.AsNoTracking().Where(v => v.UserId == accountId && v.InstanceLocation.Contains(groupTag));
-        var joinCount = await visits.CountAsync(cancellationToken);
-        var lastVisit = joinCount == 0 ? null : await visits.MaxAsync(v => (DateTimeOffset?)v.JoinedAt, cancellationToken);
+        var (joinCount, lastVisit) = await groupQueries.VisitsAsync(accountId, groupId, cancellationToken);
 
         return await ReadLiveAsync(accountId, async client =>
         {
@@ -117,7 +114,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> GetLanguageOptions([FromRoute] string accountId, CancellationToken cancellationToken) =>
-        ReadLiveAsync(accountId, async client => (IReadOnlyDictionary<string, string>)SpokenLanguages(await client.GetConfigAsync(cancellationToken)));
+        ReadLiveAsync(accountId, async client => (IReadOnlyDictionary<string, string>)VrchatConfig.SpokenLanguages(await client.GetConfigAsync(cancellationToken)));
 
     /// <summary>VRChat's group limits from its config (constants.GROUPS), as the original's groups tab reads them; VRChat's defaults when the config leaves one out.</summary>
     /// <response code="200">The limits</response>
@@ -187,70 +184,4 @@ public sealed partial class AccountsController
             }));
             return (IReadOnlyList<JsonElement>)events;
         });
-
-    /// <summary>Which avatar a wearer's picture shows, the original's showAvatarAuthorDialog: their own current avatar, one the server has seen with that image, and otherwise only who owns it.</summary>
-    /// <response code="200">What could be found. Either field can be missing.</response>
-    /// <response code="404">No such account</response>
-    [HttpGet("{accountId}/avatars/lookup")]
-    [ProducesResponseType<AvatarLookupResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
-    [MapToApiVersion("1")]
-    public async Task<IActionResult> LookupAvatar([FromRoute] string accountId, [FromQuery] string imageUrl, [FromQuery] string? userId, [FromServices] IAvatarImageResolver resolver, [FromServices] VrchatStore store, CancellationToken cancellationToken)
-    {
-        var account = await _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == accountId, cancellationToken);
-        if (account is null) return Problem(AccountError.AccountNotFound);
-        var info = await resolver.ResolveAsync(imageUrl, cancellationToken);
-        var avatarId = userId == accountId ? account.CurrentAvatarId : null;
-        if (avatarId is null && VrchatApiClient.ExtractFileId(imageUrl) is { } fileId)
-        {
-            avatarId = await _db.Avatars.AsNoTracking()
-                .Where(a => a.ImageUrl!.Contains(fileId) || a.ThumbnailImageUrl!.Contains(fileId))
-                .Select(a => a.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-            // The original's refreshUserDialogAvatars(fileId): one of the account's own uploads is
-            // looked for in its avatars read again from VRChat.
-            if (avatarId is null && info?.OwnerId == accountId && _sessions.Get(accountId) is { } client)
-            {
-                try
-                {
-                    var now = DateTimeOffset.UtcNow;
-                    foreach (var api in await client.GetOwnAvatarsAsync(cancellationToken))
-                    {
-                        await store.UpsertAvatarAsync(_db, api, now, cancellationToken);
-                        if (avatarId is null && (api.ImageUrl.Contains(fileId) || api.ThumbnailImageUrl.Contains(fileId))) avatarId = api.Id;
-                    }
-                    await _db.SaveChangesAsync(cancellationToken);
-                }
-                catch (VrchatApiException ex) when (ex is not VrchatUnauthorizedException)
-                {
-                    _logger.LogWarning(ex, "Own avatars of {Account} could not be read for an avatar lookup", accountId);
-                }
-            }
-        }
-        return Ok(new AvatarLookupResponse { AvatarId = avatarId, OwnerId = info?.OwnerId, AvatarName = info?.AvatarName });
-    }
-}
-
-/// <summary>How many groups an account may own and join, from VRChat's config.</summary>
-public sealed class GroupLimits
-{
-    public int MaxOwned { get; init; } = 5;
-    public int MaxJoined { get; init; } = 100;
-    public int MaxJoinedPlus { get; init; } = 200;
-
-    public static GroupLimits FromConfig(System.Text.Json.JsonElement config)
-    {
-        var defaults = new GroupLimits();
-        if (config.ValueKind != System.Text.Json.JsonValueKind.Object
-            || !config.TryGetProperty("constants", out var constants) || constants.ValueKind != System.Text.Json.JsonValueKind.Object
-            || !constants.TryGetProperty("GROUPS", out var groups) || groups.ValueKind != System.Text.Json.JsonValueKind.Object)
-            return defaults;
-        int Read(string name, int fallback) => groups.TryGetProperty(name, out var v) && v.TryGetInt32(out var n) && n > 0 ? n : fallback;
-        return new GroupLimits
-        {
-            MaxOwned = Read("MAX_OWNED", defaults.MaxOwned),
-            MaxJoined = Read("MAX_JOINED", defaults.MaxJoined),
-            MaxJoinedPlus = Read("MAX_JOINED_PLUS", defaults.MaxJoinedPlus),
-        };
-    }
 }

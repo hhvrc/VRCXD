@@ -5,7 +5,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 /// <summary>Who to hand a group over to.</summary>
 public sealed class GroupTransferBody
@@ -14,7 +14,7 @@ public sealed class GroupTransferBody
 }
 
 // The original's GroupTransferDialog: checkTransferGroup, then transferGroup.
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>Whether a member can take the group over: VRChat's requirements, each met or not.</summary>
     /// <response code="200">VRChat's answer</response>

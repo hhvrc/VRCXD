@@ -28,10 +28,14 @@ is where its code lives.
   queries, its writer, its topic (snapshot and deltas) and small queryable extensions
   (`IQueryable<T>` helpers). Name it after upstream's store or coordinator where there is one
   (`legacy/src/stores`, `legacy/src/coordinators`).
-- Its controller is thin, one per feature, and keeps the same routes. The pure VRChat proxy
-  controllers (about 20, which only forward to VRChat) stay as they are.
+- Its controller is thin, one per feature.
 - Controllers and MCP tools call `Features/*` only. They do not inject `VrcxContext`,
-  `VrchatApiClient` or `IAccountSessionManager`.
+  `VrchatApiClient` or `IAccountSessionManager`. Endpoints that only forward to VRChat are no
+  exception: their controller derives from `API/Controller/AccountForwardController.cs`, whose
+  `RunAsync`, `ReadLiveAsync` and `FetchAsync` run one call on the account's client through
+  `AccountSessionRunner` (`API/Controller/Groups/` is the example). What such an endpoint reads or
+  writes in the database goes through a feature class, as `GroupQueries` does for the group
+  pop-up's visit counts.
 - Only the feature's writer changes its topic tables and emits its deltas. No `ExecuteUpdate` or
   `ExecuteDelete` on those tables anywhere else: bulk writes bypass `LiveChangeInterceptor` and
   publish nothing, so pages go stale.
@@ -44,8 +48,11 @@ is where its code lives.
   `FriendActions` for what goes to VRChat, `FriendWriter`, `FriendsTopic`) and
   `API/Controller/Friends/FriendsController.cs`. GameLog, Memos, Feed, Notifications,
   Moderation, Favorites, Charts, UserActivity, QuickSearch and the avatar history (in `Avatars`)
-  have moved the same way. What is left in `API/Controller/Accounts/` is mostly the VRChat proxy
-  endpoints, which stay, plus login, the agent and desktop endpoints, settings and the sidebar. `Features/Accounts/AccountQueries` answers a feature
+  have moved the same way, and so have the get-by-id controllers (users, worlds, avatars, groups,
+  instances) and the account's group endpoints. What is left in `API/Controller/Accounts/` is the
+  rest of the forwarding endpoints (worlds, avatars, instances, search, tools, profile), which move
+  to forwarding controllers of their own, plus login, the agent and desktop endpoints, settings
+  and the sidebar. `Features/Accounts/AccountQueries` answers a feature
   controller's "is this account logged in", `Features/Accounts/AccountSessionRunner` runs an
   actions class's VRChat calls with the account's session and maps the failures to problems, and
   `Features/Locations/LocationQueries` names location tags for the MCP tools.

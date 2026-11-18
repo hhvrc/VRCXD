@@ -126,27 +126,13 @@ public sealed partial class AccountsController
                 IsVrcPlus = me.Tags.Contains("system_supporter"),
                 Languages = LanguagesOf(me),
                 Profile = profile,
-                LanguageOptions = SpokenLanguages(config),
+                LanguageOptions = VrchatConfig.SpokenLanguages(config),
                 ProfileDefaults = config.ValueKind == JsonValueKind.Object && config.TryGetProperty("profileDefaults", out var defaults) && defaults.ValueKind == JsonValueKind.Object ? defaults : null,
             };
         });
 
     private static IReadOnlyList<string> LanguagesOf(CurrentUser me) =>
         me.Tags.Where(t => t.StartsWith("language_", StringComparison.Ordinal)).Select(t => t["language_".Length..]).ToList();
-
-    private static Dictionary<string, string> SpokenLanguages(JsonElement config)
-    {
-        var options = new Dictionary<string, string>();
-        if (config.ValueKind == JsonValueKind.Object
-            && config.TryGetProperty("constants", out var constants) && constants.ValueKind == JsonValueKind.Object
-            && constants.TryGetProperty("LANGUAGE", out var language) && language.ValueKind == JsonValueKind.Object
-            && language.TryGetProperty("SPOKEN_LANGUAGE_OPTIONS", out var spoken) && spoken.ValueKind == JsonValueKind.Object)
-        {
-            foreach (var option in spoken.EnumerateObject())
-                if (option.Value.ValueKind == JsonValueKind.String) options[option.Name] = option.Value.GetString()!;
-        }
-        return options;
-    }
 
     /// <summary>Saves the profile fields that changed: PUT profile/{id} with exactly the fields given.</summary>
     /// <response code="200">VRChat's answer</response>

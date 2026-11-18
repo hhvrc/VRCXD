@@ -6,7 +6,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 /// <summary>Create Group's fields. Empty image ids are left out, as the original sends undefined for them.</summary>
 public sealed class CreateGroupBody
@@ -38,7 +38,7 @@ public sealed class UpdateGroupBody
 
 // The original's GroupEditDialog: Create Group and Edit Group, each one VRChat call with the body in
 // the original's order (its editGroup also sends the group id in the body).
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>The role templates Create Group offers, as VRChat sends them.</summary>
     /// <response code="200">VRChat's answer</response>

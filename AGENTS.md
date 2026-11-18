@@ -112,10 +112,13 @@ Server (details in `server/AGENTS.md`):
 - Feature folders inside the existing projects: `server/Common/Features/<Feature>/` holds that
   feature's queries, its writer, its topic (snapshot and deltas) and small queryable extensions.
   Name a feature after upstream's store or coordinator where one exists.
-- One thin controller per feature, on the same routes. The pure VRChat proxy controllers (about
-  20) stay as they are.
+- One thin controller per feature.
 - Controllers and MCP tools call `Features/*`. They do not touch `VrcxContext`,
-  `VrchatApiClient` or `IAccountSessionManager` directly.
+  `VrchatApiClient` or `IAccountSessionManager` directly. There is no exemption for endpoints that
+  only forward to VRChat: such a controller derives from `AccountForwardController`, which runs the
+  call with the account's session through `AccountSessionRunner`, and needs no feature class
+  because it has no logic. Anything that also reads or writes the database does that through its
+  feature's classes.
 - Only a feature's writer changes its topic tables and emits its deltas.
 - A topic's snapshot builder is the same code that serves the REST GET and the MCP read.
 

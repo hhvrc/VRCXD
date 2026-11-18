@@ -6,7 +6,7 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Groups;
 
 /// <summary>A group gallery's fields, as the original's GroupGalleryForm sends them.</summary>
 public sealed class GroupGalleryBody
@@ -23,7 +23,7 @@ public sealed class GroupGalleryImageBody
 }
 
 // The original's GroupDialogPhotosTab and useGroupGalleries, and GroupDialogStoreTab's store.
-public sealed partial class AccountsController
+public sealed partial class AccountGroupsController
 {
     /// <summary>A page of a gallery's images, as VRChat sends them.</summary>
     /// <response code="200">VRChat's answer</response>
