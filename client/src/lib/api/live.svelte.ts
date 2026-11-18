@@ -36,8 +36,6 @@ export type LiveState = {
 	version: number;
 	/** Bumped each time the socket opens again after the first time: whatever came meanwhile was missed. */
 	reconnects: number;
-	/** The topics the server streams, from its last hello; null until one came. */
-	topics: string[] | null;
 };
 
 export const live = $state<LiveState>({
@@ -48,8 +46,7 @@ export const live = $state<LiveState>({
 	present: new Map(),
 	events: [],
 	version: 0,
-	reconnects: 0,
-	topics: null
+	reconnects: 0
 });
 
 const MAX_EVENTS = 500;
@@ -189,7 +186,6 @@ function open() {
 			case 'hello': {
 				const hello = decoded.message.value;
 				live.serverVersion = hello.serverVersion;
-				live.topics = [...hello.topics];
 				helloSeen = socket === ws;
 				for (const listener of helloListeners) listener(hello);
 				break;

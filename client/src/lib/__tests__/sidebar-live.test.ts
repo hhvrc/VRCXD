@@ -15,12 +15,12 @@ vi.mock('#lib/api/live.svelte.js', () => ({
 	onReconnect: (listener: () => void) => (hooks.reconnects.push(listener), () => {})
 }));
 
-// A server without topics: the friend list comes over REST, as these tests count it.
+// The topics deliver nothing in these tests: what is counted is what the wiring reads over REST.
 vi.mock('#lib/live/topics/friends.svelte.js', () => ({
-	friendsTopic: () => ({ value: undefined, status: 'unsupported', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'unsupported'), () => {}), release: () => {} })
+	friendsTopic: () => ({ value: undefined, status: 'connecting', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'connecting'), () => {}), release: () => {} })
 }));
 vi.mock('#lib/live/topics/notifications.svelte.js', () => ({
-	notificationsTopic: () => ({ value: undefined, status: 'unsupported', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'unsupported'), () => {}), release: () => {} })
+	notificationsTopic: () => ({ value: undefined, status: 'connecting', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'connecting'), () => {}), release: () => {} })
 }));
 
 const { startSidebarLive } = await import('../people/sidebar-live.js');
@@ -55,21 +55,17 @@ describe('sidebar live wiring', () => {
 		expect(hooks.reconnects).toHaveLength(1);
 	});
 
-	test('a reconnect reads the friends, favorites, profile, game, groups and notifications once', async () => {
+	test('a reconnect reads the favorites, profile, game and groups once, and leaves friends and notifications to their topics', async () => {
 		hooks.reconnects.forEach((listener) => listener());
 		await vi.advanceTimersByTimeAsync(20_000);
-		for (const path of ['/friends', '/favorites', '/me', '/game/instance', '/group-instances', '/notifications']) expect(asked(path)).toBe(1);
+		for (const path of ['/favorites', '/me', '/game/instance', '/group-instances']) expect(asked(path)).toBe(1);
+		for (const path of ['/friends', '/notifications']) expect(asked(path)).toBe(0);
 	});
 
-	test('only your own notifications read the notification center again', async () => {
-		const note = (ownerUserId: string) => send({ case: 'notification', value: create(NotificationReceivedSchema, { ownerUserId, type: 'invite' }) });
-		note('usr_other');
+	test('a notification reads nothing: the notification center follows its topic', async () => {
+		send({ case: 'notification', value: create(NotificationReceivedSchema, { ownerUserId: 'usr_me', type: 'invite' }) });
 		await vi.advanceTimersByTimeAsync(20_000);
-		expect(asked('/notifications')).toBe(0);
-		note('usr_me');
-		note('usr_me');
-		await vi.advanceTimersByTimeAsync(20_000);
-		expect(asked('/notifications')).toBe(1);
+		expect(get).not.toHaveBeenCalled();
 	});
 
 	test('presence reads nothing', async () => {

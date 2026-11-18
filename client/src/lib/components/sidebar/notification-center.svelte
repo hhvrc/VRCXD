@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { m } from '#lib/paraglide/messages.js';
 	import { goto } from '$app/navigation';
 	import Bell from '@lucide/svelte/icons/bell';
@@ -73,9 +74,9 @@
 	$effect(() => {
 		const open = center.open;
 		if (open && !wasOpen) {
-			center.load().then(() => {
-				tab = center.unseenIn('friend').length ? 'friend' : center.unseenIn('group').length ? 'group' : center.unseenIn('other').length ? 'other' : 'friend';
-			});
+			// The rows are the topic's and already current; read outside the effect, so a notification
+			// arriving while the sheet is open does not switch the tab.
+			tab = untrack(() => (center.unseenIn('friend').length ? 'friend' : center.unseenIn('group').length ? 'group' : center.unseenIn('other').length ? 'other' : 'friend'));
 		} else if (!open && wasOpen) center.flushSeen();
 		wasOpen = open;
 	});
@@ -126,7 +127,7 @@
 		} catch (err) {
 			error = ApiError.from(err).message;
 		}
-		await center.load();
+		// What the action changed comes back as the topic's delta.
 	}
 
 	const path = (n: Notification, action = '') => accountPath(account, `/notifications/${encodeURIComponent(n.id)}${action}`);
@@ -314,8 +315,8 @@
 </Sheet.Root>
 
 <ActionDialogs bind:confirming />
-<InviteResponseDialog bind:target={inviteTarget} type="response" onsent={() => center.load()} />
-<InviteResponseDialog bind:target={requestTarget} type="requestResponse" onsent={() => center.load()} />
+<InviteResponseDialog bind:target={inviteTarget} type="response" onsent={() => {}} />
+<InviteResponseDialog bind:target={requestTarget} type="requestResponse" onsent={() => {}} />
 {#if boopFor}
 	{@const target = boopFor}
 	<BoopDialog bind:open={boopOpen} name={target.senderDisplayName ?? ''} onsend={(emoji) => target.senderUserId && act(() => api.post(accountPath(account, `/users/${encodeURIComponent(target.senderUserId!)}/boop`), { emojiId: emoji || null }))} />

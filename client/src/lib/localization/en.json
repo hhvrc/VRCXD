@@ -2819,5 +2819,6 @@
 	"dialog_user_info_instance_creation_language": "Set by instance creator",
 	"dialog_world_actions_like": "Like",
 	"view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm": "Queue Ready Alarm",
-	"view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm_description": "Play a chime in this browser when a queued instance is ready, even while Busy"
+	"view_settings_notifications_notifications_desktop_notifications_queue_ready_alarm_description": "Play a chime in this browser when a queued instance is ready, even while Busy",
+	"sidebar_friends_waiting_for_live": "Waiting for the live connection to the server. The friend list comes over it."
 }

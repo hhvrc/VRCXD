@@ -99,7 +99,7 @@ describe('notifications topic codec', () => {
 	});
 });
 
-// The bell follows the topic, and reads over REST only when there is none.
+// The bell follows the topic and has no other way to read its rows.
 describe('notification center and the topic', () => {
 	const row = (id: string, more: Partial<Notification> = {}): Notification => ({ id, version: 1, type: 'invite', message: '', seen: false, hidden: false, createdAt: '2026-11-18T12:00:00.000Z', ...more });
 
@@ -109,66 +109,46 @@ describe('notification center and the topic', () => {
 		topic.listeners = [];
 		topic.mode = 'connecting';
 		get.mockReset();
-		get.mockImplementation(async () => ({ items: [row('rest')] }));
 		post.mockClear();
 	});
 
 	async function started() {
-		const { notificationCenter, NOTIFICATIONS_TOPIC_WAIT_MS } = await import('../notifications/notification-center.svelte.js');
+		const { notificationCenter } = await import('../notifications/notification-center.svelte.js');
 		notificationCenter.start();
-		return { center: notificationCenter, wait: NOTIFICATIONS_TOPIC_WAIT_MS };
+		return notificationCenter;
 	}
 
 	test('the snapshot and deltas are the rows, without the hidden ones, and nothing is read over REST', async () => {
-		const { center, wait } = await started();
+		const center = await started();
+		expect(center.rows).toEqual([]);
 		topic.emit([row('a'), row('gone', { hidden: true })], 'live');
 		expect(center.rows.map((n) => n.id)).toEqual(['a']);
 		// The Notifications page lists the hidden ones too.
 		expect(center.allRows.map((n) => n.id)).toEqual(['a', 'gone']);
-		expect(center.followsTopic).toBe(true);
 
 		topic.emit([row('b'), row('a', { seen: true })], 'live');
 		expect(center.rows.map((n) => [n.id, n.seen])).toEqual([['b', false], ['a', true]]);
-		await vi.advanceTimersByTimeAsync(wait * 2);
+		await vi.advanceTimersByTimeAsync(60_000);
 		expect(get).not.toHaveBeenCalled();
+	});
 
-		// Marking all seen asks the server; the seen rows come back as a delta, not a read.
+	test('marking all seen asks the server and reads nothing: the seen rows come back as a delta', async () => {
+		const center = await started();
+		topic.emit([row('a')], 'live');
 		await center.markAllSeen();
 		expect(post).toHaveBeenCalledTimes(1);
 		expect(get).not.toHaveBeenCalled();
+		expect(center.rows.map((n) => n.seen)).toEqual([false]);
+		topic.emit([row('a', { seen: true })], 'live');
+		expect(center.hasUnseen).toBe(false);
 	});
 
-	test('a server without the topic is read over REST once, at once', async () => {
-		topic.mode = 'unsupported';
-		const { center } = await started();
-		await vi.advanceTimersByTimeAsync(0);
-		expect(get).toHaveBeenCalledTimes(1);
-		expect(center.rows.map((n) => n.id)).toEqual(['rest']);
-		expect(center.followsTopic).toBe(false);
-	});
-
-	test('no snapshot in time is read over REST, and a snapshot coming later takes over', async () => {
-		const { center, wait } = await started();
-		await vi.advanceTimersByTimeAsync(wait - 1);
+	test('while the socket has not delivered, and when the server refuses, the bell is empty and reads nothing', async () => {
+		const center = await started();
+		await vi.advanceTimersByTimeAsync(60_000);
+		topic.emit(undefined, 'closed');
+		expect(center.rows).toEqual([]);
 		expect(get).not.toHaveBeenCalled();
-		await vi.advanceTimersByTimeAsync(1);
-		expect(get).toHaveBeenCalledTimes(1);
-		expect(center.rows.map((n) => n.id)).toEqual(['rest']);
-
-		topic.emit([row('live')], 'live');
-		expect(center.rows.map((n) => n.id)).toEqual(['live']);
-		expect(center.followsTopic).toBe(true);
-	});
-
-	test('a read that was under way when the snapshot came does not overwrite it', async () => {
-		let release: (page: unknown) => void = () => {};
-		get.mockImplementation(() => new Promise((resolve) => (release = resolve)));
-		topic.mode = 'unsupported';
-		const { center } = await started();
-		topic.emit([row('live')], 'live');
-		release({ items: [row('stale')] });
-		await vi.advanceTimersByTimeAsync(0);
-		expect(center.rows.map((n) => n.id)).toEqual(['live']);
 	});
 });
 

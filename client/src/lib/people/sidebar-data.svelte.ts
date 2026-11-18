@@ -1,12 +1,12 @@
 import { loadFriendGroups } from '#lib/people/friend-groups.js';
 import { isRealInstance } from '#lib/instances/location.js';
-import { accountPath, api, ApiError } from '#lib/api/client.js';
+import { accountPath, api } from '#lib/api/client.js';
 import type { Friend } from '#lib/api/types.js';
 import type { ServerEvent } from '#lib/gen/vrcx_live_pb.js';
-import { timestampDate } from '@bufbuild/protobuf/wkt';
 import type { FriendGroup } from '#lib/components/sidebar/sidebar-utils.js';
 import { debounce } from '#lib/helpers/debounce.js';
-import { patchFriendPresence, planSidebarEvent, type SidebarPlan } from '#lib/people/sidebar-events.js';
+import { planSidebarEvent, type SidebarPlan } from '#lib/people/sidebar-events.js';
+import { m } from '#lib/paraglide/messages.js';
 import { sidebarSettings } from '#lib/settings/sidebar-settings.svelte.js';
 import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 import { friendsTopic } from '#lib/live/topics/friends.svelte.js';
@@ -46,11 +46,12 @@ type GameInstance = { location: string | null; playerIds: Set<string>; joinedAt?
 // again reads them as they are instead of asking the server again.
 //
 // The friend list comes from the live socket's friends topic: a snapshot and then the server's
-// deltas, so it is never read over REST. A server without that topic (older than topics), or a
-// socket that does not come up in time, gets the list from GET friends and keeps it current from
-// the ServerEvents as before (the fallback below: loadFriends, patchFriendPresence and the reloads).
+// deltas. There is no other way it is read. The web client and the server are released together,
+// so there is no server without the topic to fall back for; and a socket that will not come up
+// leaves nothing here live anyway, so that is said (error) instead of showing a list as if it were
+// current.
 
-/** How long the friend list waits for the topic's snapshot before reading it over REST once. */
+/** How long the friend list may wait for the topic's snapshot before the wait is said to be a problem. */
 export const FRIENDS_TOPIC_WAIT_MS = 4000;
 
 class SidebarData {
@@ -61,7 +62,7 @@ class SidebarData {
 	currentLocation = $state<string | null>(null);
 	/** The game's instance by the desktop app's game log and who is in it: the original's lastLocation.friendList. */
 	gameInstance = $state.raw<GameInstance>({ location: null, playerIds: new Set() });
-	/** The friend list has been read for this account (Friends Locations shows its spinner until then). */
+	/** The friend list has come for this account (Friends Locations shows its spinner until then). */
 	friendsLoaded = $state(false);
 	refreshing = $state(false);
 	error = $state('');
@@ -72,10 +73,8 @@ class SidebarData {
 	#ids: { of: Friend[]; ids: Set<string> } = { of: [], ids: new Set() };
 	/** The friends topic for #owner, while held. */
 	#topic: TopicHandle<Friend[]> | undefined;
-	/** The list follows the topic: the events and reconnects need not read it. */
-	#viaTopic = false;
 	#topicWait: ReturnType<typeof setTimeout> | undefined;
-	/** Settles once the friend list is first there for #owner, by the topic or by REST. */
+	/** Settles once the friend list is first there for #owner, or the server said it never will be. */
 	#friendsReady: { promise: Promise<void>; resolve: () => void } = SidebarData.#deferred();
 
 	static #deferred() {
@@ -86,7 +85,6 @@ class SidebarData {
 
 	// Reads the events can't stand in for, held while events keep coming but run at least every
 	// 10 seconds (the original's friend store has no such reads: its pipeline events carry the users).
-	#reloadFriends = debounce(() => this.loadFriends(true), { wait: 1500, maxWait: 10_000 });
 	#reloadFavorites = debounce(() => this.loadFavorites(true), { wait: 1500, maxWait: 10_000 });
 	#reloadMe = debounce(() => this.loadMe(true), { wait: 1500, maxWait: 10_000 });
 	#reloadGame = debounce(() => this.loadGameInstance(true), { wait: 1500, maxWait: 10_000 });
@@ -129,7 +127,7 @@ class SidebarData {
 		void this.loadGroupInstances();
 	}
 
-	/** The friend list, read once: what a page that only looks friends up waits for. */
+	/** The friend list once it has come: what a page that only looks friends up waits for. */
 	async ensureFriends(): Promise<Friend[]> {
 		this.start();
 		if (!this.friendsLoaded) await this.#friendsReady.promise;
@@ -140,20 +138,13 @@ class SidebarData {
 	apply(event: ServerEvent): SidebarPlan {
 		const owner = vrchatAuth.ownerUserId;
 		if (!owner || owner !== this.#owner) return {};
-		const plan = planSidebarEvent(event, { owner, isFriend: (id) => this.isFriend(id), gameLocation: this.gameInstance.location });
-		// Following the topic, the server sends the friend rows themselves: nothing to patch or read.
-		if (plan.presence && !this.#viaTopic) {
-			const at = (event.at ? timestampDate(event.at) : new Date()).toJSON();
-			const next = patchFriendPresence(this.friends, plan.presence, at);
-			if (next) this.friends = next;
-		}
+		const plan = planSidebarEvent(event, { owner, gameLocation: this.gameInstance.location });
 		if (plan.player) {
 			const playerIds = new Set(this.gameInstance.playerIds);
 			if (plan.player.joined) playerIds.add(plan.player.userId);
 			else playerIds.delete(plan.player.userId);
 			this.gameInstance = { ...this.gameInstance, playerIds };
 		}
-		if (plan.friends && !this.#viaTopic) this.#reloadFriends();
 		if (plan.favorites) this.#reloadFavorites();
 		if (plan.me) this.#reloadMe();
 		if (plan.game) this.#reloadGame();
@@ -164,9 +155,8 @@ class SidebarData {
 	/** The live socket came back: whatever changed while it was down was never seen, so read it all once. */
 	resync(): void {
 		if (!vrchatAuth.ownerUserId || vrchatAuth.ownerUserId !== this.#owner) return;
-		for (const held of [this.#reloadFriends, this.#reloadFavorites, this.#reloadMe, this.#reloadGame, this.#reloadGroups]) held.cancel();
-		// The topic subscribes again on the new connection and its snapshot replaces the list.
-		if (!this.#viaTopic) void this.loadFriends(true);
+		for (const held of [this.#reloadFavorites, this.#reloadMe, this.#reloadGame, this.#reloadGroups]) held.cancel();
+		// The friends topic subscribes again on the new connection and its snapshot replaces the list.
 		void this.loadFavorites(true);
 		void this.loadMe(true);
 		void this.loadGameInstance(true);
@@ -183,11 +173,10 @@ class SidebarData {
 		clearTimeout(this.#topicWait);
 		this.#topic?.release();
 		this.#topic = undefined;
-		this.#viaTopic = false;
 		this.#friendsReady.resolve();
 		this.#friendsReady = SidebarData.#deferred();
 		this.#running.clear();
-		for (const held of [this.#reloadFriends, this.#reloadFavorites, this.#reloadMe, this.#reloadGame, this.#reloadGroups]) held.cancel();
+		for (const held of [this.#reloadFavorites, this.#reloadMe, this.#reloadGame, this.#reloadGroups]) held.cancel();
 		this.friends = [];
 		this.groups = [];
 		this.me = null;
@@ -219,52 +208,26 @@ class SidebarData {
 		return promise;
 	}
 
-	/**
-	 * Follows the account's friends topic. Its snapshot and deltas are the list from then on; a
-	 * server without the topic, or no snapshot within FRIENDS_TOPIC_WAIT_MS, reads it over REST
-	 * instead (a snapshot coming later still takes over).
-	 */
+	/** Follows the account's friends topic: its snapshot and deltas are the list from then on. */
 	#followFriends(owner: string) {
 		const topic = friendsTopic(owner);
 		this.#topic = topic;
-		let fellBack = false;
-		const fallBack = () => {
-			if (fellBack || this.#topic !== topic) return;
-			fellBack = true;
-			void this.loadFriends();
-		};
-		this.#topicWait = setTimeout(fallBack, FRIENDS_TOPIC_WAIT_MS);
+		// Nothing else reads the list, so a socket that has not delivered it is said, not hidden.
+		this.#topicWait = setTimeout(() => {
+			if (this.#topic === topic && !this.friendsLoaded) this.error = m.sidebar_friends_waiting_for_live();
+		}, FRIENDS_TOPIC_WAIT_MS);
 		topic.listen((friends, status) => {
 			if (this.#topic !== topic) return;
 			if (status === 'live' && friends) {
 				clearTimeout(this.#topicWait);
-				this.#reloadFriends.cancel();
-				this.#viaTopic = true;
 				this.friends = friends;
 				this.friendsLoaded = true;
 				this.error = '';
 				this.#friendsReady.resolve();
-			} else if (status === 'unsupported' || status === 'closed') {
+			} else if (status === 'closed') {
+				// The server refused the subscription (it has no such account): no list will come.
 				clearTimeout(this.#topicWait);
-				this.#viaTopic = false;
-				fallBack();
-			}
-		});
-	}
-
-	loadFriends(fresh = false): Promise<void> {
-		return this.#once('friends', fresh, async (owner, current) => {
-			try {
-				const friends = await api.get<Friend[]>(accountPath(owner, '/friends'));
-				// The topic's copy is newer than any read that was under way when it came.
-				if (!current() || this.#viaTopic) return;
-				this.friends = friends;
-				this.friendsLoaded = true;
-				this.error = '';
-			} catch (err) {
-				if (current() && !this.#viaTopic) this.error = ApiError.from(err).message;
-			} finally {
-				if (current()) this.#friendsReady.resolve();
+				this.#friendsReady.resolve();
 			}
 		});
 	}
@@ -316,8 +279,8 @@ class SidebarData {
 		this.refreshing = true;
 		try {
 			await api.post(accountPath(account, '/friends/refresh'), {}).catch(() => {});
-			// Following the topic, what the refresh changed comes as deltas.
-			await Promise.all([this.#viaTopic ? Promise.resolve() : this.loadFriends(true), this.loadFavorites(true), this.loadMe(true)]);
+			// What the refresh changed about the friends comes as the topic's deltas.
+			await Promise.all([this.loadFavorites(true), this.loadMe(true)]);
 		} finally {
 			this.refreshing = false;
 		}

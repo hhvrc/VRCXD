@@ -72,15 +72,24 @@ the same by hand, because a change to one user reaches every account that has th
 
 `client/src/lib/api/topics.svelte.ts` owns the socket subscription lifecycle. It reference-counts a
 shared store by topic and account, subscribes after every `ServerHello`, detects revision gaps, and
-resubscribes after reconnects and retryable closes. A server hello that omits a topic makes that
-store `unsupported`.
+resubscribes after reconnects and retryable closes. A subscription the server refuses is `closed`.
 
-The notification center (the sidebar bell) follows the `notifications` topic the same way the
-friend list follows `friends`: it waits up to four seconds for the first snapshot, shows the rows
-that are not hidden, and falls back to REST plus events without it. The Notifications page shows
-more than the topic carries, so it reads its pages over REST once when it opens and lays the
+A topic is the only way its state reaches the client. There is no REST fallback and no "server
+without the topic" case: the web client and the server are released together at one version, so
+the server always has the topics the client asks for. The consequence is deliberate: while the
+socket is down, what a topic carries is not shown as if it were current. The friend list says it
+is waiting for the live connection once four seconds pass without a snapshot, and the
+notification center stays empty.
+
+The friend list (`sidebar-data.svelte.ts`) is the `friends` topic's rows. The notification center
+(the sidebar bell) is the `notifications` topic's rows that are not hidden. The Notifications page
+shows more than the topic carries, so it reads its pages over REST once when it opens and lays the
 topic's rows over them (`notification-log.ts`): for the time the topic covers its rows are the
-truth, and older rows stay as read. It no longer reads again on an event.
+truth, and older rows stay as read. It does not read again on an event.
+
+The `ServerEvent`s for presence, users, friendships and notifications are still sent and still
+used, but not to keep these lists: the pop-up and wrist-feed decisions, the nav badges, the feed
+and the Friend List and Friend Log pages listen to them.
 
 Keep each feature's encoding and reduction in a plain module:
 
@@ -88,10 +97,7 @@ Keep each feature's encoding and reduction in a plain module:
 - `client/src/lib/live/topics/<topic>.svelte.ts` is the thin shared store wrapper.
 - `client/src/lib/__tests__/<topic>.test.ts` covers initial values, deltas and revision gaps.
 
-The friends feature waits up to four seconds for its first snapshot. If the topic is unsupported,
-closed or slow, it reads the friend list over REST once and retains the former `ServerEvent`
-fallback. A snapshot received later takes ownership of the list. Consumers do not call the REST
-client for a feature once its live store is in charge.
+Consumers do not call the REST client for what a topic carries.
 
 ## Adding a topic
 
@@ -103,7 +109,7 @@ client for a feature once its live store is in charge.
    for changes kept outside Postgres, such as Redis presence.
 4. Add server scenario tests for the snapshot, each change source, `rev` ordering, gap recovery,
    overflow, unsubscribe and reconnect. Pin SQL round trips for the snapshot.
-5. Add the client codec and `$state` store, pure reducer tests, and a REST/events fallback for
-   servers that do not advertise the topic.
+5. Add the client codec and `$state` store with pure reducer tests, move the consumers to the
+   store, and delete the REST read and the event reloads it replaces.
 6. Document new lifecycle or payload rules here and update the transport section of
    `server/README.md`.

@@ -9,7 +9,7 @@ vi.mock('#lib/api/vrchat-auth.svelte.js', () => {
 	return { vrchatAuth, ownPath: (rest = '') => `/1/accounts/${encodeURIComponent(vrchatAuth.ownerUserId)}${rest}` };
 });
 vi.mock('#lib/live/topics/notifications.svelte.js', () => ({
-	notificationsTopic: () => ({ value: undefined, status: 'unsupported', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'unsupported'), () => {}), release: () => {} })
+	notificationsTopic: () => ({ value: undefined, status: 'connecting', listen: (listener: (value: unknown, status: string) => void) => (listener(undefined, 'connecting'), () => {}), release: () => {} })
 }));
 
 const { notificationCenter } = await import('../notifications/notification-center.svelte.js');
@@ -43,9 +43,9 @@ describe('notification center lists', () => {
 		expect(notificationCenter.unseenIn('other')).toEqual([]);
 	});
 
-	test('Mark all as read asks the server and reloads', async () => {
+	test('Mark all as read asks the server and reads nothing: the seen rows come back over the topic', async () => {
 		await notificationCenter.markAllSeen();
 		expect(post).toHaveBeenCalledWith('/1/accounts/usr_me/notifications/see-all', {});
-		expect(get).toHaveBeenCalledWith('/1/accounts/usr_me/notifications', { page: 1, pageSize: 500 });
+		expect(get).not.toHaveBeenCalled();
 	});
 });

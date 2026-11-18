@@ -1,4 +1,4 @@
-import { accountPath, api, type PagedResult } from '#lib/api/client.js';
+import { accountPath, api } from '#lib/api/client.js';
 import type { Notification } from '#lib/api/types.js';
 import type { TopicHandle } from '#lib/api/topics.svelte.js';
 import { notificationsTopic } from '#lib/live/topics/notifications.svelte.js';
@@ -9,19 +9,16 @@ import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 // Other, behind the sidebar bell.
 //
 // The rows come from the live socket's notifications topic: a snapshot and then the server's
-// deltas, so they are never read over REST. A server without that topic (older than it), or a
-// socket that does not come up in time, gets them from GET notifications and keeps them current
-// from the ServerEvents as before (load, and the reloads in sidebar-live.ts).
+// deltas. Nothing here reads them over REST; until the socket has delivered the snapshot the bell
+// is empty.
 const DAY = 24 * 60 * 60 * 1000;
 const ts = (n: Notification) => Date.parse(n.createdAt) || 0;
 
-/** How long the bell waits for the topic's snapshot before reading the notifications over REST once. */
-export const NOTIFICATIONS_TOPIC_WAIT_MS = 4000;
-
 class NotificationCenter {
 	open = $state(false);
+	/** What the bell shows: the topic's rows that are not hidden. */
 	rows = $state.raw<Notification[]>([]);
-	/** The topic's rows, hidden ones included, newest first: what the Notifications page lists. Empty while there is no topic. */
+	/** The topic's rows, hidden ones included, newest first: what the Notifications page lists. */
 	allRows = $state.raw<Notification[]>([]);
 	now = $state(Date.now());
 	#pendingSee = new Set<string>();
@@ -41,68 +38,24 @@ class NotificationCenter {
 	#for = '';
 	/** The notifications topic for #for, while held. */
 	#topic: TopicHandle<Notification[]> | undefined;
-	#viaTopic = $state(false);
-	#topicWait: ReturnType<typeof setTimeout> | undefined;
 
-	/** The rows follow the topic: the events and reconnects need not read them. */
-	get followsTopic() {
-		return this.#viaTopic;
-	}
-
-	/** Follows the account's notifications once per account; the live socket keeps them current after. */
+	/** Follows the account's notifications topic, once per account; its snapshot and deltas are the rows from then on. */
 	start() {
 		const account = vrchatAuth.ownerUserId;
 		if (!account || account === this.#for) return;
 		this.#for = account;
 		this.rows = [];
 		this.allRows = [];
-		clearTimeout(this.#topicWait);
 		this.#topic?.release();
-		this.#viaTopic = false;
-		this.#follow(account);
-	}
-
-	/**
-	 * Follows the account's notifications topic. Its snapshot and deltas are the rows from then on;
-	 * a server without the topic, or no snapshot within NOTIFICATIONS_TOPIC_WAIT_MS, reads them over
-	 * REST instead (a snapshot coming later still takes over).
-	 */
-	#follow(account: string) {
 		const topic = notificationsTopic(account);
 		this.#topic = topic;
-		let fellBack = false;
-		const fallBack = () => {
-			if (fellBack || this.#topic !== topic) return;
-			fellBack = true;
-			void this.load();
-		};
-		this.#topicWait = setTimeout(fallBack, NOTIFICATIONS_TOPIC_WAIT_MS);
 		topic.listen((notifications, status) => {
-			if (this.#topic !== topic) return;
-			if (status === 'live' && notifications) {
-				clearTimeout(this.#topicWait);
-				this.#viaTopic = true;
-				// The topic carries the hidden ones too, for the Notifications page; the bell does not show them.
-				this.allRows = notifications;
-				this.rows = notifications.filter((n) => !n.hidden);
-				this.now = Date.now();
-			} else if (status === 'unsupported' || status === 'closed') {
-				clearTimeout(this.#topicWait);
-				this.#viaTopic = false;
-				this.allRows = [];
-				fallBack();
-			}
+			if (this.#topic !== topic || status !== 'live' || !notifications) return;
+			this.allRows = notifications;
+			// The topic carries the hidden ones too, for the Notifications page; the bell does not show them.
+			this.rows = notifications.filter((n) => !n.hidden);
+			this.now = Date.now();
 		});
-	}
-
-	/** Reads the rows over REST: the fallback, and what the events and reconnects ask for while there is no topic. */
-	async load() {
-		const account = vrchatAuth.ownerUserId;
-		if (!account) return;
-		const page = await api.get<PagedResult<Notification>>(accountPath(account, '/notifications'), { page: 1, pageSize: 500 }).catch(() => null);
-		// The topic's copy is newer than any read that was under way when it came.
-		if (page && account === vrchatAuth.ownerUserId && !this.#viaTopic) this.rows = page.items;
-		this.now = Date.now();
 	}
 
 	/** Shown unseen items are marked seen when they leave the screen, as the original's items do on unmount. */
@@ -120,12 +73,11 @@ class NotificationCenter {
 		this.rows = this.rows.map((n) => (ids.includes(n.id) ? { ...n, seen: true } : n));
 	}
 
+	/** Asks the server to mark them all seen; the rows that were come back as a delta. */
 	async markAllSeen() {
 		const account = vrchatAuth.ownerUserId;
 		if (!account) return;
 		await api.post(accountPath(account, '/notifications/see-all'), {}).catch(() => {});
-		// Following the topic, the rows that were seen come as a delta.
-		if (!this.#viaTopic) await this.load();
 	}
 }
 

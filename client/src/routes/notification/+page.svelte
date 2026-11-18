@@ -29,7 +29,6 @@
 	import type { Notification } from '#lib/api/types.js';
 	import { imageViewer } from '#lib/content/image-viewer.svelte.js';
 	import { canInvite, desktop } from '#lib/instances/instance-launch.svelte.js';
-	import { watchLive } from '#lib/api/live.svelte.js';
 	import { parseLocation } from '#lib/instances/location.js';
 	import { worldNames } from '#lib/people/names.svelte.js';
 	import { readSetting, shiftKey, storeSetting } from '#lib/settings/table-settings.svelte.js';
@@ -44,8 +43,8 @@
 	//
 	// The table is read over REST once when the page opens, and after that the notifications topic
 	// (which the notification center already follows) keeps it current: its rows replace REST's for
-	// the newest ones, so an event no longer reads every page again. Rows older than the topic
-	// carries stay as read. A server without the topic reloads on the events, as before.
+	// the newest ones, so nothing is read again on an event. Rows older than the topic carries stay
+	// as read.
 
 	const FILTER_TYPES = [
 		'requestInvite',
@@ -77,8 +76,7 @@
 
 	/** The table as last read over REST. */
 	let restRows = $state.raw<Notification[]>([]);
-	const viaTopic = $derived(notificationCenter.followsTopic);
-	const rows = $derived(viaTopic ? mergeNotificationLog(notificationCenter.allRows, restRows, appearance.maxTableSize.value) : restRows);
+	const rows = $derived(mergeNotificationLog(notificationCenter.allRows, restRows, appearance.maxTableSize.value));
 	let loading = $state(false);
 	let refreshing = $state(false);
 	let loadError = $state('');
@@ -203,8 +201,6 @@
 			(data) => (currentLocation = data.currentLocation ?? null),
 			() => (currentLocation = null)
 		);
-		// Following the topic, the server sends the changed rows themselves: nothing to read on an event.
-		return watchLive(['notification'], () => (notificationCenter.followsTopic ? undefined : load()), 500);
 	});
 
 	const columns: Column<Notification>[] = [

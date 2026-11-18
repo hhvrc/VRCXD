@@ -1,56 +1,34 @@
 import { describe, expect, test } from 'vitest';
 import { create } from '@bufbuild/protobuf';
 import { PresenceChangedSchema, ServerEventSchema, type ServerEvent } from '../gen/vrcx_live_pb.js';
-import type { Friend } from '../api/types.js';
-import { feedEventMatters, gameLogEventMatters, patchFriendPresence, planSidebarEvent, type SidebarContext } from '../people/sidebar-events.js';
+import { feedEventMatters, gameLogEventMatters, planSidebarEvent, type SidebarContext } from '../people/sidebar-events.js';
 
 const ev = (event: ServerEvent['event']): ServerEvent => create(ServerEventSchema, { event });
-const ctx: SidebarContext = { owner: 'usr_me', isFriend: (id) => id === 'usr_bob', gameLocation: 'wrld_a:1' };
+const ctx: SidebarContext = { owner: 'usr_me', gameLocation: 'wrld_a:1' };
 
-const bob: Friend = {
-	friendNumber: 2,
-	friendsSince: '2026-01-01T00:00:00Z',
-	userId: 'usr_bob',
-	displayName: 'Bob',
-	trustLevel: 'known',
-	state: 'offline',
-	status: 'active',
-	location: 'offline',
-	travelingToLocation: null,
-	locationSince: '2026-11-01T00:00:00Z',
-	onlineFor: '2026-11-01T00:00:00Z',
-	platform: 'standalonewindows',
-	pendingOffline: true
-};
-const alice: Friend = { ...bob, userId: 'usr_alice', displayName: 'Alice', state: 'online', location: 'wrld_a:1' };
-
-// What each live event means for the shared friend state, with the stream carrying every account's events.
+// What each live event means for the shared sidebar state that has no topic, with the stream
+// carrying every account's events. Friends and notifications follow their topics, so their events
+// plan nothing.
 describe('sidebar event plan', () => {
-	test("a friend's presence is applied as it is, with nothing read again", () => {
-		const plan = planSidebarEvent(ev({ case: 'presence', value: create(PresenceChangedSchema, { userId: 'usr_bob', state: 'online', location: 'wrld_a:2' }) }), ctx);
-		expect(plan).toEqual({ presence: expect.objectContaining({ userId: 'usr_bob' }) });
-	});
-
-	test("a stranger's presence is nothing, and your own reads your profile again", () => {
+	test("a friend's or a stranger's presence is nothing here, and your own reads your profile again", () => {
+		expect(planSidebarEvent(ev({ case: 'presence', value: create(PresenceChangedSchema, { userId: 'usr_bob', state: 'online', location: 'wrld_a:2' }) }), ctx)).toEqual({});
 		expect(planSidebarEvent(ev({ case: 'presence', value: create(PresenceChangedSchema, { userId: 'usr_stranger' }) }), ctx)).toEqual({});
 		expect(planSidebarEvent(ev({ case: 'presence', value: create(PresenceChangedSchema, { userId: 'usr_me' }) }), ctx)).toEqual({ me: true });
 	});
 
-	test('a profile change only carries field names: the list is read again for the fields it shows', () => {
+	test('a profile change reads your own profile again for the fields the sidebar shows, and nothing for anyone else', () => {
 		const user = (userId: string, changed: string[]) => ev({ case: 'user', value: { $typeName: 'vrcx.live.UserChanged', userId, displayName: '', changed } });
-		expect(planSidebarEvent(user('usr_bob', ['status']), ctx)).toEqual({ friends: true });
-		expect(planSidebarEvent(user('usr_bob', ['bio']), ctx)).toEqual({});
+		expect(planSidebarEvent(user('usr_bob', ['status']), ctx)).toEqual({});
 		expect(planSidebarEvent(user('usr_stranger', ['status']), ctx)).toEqual({});
 		expect(planSidebarEvent(user('usr_me', ['avatar']), ctx)).toEqual({ me: true });
+		expect(planSidebarEvent(user('usr_me', ['bio']), ctx)).toEqual({});
 	});
 
-	test('friendships, notifications and sessions count only for the signed-in account', () => {
+	test('friendships and notifications plan nothing; sessions count only for the signed-in account', () => {
 		const friendship = (owner: string) => ev({ case: 'friendship', value: { $typeName: 'vrcx.live.FriendshipChanged', ownerUserId: owner, friendUserId: 'usr_new', displayName: 'New', isFriend: true, friendNumber: 9 } });
-		expect(planSidebarEvent(friendship('usr_me'), ctx)).toEqual({ friends: true });
-		expect(planSidebarEvent(friendship('usr_other'), ctx)).toEqual({});
+		expect(planSidebarEvent(friendship('usr_me'), ctx)).toEqual({});
 		const note = (owner: string) => ev({ case: 'notification', value: { $typeName: 'vrcx.live.NotificationReceived', ownerUserId: owner, notificationId: 'n', version: 1, type: 'invite', senderUserId: '', senderDisplayName: '', title: '', message: '' } });
-		expect(planSidebarEvent(note('usr_me'), ctx)).toEqual({ notifications: true });
-		expect(planSidebarEvent(note('usr_other'), ctx)).toEqual({});
+		expect(planSidebarEvent(note('usr_me'), ctx)).toEqual({});
 		const account = (id: string) => ev({ case: 'account', value: { $typeName: 'vrcx.live.AccountSessionChanged', accountId: id, displayName: '', sessionValid: true, autoLogin: '', autoLoginDelay: 0 } });
 		expect(planSidebarEvent(account('usr_me'), ctx)).toEqual({ me: true });
 		expect(planSidebarEvent(account('usr_other'), ctx)).toEqual({});
@@ -75,39 +53,6 @@ describe('sidebar event plan', () => {
 		expect(planSidebarEvent(refresh('usr_other', 'favorite'), ctx)).toEqual({});
 		const presence = planSidebarEvent(ev({ case: 'presence', value: create(PresenceChangedSchema, { userId: 'usr_bob', state: 'online' }) }), ctx);
 		expect(presence.favorites).toBeUndefined();
-		expect(presence.friends).toBeUndefined();
-	});
-});
-
-describe('friend presence patch', () => {
-	const at = '2026-11-18T12:00:00.000Z';
-
-	test('online in an instance: state, location, platform and both timers as GET /friends would show them', () => {
-		const next = patchFriendPresence([alice, bob], create(PresenceChangedSchema, { userId: 'usr_bob', state: 'online', kind: 'online', location: 'wrld_a:2', platform: 'android' }), at);
-		expect(next?.[0]).toBe(alice);
-		expect(next?.[1]).toEqual({ ...bob, state: 'online', location: 'wrld_a:2', travelingToLocation: null, platform: 'android', locationSince: at, onlineFor: at, pendingOffline: false });
-	});
-
-	test('a move keeps the online timer, and travelling is carried', () => {
-		const online = { ...bob, state: 'online' as const, location: 'wrld_a:2' };
-		const next = patchFriendPresence([online], create(PresenceChangedSchema, { userId: 'usr_bob', state: 'online', kind: 'location', location: 'wrld_b:3', travelingToLocation: 'wrld_c:4' }), at);
-		expect(next?.[0]).toMatchObject({ location: 'wrld_b:3', travelingToLocation: 'wrld_c:4', locationSince: at, onlineFor: bob.onlineFor, platform: bob.platform });
-	});
-
-	test('offline or web as the platform leaves the last one, as computeUserPlatform', () => {
-		const online = { ...bob, state: 'online' as const, location: 'wrld_a:2' };
-		const next = patchFriendPresence([online], create(PresenceChangedSchema, { userId: 'usr_bob', state: 'offline', kind: 'offline', location: 'offline', platform: 'web' }), at);
-		expect(next?.[0]).toMatchObject({ state: 'offline', location: 'offline', platform: 'standalonewindows', onlineFor: at });
-	});
-
-	test('the same place keeps its timer, and the name is left for the rename event', () => {
-		const online = { ...bob, state: 'online' as const, location: 'wrld_a:2' };
-		const next = patchFriendPresence([online], create(PresenceChangedSchema, { userId: 'usr_bob', displayName: 'Robert', state: 'online', kind: 'location', location: 'wrld_a:2' }), at);
-		expect(next?.[0]).toMatchObject({ displayName: 'Bob', locationSince: bob.locationSince });
-	});
-
-	test('someone not in the list changes nothing', () => {
-		expect(patchFriendPresence([alice], create(PresenceChangedSchema, { userId: 'usr_bob', state: 'online' }), at)).toBeUndefined();
 	});
 });
 

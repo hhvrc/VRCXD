@@ -30,9 +30,11 @@ transport. The friends topic is the reference implementation.
 
 1. Add a pure `client/src/lib/live/topics/<topic>.ts` codec/reducer.
 2. Add `client/src/lib/live/topics/<topic>.svelte.ts` as the thin store over `subscribeTopic`.
-3. Cover snapshot mapping, ordered and out-of-order deltas, reconnect and unsupported servers.
-4. Move feature consumers to the store. Keep REST plus the old `ServerEvent` path as fallback for
-   servers that omit the topic or do not produce a snapshot in time.
+3. Cover snapshot mapping, ordered and out-of-order deltas, reconnect and a refused subscription.
+4. Move feature consumers to the store and delete the REST read and the `ServerEvent` reloads it
+   replaces. Do not keep a fallback: the client and the server are released together, so the
+   server always has the topic. Say so in the UI when the socket has not delivered, rather than
+   show stale or empty state as current (`sidebar-data.svelte.ts` does this for friends).
 
 ## Finish
 

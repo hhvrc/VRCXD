@@ -164,20 +164,7 @@ describe('live topics', () => {
 		expect(ws.closed).toBe(true);
 	});
 
-	test('a server whose hello lacks the topic makes it unsupported, and sends no Subscribe', () => {
-		const handle = topics.friendsTopic('usr_me');
-		const seen: string[] = [];
-		handle.listen((_value, status) => seen.push(status));
-		const ws = latest();
-		ws.open();
-		ws.hello([]);
-		expect(ws.subscribes()).toHaveLength(0);
-		expect(handle.status).toBe('unsupported');
-		expect(seen).toEqual(['connecting', 'unsupported']);
-		handle.release();
-	});
-
-	test('an unknown topic closing is unsupported; an overflow subscribes again after a wait', () => {
+	test('an overflow subscribes again after a wait; a refusal closes it for good', () => {
 		const handle = topics.friendsTopic('usr_me');
 		const ws = latest();
 		ws.open();
@@ -190,7 +177,7 @@ describe('live topics', () => {
 		expect(ws.subscribes()).toHaveLength(2);
 		const second = ws.lastSubId();
 		ws.receive({ message: { case: 'topicClosed', value: { subId: second, reason: TopicCloseReason.UNKNOWN_TOPIC } } });
-		expect(handle.status).toBe('unsupported');
+		expect(handle.status).toBe('closed');
 		vi.advanceTimersByTime(5000);
 		expect(ws.subscribes()).toHaveLength(2);
 		handle.release();
@@ -234,15 +221,14 @@ describe('live topics', () => {
 });
 
 describe('live hello', () => {
-	test('records the server topics and announces every hello', () => {
+	test('announces every hello', () => {
 		const heard = vi.fn();
 		live.onHello(heard);
 		const disconnect = live.connectLive();
 		const ws = latest();
 		ws.open();
-		expect(live.live.topics).toBeNull();
+		expect(heard).not.toHaveBeenCalled();
 		ws.hello(['friends']);
-		expect(live.live.topics).toEqual(['friends']);
 		expect(heard).toHaveBeenCalledTimes(1);
 		disconnect();
 	});

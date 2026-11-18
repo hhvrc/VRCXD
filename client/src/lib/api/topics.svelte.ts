@@ -1,6 +1,6 @@
 import { create } from '@bufbuild/protobuf';
 import { SubscribeSchema, TopicCloseReason, UnsubscribeSchema, type TopicDelta, type TopicSnapshot } from '#lib/gen/vrcx_live_pb.js';
-import { connectLive, liveReady, live, onHello, onTopicMessage, sendLive, type TopicMessage } from '#lib/api/live.svelte.js';
+import { connectLive, liveReady, onHello, onTopicMessage, sendLive, type TopicMessage } from '#lib/api/live.svelte.js';
 
 // The client side of the live socket's topics (docs/live-topics.md): server state kept as a copy
 // here, sent as one snapshot and then deltas. subscribeTopic(topic, account, codec) hands out a
@@ -9,9 +9,9 @@ import { connectLive, liveReady, live, onHello, onTopicMessage, sendLive, type T
 // - a delta whose rev is not the last one plus one means one was missed: it is dropped and the
 //   topic subscribed again, while the store keeps showing what it has until the new snapshot;
 // - every ServerHello (the first connection and each reconnect) subscribes again, since the
-//   server forgets subscriptions with the connection, and the fresh snapshot replaces the copy;
-// - a server whose hello does not list the topic (older than topics) makes the store
-//   'unsupported', and its users fall back to what they did before topics (REST and events).
+//   server forgets subscriptions with the connection, and the fresh snapshot replaces the copy.
+// The client and the server are released together, so the server always has the topics the
+// client asks for; a subscription the server refuses anyway is 'closed'.
 
 /** How a topic's payloads become a value: the pure half, testable without a socket. */
 export type TopicCodec<S> = {
@@ -21,8 +21,8 @@ export type TopicCodec<S> = {
 	delta(value: S, payload: TopicDelta['payload']): S | undefined;
 };
 
-/** connecting: waiting for a snapshot; live: the value is current; unsupported: the server has no such topic; closed: refused (no such account). */
-export type TopicStatus = 'connecting' | 'live' | 'unsupported' | 'closed';
+/** connecting: waiting for a snapshot; live: the value is current; closed: the server refused it (no such account or topic). */
+export type TopicStatus = 'connecting' | 'live' | 'closed';
 
 export type TopicListener<S> = (value: S | undefined, status: TopicStatus) => void;
 
@@ -73,10 +73,6 @@ function subscribe(entry: TopicEntry<unknown>) {
 	clearTimeout(entry.retry);
 	entry.retry = undefined;
 	if (!liveReady()) return; // The next hello subscribes.
-	if (live.topics && !live.topics.includes(entry.topic)) {
-		entry.set(entry.value, 'unsupported');
-		return;
-	}
 	if (entry.subId) {
 		bySubId.delete(entry.subId);
 		sendLive({ case: 'unsubscribe', value: create(UnsubscribeSchema, { subId: entry.subId }) });
@@ -114,8 +110,7 @@ function received(message: TopicMessage) {
 			bySubId.delete(entry.subId);
 			entry.subId = 0;
 			const reason = message.value.reason;
-			if (reason === TopicCloseReason.UNKNOWN_TOPIC) entry.set(entry.value, 'unsupported');
-			else if (reason === TopicCloseReason.OVERFLOW || reason === TopicCloseReason.ERROR) {
+			if (reason === TopicCloseReason.OVERFLOW || reason === TopicCloseReason.ERROR) {
 				clearTimeout(entry.retry);
 				entry.retry = setTimeout(() => subscribe(entry), RESUBSCRIBE_DELAY_MS);
 			} else entry.set(entry.value, 'closed');
