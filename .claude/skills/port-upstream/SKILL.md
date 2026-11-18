@@ -6,7 +6,7 @@ description: Bring new vrcx-team/VRCX commits into VRCXD. Finds upstream commits
 # Port upstream VRCX changes
 
 Upstream is the git remote `vrcx` (`https://github.com/vrcx-team/VRCX.git`). Its history is
-merged into `master`, where its files live under `legacy/` (git follows the move). The port
+merged into `develop` (and from there into `master`), where its files live under `legacy/` (git follows the move). The port
 itself is a separate commit that records what happened to every upstream commit.
 
 ## 1. Find what is new
@@ -22,7 +22,8 @@ If `git log <to>..vrcx/master` is empty, there is nothing to port.
 
 ## 2. Merge upstream into legacy/
 
-Ask the owner before merging; it is a commit on `master`.
+Ask the owner before merging; it is a commit on `develop`. A port that changes behaviour users
+notice also adds a change file in `.changes/` (see Releases in `AGENTS.md`).
 
 ```sh
 git merge vrcx/master            # merge commit "Merge remote-tracking branch 'vrcx/master'"

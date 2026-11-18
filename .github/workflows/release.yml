@@ -1,0 +1,98 @@
+# Cuts a release when change files are waiting in .changes/. On every push to master, OpenShock's
+# release-tool computes the next version from them; if there are none it does nothing. Otherwise it
+# writes the version into client/package.json and CHANGELOG.md, moves the change files to
+# .changes/released/<version>/, commits, and tags vrcxd-v<version>. The prefix keeps clear of
+# upstream VRCX's v<date> tags, which any clone with the vrcx remote has. publish.yml then builds and
+# attaches what the tag ships. On develop it only computes the coming version
+# (<next>-develop+g<sha>): no tag, no commit, and the change files stay.
+#
+# To release: add a change file (`release-tool new "Fix ..." --kind fixed`, see .changes/README.md)
+# and push to master.
+name: release
+
+on:
+  push:
+    branches: [master, develop]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release this MAJOR.MINOR.PATCH instead of the computed version'
+        required: false
+        default: ''
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  actions: write # dispatch publish.yml on the new tag
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The release commit is pushed with GITHUB_TOKEN, which does not trigger workflows; this is a
+    # second guard against releasing off our own commit.
+    if: github.actor != 'github-actions[bot]'
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Rebase on top of latest remote
+        run: git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+
+      - name: Run release tool
+        id: meta
+        uses: OpenShock/release-tool@fa1f825330760c1a7d28a2b22c44c6f7607606a6 # v1.1.0
+        with:
+          mode: release
+          output: release.json
+          notes-output: release-notes.md
+          version: ${{ inputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Nothing to release
+        if: steps.meta.outputs.tag == ''
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: echo "No release from ${GITHUB_REF_NAME} (coming version ${VERSION:-none}); nothing to tag."
+
+      # The commit first: a tag pushed with a rejected commit would be stranded on no branch.
+      - name: Push release commit
+        if: steps.meta.outputs.tag != ''
+        run: git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
+
+      - name: Push tag
+        if: steps.meta.outputs.tag != ''
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: git push origin "refs/tags/${TAG}"
+
+      # A draft until publish.yml has attached the agent binaries and pushed the images.
+      - name: Stage GitHub Release (draft)
+        if: steps.meta.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: gh release create "$TAG" release.json --title "$TAG" --notes-file release-notes.md --draft --verify-tag
+
+      # A tag pushed with GITHUB_TOKEN does not trigger publish.yml's tag trigger; a dispatch does.
+      - name: Publish the tag
+        if: steps.meta.outputs.tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: gh workflow run publish.yml --ref "$TAG"

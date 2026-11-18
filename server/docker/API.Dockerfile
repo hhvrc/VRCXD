@@ -7,7 +7,10 @@ RUN dotnet restore API/API.csproj
 
 COPY --link API/. API/
 
-RUN dotnet publish --no-restore -c Release API/API.csproj -o /app
+# The release version (publish.yml passes the tag without its v); unset in master builds, which
+# keep the version in Directory.Build.props.
+ARG VERSION=
+RUN dotnet publish --no-restore -c Release API/API.csproj -o /app ${VERSION:+-p:Version=$VERSION}
 
 # final is the final runtime stage for running the app
 FROM mcr.microsoft.com/dotnet/aspnet:11.0.0-alpine3.24 AS final-api

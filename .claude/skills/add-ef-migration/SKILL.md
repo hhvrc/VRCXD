@@ -36,7 +36,7 @@ dotnet ef migrations add <PascalCaseName> --project Common --startup-project Mig
   `.Designer.cs` or `MigrationVrcxContextModelSnapshot.cs` by hand. Data fixes (backfills) may be
   added to `Up` with `migrationBuilder.Sql(...)`.
 - Keep the generated files as they are (class `_<timestamp>_<Name>`, CRLF).
-- Never edit or delete a migration that is already on `master`; add a new one.
+- Never edit or delete a migration that is already on `develop` or `master`; add a new one.
 
 ## 3. Check
 

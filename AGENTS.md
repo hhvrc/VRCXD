@@ -158,7 +158,8 @@ Rejected. Never do these:
 
 ## Commits
 
-- Commit directly on `master`. Never create a branch.
+- Commit on `develop`. `master` only receives merges from `develop`; a merge that brings change
+  files cuts a release (see Releases). Never create other branches.
 - Commits are SSH-signed (`commit.gpgsign`). Do not pass `--no-gpg-sign`. If signing fails, stop
   and tell the owner.
 - Conventional commits: `type(scope): summary`, lower case, imperative, no full stop. Types in use:
@@ -171,6 +172,23 @@ Rejected. Never do these:
   `Brings the changes from vrcx-team/VRCX <from>..<to> into the ...`, then a `Ported:` list and a
   `Not applicable to the port:` list, one line per upstream commit with its hash and why.
 - Commit only when asked.
+
+## Releases
+
+- Releases are made by OpenShock's release-tool (`.github/workflows/release.yml`) from change files
+  in `.changes/` (format in `.changes/README.md`). A change users would notice (server, client or
+  agent behaviour) gets one, in the same commit: a `.md` file with `kind:` frontmatter and an
+  imperative one-line title. `chore` changes stay out of the release notes. Docs, CI, `legacy/`
+  and `.claude/` never need one (`ignore_paths` in `.changes/config.json`).
+- `release-tool new "<title>" --kind fixed` writes one; it needs a terminal, so outside one write
+  the file by hand. `release-tool status` prints the coming version.
+- On `develop` the workflow only computes the coming version. On `master` it writes the version
+  into `client/package.json` and `CHANGELOG.md`, moves the change files to `.changes/released/`,
+  and tags `vrcxd-v<version>`. `publish.yml` then pushes the API and web images tagged with the
+  version and attaches the agent binaries to the GitHub release. Tags use the `vrcxd-v` prefix
+  because clones with the `vrcx` remote have upstream's `v<date>` tags, which release-tool would
+  read as versions.
+- Do not edit `CHANGELOG.md`, `.changes/released/` or the version in `client/package.json` by hand.
 
 ## Safety
 

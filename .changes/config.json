@@ -1,0 +1,29 @@
+{
+  "tag_prefix": "vrcxd-v",
+  "branches": {
+    "master": {
+      "release": "stable"
+    },
+    "develop": {
+      "release": "none",
+      "label": "develop",
+      "sha": true
+    }
+  },
+  "version_files": [
+    {
+      "path": "client/package.json",
+      "json_key": "version"
+    }
+  ],
+  "maintainers": [
+    "hhvrc"
+  ],
+  "ignore_paths": [
+    "legacy/**",
+    "docs/**",
+    "**/*.md",
+    ".github/**",
+    ".claude/**"
+  ]
+}

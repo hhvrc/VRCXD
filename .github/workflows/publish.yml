@@ -1,0 +1,152 @@
+# Publishes a release tag: pushes the API and web images tagged with the version, builds the agent
+# for Windows and Linux and attaches it to the tag's GitHub release, then publishes that release.
+# Runs on any vrcxd-v* tag (the prefix keeps clear of upstream VRCX's v<date> tags), whether
+# release.yml made it (it dispatches this) or it was pushed by hand.
+# The server and the agent get the version at build time; client/package.json carries it in the tag.
+name: publish
+
+on:
+  push:
+    tags: ['vrcxd-v*']
+  workflow_dispatch: # release.yml dispatches this on the tag it pushed
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  TAG: ${{ github.ref_name }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      minor: ${{ steps.version.outputs.minor }}
+    steps:
+      - name: Require a release tag
+        if: github.ref_type != 'tag' || !startsWith(github.ref_name, 'vrcxd-v')
+        run: |
+          echo "::error::publish runs on a vrcxd-v<version> tag, not on ${GITHUB_REF}."
+          exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: version
+        run: |
+          version="${TAG#vrcxd-v}"
+          if [ "$(jq -r .version client/package.json)" != "$version" ]; then
+            echo "::error::client/package.json at ${TAG} is not ${version}; release tags are made by release.yml."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "minor=$(cut -d. -f1-2 <<< "$version")" >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: pgvrcx-api
+            context: server
+            file: server/docker/API.Dockerfile
+          - name: pgvrcx-web
+            context: .
+            file: client/Dockerfile
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: |
+            type=raw,value=${{ needs.check.outputs.version }}
+            type=raw,value=${{ needs.check.outputs.minor }}
+            type=raw,value=stable
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.file }}
+          build-args: VERSION=${{ needs.check.outputs.version }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  agent:
+    needs: check
+    timeout-minutes: 30
+    permissions:
+      contents: write # attach the binaries to the release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            binary: vrcxd-agent.exe
+            asset: windows-x64.exe
+          - os: ubuntu-latest
+            binary: vrcxd-agent
+            asset: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: rustup update stable && rustup default stable
+      # The agent reports CARGO_PKG_VERSION to the server. Only the root package's version changes,
+      # so the lockfile's dependencies stay as they are.
+      - name: Set the version
+        working-directory: agent
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          sed -i.bak "0,/^version = \".*\"/s//version = \"${VERSION}\"/" Cargo.toml && rm Cargo.toml.bak
+          cargo update --workspace --offline
+      - name: Build
+        working-directory: agent
+        run: cargo build --release --locked
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.check.outputs.version }}
+        run: |
+          asset="vrcxd-agent-${VERSION}-${{ matrix.asset }}"
+          cp "agent/target/release/${{ matrix.binary }}" "$asset"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            # A tag pushed by hand has no staged release; the other matrix job may create it first.
+            gh release create "$TAG" --title "$TAG" --generate-notes --draft --verify-tag || true
+          fi
+          gh release upload "$TAG" "$asset" --clobber
+
+  release:
+    needs: [images, agent]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit "$TAG" --draft=false --latest
