@@ -43,7 +43,9 @@ is where its code lives.
 - Friends is the moved feature to copy: `Common/Features/Friends/` (`FriendQueries`,
   `FriendActions` for what goes to VRChat, `FriendWriter`, `FriendsTopic`) and
   `API/Controller/Friends/FriendsController.cs`. GameLog, Memos, Feed, Notifications,
-  Moderation and Favorites have moved the same way. `Features/Accounts/AccountQueries` answers a feature
+  Moderation, Favorites, Charts, UserActivity, QuickSearch and the avatar history (in `Avatars`)
+  have moved the same way. What is left in `API/Controller/Accounts/` is mostly the VRChat proxy
+  endpoints, which stay, plus login, the agent and desktop endpoints, settings and the sidebar. `Features/Accounts/AccountQueries` answers a feature
   controller's "is this account logged in", `Features/Accounts/AccountSessionRunner` runs an
   actions class's VRChat calls with the account's session and maps the failures to problems, and
   `Features/Locations/LocationQueries` names location tags for the MCP tools.
