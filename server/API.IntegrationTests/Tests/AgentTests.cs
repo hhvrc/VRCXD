@@ -199,6 +199,23 @@ public sealed class CrashRelaunchTests
         await Assert.That(async () => await pc.NextActionAsync(TimeSpan.FromSeconds(1))).Throws<TimeoutException>();
     }
 
+    // A crash relaunch started VRChat in profile 0 whatever profile the crashed game ran in, so it
+    // could rejoin on another account. The relaunch is marked as one, and the agent starts it in the
+    // --profile it read from the crashed game's process (agent/src/game.rs); the server still sends
+    // no arguments. A launch from the web client is not marked (DesktopActionTests).
+    [Test, Regressions.Issue(645), Regressions.Pr(1953)]
+    public async Task Issue_645_a_crash_relaunch_asks_the_agent_for_the_crashed_games_profile()
+    {
+        var (app, pc) = await PlayingAsync("pc-crash-profile", relaunch: true);
+        await using var _ = app;
+        await pc.GameStateAsync(running: false, steamVrRunning: true, closedGracefully: false);
+
+        var launch = (await pc.NextActionAsync()).LaunchVrchat;
+        await Assert.That(launch.AfterCrash).IsTrue();
+        await Assert.That(launch.LaunchUrl).IsEqualTo($"vrchat://launch?ref=vrcx.app&id={Here}");
+        await Assert.That(launch.AllowSecondInstance).IsFalse();
+    }
+
     [Test]
     public async Task A_desktop_mode_crash_relaunches_in_desktop_mode_without_SteamVR()
     {

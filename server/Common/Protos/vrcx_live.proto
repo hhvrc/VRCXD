@@ -346,6 +346,10 @@ message LaunchVrchat {
     string launch_url = 1;
     bool desktop_mode = 2;
     bool allow_second_instance = 3;
+    // A relaunch after VRChat crashed on this PC. The agent starts it in the VRChat profile
+    // (--profile) the crashed game was started with, which it read from that game's process, so
+    // the relaunch does not open another account. Still only a flag: the server sends no arguments.
+    bool after_crash = 4;
 }
 
 // Writes one packet to every program connected to this PC's VRCX named pipe (the original's

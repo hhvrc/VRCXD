@@ -97,6 +97,60 @@ mod imp {
         }
     }
 
+    /// The arguments a process was started with, its executable first. Reads the command line
+    /// with NtQueryInformationProcess, which needs only PROCESS_QUERY_LIMITED_INFORMATION and so
+    /// works on the anti-cheat protected VRChat, and splits it as Windows programs do.
+    pub fn process_arguments(pid: u32) -> Option<Vec<String>> {
+        use windows_sys::Wdk::System::Threading::{NtQueryInformationProcess, ProcessCommandLineInformation};
+        use windows_sys::Win32::Foundation::{LocalFree, UNICODE_STRING};
+        use windows_sys::Win32::System::Threading::PROCESS_QUERY_LIMITED_INFORMATION;
+        use windows_sys::Win32::UI::Shell::CommandLineToArgvW;
+        // SAFETY: the handle is checked and closed; the buffer is as large as the first call
+        // said and aligned for the UNICODE_STRING it starts with; argv is freed with LocalFree.
+        unsafe {
+            let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if process.is_null() {
+                return None;
+            }
+            let mut len = 0u32;
+            NtQueryInformationProcess(process, ProcessCommandLineInformation, std::ptr::null_mut(), 0, &mut len);
+            let mut line = None;
+            if len as usize >= size_of::<UNICODE_STRING>() {
+                let mut buffer = vec![0u64; (len as usize).div_ceil(8)];
+                if NtQueryInformationProcess(
+                    process,
+                    ProcessCommandLineInformation,
+                    buffer.as_mut_ptr().cast(),
+                    len,
+                    &mut len,
+                ) == 0
+                {
+                    let text = &*buffer.as_ptr().cast::<UNICODE_STRING>();
+                    if !text.Buffer.is_null() && text.Length > 0 {
+                        let chars = std::slice::from_raw_parts(text.Buffer, usize::from(text.Length) / 2);
+                        line = Some(chars.iter().copied().chain(Some(0)).collect::<Vec<u16>>());
+                    }
+                }
+            }
+            CloseHandle(process);
+            let line = line?;
+            let mut count = 0i32;
+            let argv = CommandLineToArgvW(line.as_ptr(), &mut count);
+            if argv.is_null() {
+                return None;
+            }
+            let args = (0..usize::try_from(count).unwrap_or(0))
+                .map(|i| {
+                    let arg = *argv.add(i);
+                    let n = (0..).take_while(|&j| *arg.add(j) != 0).count();
+                    String::from_utf16_lossy(std::slice::from_raw_parts(arg, n))
+                })
+                .collect();
+            LocalFree(argv.cast());
+            Some(args)
+        }
+    }
+
     /// Blocks until the process ends (at once when it is already gone). No polling.
     /// Waits for the process to end, at most `timeout`; whether it ended (or was not there).
     pub fn wait_for_exit(pid: u32, timeout: std::time::Duration) -> bool {
@@ -351,6 +405,18 @@ mod imp {
     pub fn terminate(pid: u32) -> io::Result<()> {
         let status = Command::new("kill").arg("-TERM").arg(pid.to_string()).status()?;
         if status.success() { Ok(()) } else { Err(io::Error::other(format!("kill exited with {status}"))) }
+    }
+
+    /// The arguments a process was started with (`/proc/<pid>/cmdline`; under Proton, the game's
+    /// Windows command line), its executable first.
+    pub fn process_arguments(pid: u32) -> Option<Vec<String>> {
+        let bytes = std::fs::read(format!("/proc/{pid}/cmdline")).ok()?;
+        let args: Vec<String> = bytes
+            .split(|&b| b == 0)
+            .filter(|a| !a.is_empty())
+            .map(|a| String::from_utf8_lossy(a).into_owned())
+            .collect();
+        (!args.is_empty()).then_some(args)
     }
 
     /// Waits for the process to end, checking every five seconds.

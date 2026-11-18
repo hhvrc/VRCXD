@@ -82,7 +82,8 @@ public sealed class CrashRelaunch(
         bus.Publish(LiveEvents.GameLog(accountId, location, ["event"]));
         await desktops.PostAsync(clientId, new ClientAction
         {
-            LaunchVrchat = new LaunchVrchat { LaunchUrl = $"vrchat://launch?ref=vrcx.app&id={location}", DesktopMode = noVr },
+            // AfterCrash: the agent starts it in the VRChat profile the crashed game had (upstream #645).
+            LaunchVrchat = new LaunchVrchat { LaunchUrl = $"vrchat://launch?ref=vrcx.app&id={location}", DesktopMode = noVr, AfterCrash = true },
         }, ct);
     }
 }

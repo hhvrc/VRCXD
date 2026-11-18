@@ -7,7 +7,8 @@ A small headless program for the gaming PC. It has no window: the web client is 
 - Tells the server whether VRChat runs, so the web client can offer to start it.
 - Carries out what the web client asks of this PC: start VRChat, hand it an instance, end a hung
   copy, and write screenshot metadata (rename with the world id, the VRCX `Description` chunk,
-  copy to the clipboard).
+  copy to the clipboard). A relaunch after a crash starts the game in the VRChat profile
+  (`--profile`) the crashed game was started with, read from that game's process.
 - Runs the original VRCX's named pipe for other programs (the Photon logger, external notifiers,
   tagging tools), as `docs/desktop-ipc.md` describes, and relays what they send to the server.
 - Opens `vrcx://` links in the web client's `/launch` page.

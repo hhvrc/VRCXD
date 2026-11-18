@@ -62,14 +62,74 @@ pub fn split_command(command: &str) -> Vec<String> {
     args
 }
 
-/// launch.exe's arguments, in the original's order.
-pub fn game_arguments(url: &str, launch_arguments: &str, desktop_mode: bool) -> Vec<String> {
+/// launch.exe's arguments, in the original's order. `profile` is set for a relaunch after a crash:
+/// the VRChat profile the crashed game ran in (`Some(None)`: it had none, so profile 0), which
+/// replaces any `--profile` in the PC's launch arguments (upstream #645).
+pub fn game_arguments(
+    url: &str,
+    launch_arguments: &str,
+    desktop_mode: bool,
+    profile: Option<Option<u32>>,
+) -> Vec<String> {
     let mut args = vec![url.to_owned()];
-    args.extend(split_command(launch_arguments));
+    let configured = split_command(launch_arguments);
+    match profile {
+        None => args.extend(configured),
+        Some(profile) => {
+            args.extend(configured.into_iter().filter(|a| !is_profile_argument(a)));
+            args.extend(profile.map(|p| format!("--profile={p}")));
+        }
+    }
     if desktop_mode {
         args.push("--no-vr".into());
     }
     args
+}
+
+fn is_profile_argument(arg: &str) -> bool {
+    arg == "--profile" || arg.starts_with("--profile=")
+}
+
+/// The VRChat profile in a game process's arguments (`--profile=N`, VRChat's default being 0).
+/// Only a number is taken, so nothing else of the command line is ever passed on.
+pub fn profile_in(args: &[String]) -> Option<u32> {
+    args.iter().rev().find_map(|a| a.strip_prefix("--profile=")).and_then(|n| n.parse().ok())
+}
+
+/// What the agent knows of the profiles the game ran in: read from the process when it is first
+/// seen, and handed on once it exits, so a second VRChat (`--allowMultiple`) seen afterwards does
+/// not replace the crashed one's. The game's command line, not its log: worlds can write into
+/// the log, only whoever starts the process sets its arguments (upstream PR #1953).
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub struct Profiles {
+    /// The running game's process and its profile (`None` when its arguments could not be read).
+    running: Option<(u32, Option<Option<u32>>)>,
+    /// The profile of the game that exited last; `None` when not known.
+    exited: Option<Option<u32>>,
+}
+
+impl Profiles {
+    /// The game process now watched (`None`: no game runs), and a way to read a process's arguments.
+    pub fn observe(&mut self, pid: Option<u32>, arguments: impl FnOnce(u32) -> Option<Vec<String>>) {
+        if self.running.map(|(p, _)| p) == pid {
+            return;
+        }
+        if let Some((_, profile)) = self.running.take() {
+            self.exited = profile;
+        }
+        self.running = pid.map(|pid| (pid, arguments(pid).map(|args| profile_in(&args))));
+    }
+
+    /// The profile a relaunch after a crash uses.
+    pub fn after_crash(&self) -> Option<Option<u32>> {
+        self.exited
+    }
+}
+
+static PROFILES: std::sync::Mutex<Profiles> = std::sync::Mutex::new(Profiles { running: None, exited: None });
+
+fn profiles() -> std::sync::MutexGuard<'static, Profiles> {
+    PROFILES.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
 /// The launch.exe a custom path means (the folder or the exe itself), if it exists.
@@ -112,8 +172,8 @@ fn start_process(program: &Path, args: &[String]) -> bool {
     }
 }
 
-pub fn start(url: &str, config: &Config, desktop_mode: bool) -> StartResult {
-    let args = game_arguments(url, &config.launch_arguments, desktop_mode);
+pub fn start(url: &str, config: &Config, desktop_mode: bool, profile: Option<Option<u32>>) -> StartResult {
+    let args = game_arguments(url, &config.launch_arguments, desktop_mode, profile);
     if !config.vrc_launch_path_override.trim().is_empty() {
         return match launch_exe_from_path(config.vrc_launch_path_override.trim()) {
             None => StartResult::InvalidOverride,
@@ -205,7 +265,8 @@ pub async fn launch(launch: &LaunchVrchat, config: &Config) -> Answer {
         return Answer::status(ActionStatus::GameRunning, "");
     }
     let (url, config, desktop) = (launch.launch_url.clone(), config.clone(), launch.desktop_mode);
-    match tokio::task::spawn_blocking(move || start(&url, &config, desktop)).await {
+    let profile = if launch.after_crash { profiles().after_crash() } else { None };
+    match tokio::task::spawn_blocking(move || start(&url, &config, desktop, profile)).await {
         Ok(StartResult::Started) => Answer::ok(),
         Ok(StartResult::NotFound) => {
             Answer::failed("VRChat was not found; set its folder with `vrcxd-agent setup --vrchat-path <folder>`")
@@ -238,7 +299,10 @@ const STEAMVR_PROCESS: &str = "vrserver";
 pub async fn watch(tx: std::sync::Arc<watch::Sender<GameStatus>>) {
     loop {
         let (game, steamvr) = tokio::task::spawn_blocking(|| {
-            (platform::processes_named(GAME_PROCESS), !platform::processes_named(STEAMVR_PROCESS).is_empty())
+            let game = platform::processes_named(GAME_PROCESS);
+            // Before the state goes out: a crash relaunch follows it.
+            profiles().observe(game.first().copied(), platform::process_arguments);
+            (game, !platform::processes_named(STEAMVR_PROCESS).is_empty())
         })
         .await
         .unwrap_or_default();
@@ -284,8 +348,61 @@ mod tests {
     #[test]
     fn arguments_follow_the_original_order() {
         let url = "vrchat://launch?ref=vrcx.app&id=a";
-        assert_eq!(game_arguments(url, "", false), vec![url]);
-        assert_eq!(game_arguments(url, "--fps=144 \"--a b\"", true), vec![url, "--fps=144", "--a b", "--no-vr"]);
+        assert_eq!(game_arguments(url, "", false, None), vec![url]);
+        assert_eq!(game_arguments(url, "--fps=144 \"--a b\"", true, None), vec![url, "--fps=144", "--a b", "--no-vr"]);
+    }
+
+    #[test]
+    fn upstream_645_a_relaunch_after_a_crash_keeps_the_crashed_games_profile() {
+        let url = "vrchat://launch?ref=vrcx.app&id=a";
+        // The crashed game ran in profile 2; the PC's own arguments name profile 1.
+        assert_eq!(
+            game_arguments(url, "--fps=144 --profile=1", true, Some(Some(2))),
+            vec![url, "--fps=144", "--profile=2", "--no-vr"]
+        );
+        // It ran with none (profile 0): none is added, and the PC's is left out.
+        assert_eq!(game_arguments(url, "--profile=1 --fps=144", false, Some(None)), vec![url, "--fps=144"]);
+        // Not known: the PC's arguments as they are.
+        assert_eq!(game_arguments(url, "--profile=1", false, None), vec![url, "--profile=1"]);
+    }
+
+    #[test]
+    fn upstream_645_the_profile_is_only_a_number_from_the_process_arguments() {
+        let args = |a: &[&str]| a.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>();
+        assert_eq!(profile_in(&args(&["VRChat.exe", "vrchat://launch?id=x", "--profile=3", "--no-vr"])), Some(3));
+        assert_eq!(profile_in(&args(&["VRChat.exe", "--no-vr"])), None);
+        assert_eq!(profile_in(&args(&["VRChat.exe", "--profile=1 --evil"])), None);
+        assert_eq!(profile_in(&args(&["VRChat.exe", "--profile=-1"])), None);
+    }
+
+    #[test]
+    fn upstream_645_the_crashed_games_profile_is_kept_until_another_game_exits() {
+        let read = |profile: &'static str| move |_| Some(vec!["VRChat.exe".to_owned(), profile.to_owned()]);
+        let mut profiles = Profiles::default();
+        assert_eq!(profiles.after_crash(), None);
+        profiles.observe(Some(10), read("--profile=2"));
+        // Still running: nothing to relaunch with yet.
+        assert_eq!(profiles.after_crash(), None);
+        profiles.observe(Some(10), |_| panic!("read once per process"));
+        profiles.observe(None, |_| unreachable!());
+        assert_eq!(profiles.after_crash(), Some(Some(2)));
+
+        // A second VRChat starting does not replace it; its own exit does.
+        profiles.observe(Some(11), read("--fps=90"));
+        assert_eq!(profiles.after_crash(), Some(Some(2)));
+        profiles.observe(None, |_| unreachable!());
+        assert_eq!(profiles.after_crash(), Some(None));
+
+        // Arguments that could not be read: not known.
+        profiles.observe(Some(12), |_| None);
+        profiles.observe(None, |_| unreachable!());
+        assert_eq!(profiles.after_crash(), None);
+    }
+
+    #[test]
+    fn this_process_arguments_can_be_read() {
+        let args = platform::process_arguments(std::process::id()).expect("readable");
+        assert!(!args.is_empty());
     }
 
     #[test]

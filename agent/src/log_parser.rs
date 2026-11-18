@@ -81,6 +81,8 @@ fn clean_location(s: &str) -> String {
 }
 
 /// `Name (usr_xxx)` gives the display name and cleaned user id; with no ` (` the whole is the name.
+/// The search is ordinal, as the original's has been since upstream PR #1020: a culture-aware one
+/// skipped characters such as zero-width joiners and split some names in the wrong place.
 fn parse_user_info(info: &str) -> (String, String) {
     let Some(pos) = info.rfind(" (") else { return (info.to_owned(), String::new()) };
     let rest = &info[pos + 2..];
@@ -379,7 +381,10 @@ fn parse_openvr_init(msg: &str) -> Parsed {
 }
 
 fn parse_desktop_mode(msg: &str) -> Parsed {
-    if msg.starts_with("VR Disabled") {
+    // 2023.04.22 16:54:18 Log        -  VR Disabled
+    // 2026.11.10 20:17:43 Error      -  Initializing XR Failed. Check Editor or Player log for details.
+    // The second is VRChat started for VR with no headset, falling back to desktop (upstream PR #1953).
+    if msg.starts_with("VR Disabled") || msg.starts_with("Initializing XR Failed.") {
         return Parsed::Entry(Entry::DesktopMode(LogNoData {}));
     }
     NotMatched
@@ -642,6 +647,14 @@ mod tests {
     }
 
     #[test]
+    fn upstream_1020_names_with_zero_width_or_combining_characters_split_at_the_last_paren() {
+        for name in ["a\u{200d} (b", "Zoe\u{0301}\u{00ad}", "\u{05d1}\u{05d5}\u{05e8}\u{05e7}\u{05e1} (x)"] {
+            let (display_name, user_id) = parse_user_info(&format!("{name} (usr_1)"));
+            assert_eq!((display_name.as_str(), user_id.as_str()), (name, "usr_1"), "{name:?}");
+        }
+    }
+
+    #[test]
     fn video_plays() {
         let v = |u: &str, n: &str| Some(Entry::VideoPlay(LogVideoPlay { video_url: u.into(), display_name: n.into() }));
         assert_eq!(
@@ -760,6 +773,14 @@ mod tests {
             parse(&mut ctx, &set("Mic (NVIDIA Broadcast)")),
             Some(Entry::Event(LogText { text: "Audio device changed, mic set to 'Mic (NVIDIA Broadcast)'".into() }))
         );
+    }
+
+    #[test]
+    fn upstream_1953_xr_failing_to_start_is_desktop_mode() {
+        assert!(matches!(
+            one("2026.11.10 20:17:43 Error      -  Initializing XR Failed. Check Editor or Player log for details."),
+            Some(Entry::DesktopMode(_))
+        ));
     }
 
     #[test]

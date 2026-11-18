@@ -62,6 +62,8 @@ public sealed class DesktopActionTests
         await Assert.That(first.LaunchVrchat.LaunchUrl).IsEqualTo(Url);
         await Assert.That(first.LaunchVrchat.DesktopMode).IsTrue();
         await Assert.That(first.LaunchVrchat.AllowSecondInstance).IsFalse();
+        // Only a crash relaunch keeps the crashed game's profile (upstream #645).
+        await Assert.That(first.LaunchVrchat.AfterCrash).IsFalse();
         await SendAsync(socket, new ClientMessage { ActionResult = new ActionResult { RequestId = first.RequestId, Status = ActionStatus.GameRunning } });
         var refusedResponse = await refused;
         await Assert.That(refusedResponse.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
