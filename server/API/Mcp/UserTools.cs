@@ -5,7 +5,7 @@ using ModelContextProtocol.Server;
 using VRCX.Common.Features.Friends;
 using VRCX.Common.Features.Locations;
 using VRCX.Common.Services.Presence;
-using VRCX.Common.Services.Queries;
+using VRCX.Common.Features.Users;
 using VRCX.Common.VrcxDb;
 
 namespace VRCX.API.Mcp;
@@ -34,7 +34,7 @@ public sealed record McpUserChange(
 public sealed record McpUserHistory(string UserId, string DisplayName, IReadOnlyList<McpUserChange> Items, bool Truncated, DateTimeOffset? NextBefore);
 
 [McpServerToolType]
-public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPresenceCache presence, FriendQueries friends, UserQueries users, LocationQueries locations)
+public sealed class UserTools(McpAccountResolver accounts, IPresenceCache presence, FriendQueries friends, UserQueries users, LocationQueries locations)
 {
     private static readonly string[] HistoryKinds = ["displayName", "trust", "status", "bio", "avatar", "presence", "visit"];
 
@@ -56,54 +56,10 @@ public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPres
         var who = await accounts.ResolveAsync(account, cancellationToken);
         var text = query?.Trim() ?? "";
         if (text.Length == 0) throw new McpException("`query` must not be empty.");
-        limit = McpPaging.Limit(limit);
-        var like = $"%{EscapeLike(text)}%";
-        var friendIds = db.Friendships.Where(f => f.OwnerUserId == who.Id && f.EndedAt == null).Select(f => f.FriendUserId);
-
-        var friendRows = await db.Friendships.AsNoTracking()
-            .Where(f => f.OwnerUserId == who.Id && f.EndedAt == null)
-            .Select(f => new
-            {
-                f.Friend.Id, f.Friend.DisplayName, f.Friend.UpdatedAt,
-                Memo = db.UserMemos.Where(m => m.UserId == f.FriendUserId).Select(m => m.Memo).FirstOrDefault(),
-                Note = db.UserNotes.Where(n => n.OwnerUserId == who.Id && n.TargetUserId == f.FriendUserId).Select(n => n.Note).FirstOrDefault(),
-            })
-            .Where(f => f.Id == text || EF.Functions.ILike(f.DisplayName, like) || (f.Memo != null && EF.Functions.ILike(f.Memo, like)) || (f.Note != null && EF.Functions.ILike(f.Note, like)))
-            .ToListAsync(cancellationToken);
-        var others = await db.Users.AsNoTracking()
-            .Where(u => !friendIds.Contains(u.Id) && (u.Id == text || EF.Functions.ILike(u.DisplayName, like)))
-            .OrderByDescending(u => u.UpdatedAt).Take(500)
-            .Select(u => new { u.Id, u.DisplayName, u.UpdatedAt })
-            .ToListAsync(cancellationToken);
-        var renamed = await db.UserDisplayNameChanges.AsNoTracking()
-            .Where(c => EF.Functions.ILike(c.PreviousDisplayName, like))
-            .OrderByDescending(c => c.ChangedAt).Take(500)
-            .Select(c => new { c.UserId, c.User.DisplayName, c.User.UpdatedAt, c.PreviousDisplayName, IsFriend = friendIds.Contains(c.UserId) })
-            .ToListAsync(cancellationToken);
-
-        var candidates = new List<(McpUserCandidate Candidate, int Rank)>();
-        foreach (var f in friendRows)
-        {
-            var (rank, on) = NameRank(f.Id, f.DisplayName, text) is { } r ? r
-                : f.Memo is not null && f.Memo.Contains(text, StringComparison.OrdinalIgnoreCase) ? (3, "memo") : (4, "note");
-            candidates.Add((new McpUserCandidate(f.Id, f.DisplayName, true, on, f.UpdatedAt), rank));
-        }
-        foreach (var u in others)
-            if (NameRank(u.Id, u.DisplayName, text) is { } r) candidates.Add((new McpUserCandidate(u.Id, u.DisplayName, false, r.On, u.UpdatedAt), 10 + r.Rank));
-        foreach (var c in renamed.DistinctBy(c => c.UserId))
-            if (candidates.All(x => x.Candidate.UserId != c.UserId))
-                candidates.Add((new McpUserCandidate(c.UserId, c.DisplayName, c.IsFriend, $"previousName:{c.PreviousDisplayName}", c.UpdatedAt), c.IsFriend ? 5 : 15));
-
-        var ranked = candidates.OrderBy(c => c.Rank).ThenByDescending(c => c.Candidate.LastUpdatedAt).Select(c => c.Candidate).ToList();
-        return new McpUserCandidates(who, text, ranked.Take(limit).ToList(), ranked.Count > limit);
+        var found = await users.FindAsync(who.Id, text, McpPaging.Limit(limit), cancellationToken);
+        return new McpUserCandidates(who, text,
+            found.Candidates.Select(c => new McpUserCandidate(c.UserId, c.DisplayName, c.IsFriend, c.MatchedOn, c.LastUpdatedAt)).ToList(), found.Truncated);
     }
-
-    private static (int Rank, string On)? NameRank(string id, string name, string text) =>
-        id == text ? (0, "id")
-        : string.Equals(name, text, StringComparison.OrdinalIgnoreCase) ? (0, "name")
-        : name.StartsWith(text, StringComparison.OrdinalIgnoreCase) ? (1, "namePrefix")
-        : name.Contains(text, StringComparison.OrdinalIgnoreCase) ? (2, "nameContains")
-        : null;
 
     [McpServerTool(Name = "get_user", Title = "Get a user", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("""
@@ -122,24 +78,20 @@ public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPres
     {
         var id = McpLocations.RequireId(userId, "usr_", "userId", "Use find_user to turn a name into an id.");
         var who = await accounts.ResolveAsync(account, cancellationToken);
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == id, cancellationToken)
+        var stored = await users.StoredAsync(who.Id, id, cancellationToken)
             ?? throw new McpException($"This server has never seen {id}. Use find_user to search the stored users by name.");
+        var user = stored.User;
 
         var now = await presence.GetAsync(id, cancellationToken);
         var name = await McpLocations.NamerAsync(locations, [now.Location, now.TravelingToLocation], cancellationToken);
-        var memo = await db.UserMemos.AsNoTracking().Where(m => m.UserId == id).Select(m => m.Memo).FirstOrDefaultAsync(cancellationToken);
-        var note = await db.UserNotes.AsNoTracking().Where(n => n.OwnerUserId == who.Id && n.TargetUserId == id).Select(n => n.Note).FirstOrDefaultAsync(cancellationToken);
-        var friendship = await db.Friendships.AsNoTracking().Where(f => f.OwnerUserId == who.Id && f.FriendUserId == id && f.EndedAt == null)
-            .Select(f => new { f.FriendNumber, f.StartedAt }).FirstOrDefaultAsync(cancellationToken);
-        var moderations = await db.PlayerModerations.AsNoTracking().Where(m => m.OwnerUserId == who.Id && m.TargetUserId == id).Select(m => m.Type).ToListAsync(cancellationToken);
         var together = await friends.TimeTogetherAsync(who.Id, id, cancellationToken);
 
         return new McpUser(who, user.Id, user.DisplayName, user.Status, user.StatusDescription, user.TrustLevel, user.Pronouns,
             user.Bio, user.BioLinks, user.LastPlatform, user.LastLogin, user.LastActivity, user.DateJoined,
             user.AgeVerified, user.IsStub, user.FirstSeenAt, user.UpdatedAt, user.LastFullFetchAt,
             new McpPresence(McpLocations.State(now.State), name(now.Location), name(now.TravelingToLocation), now.StateSince ?? now.PresenceChangedAt, now.LocationSince, now.Platform),
-            string.IsNullOrEmpty(memo) ? null : memo,
-            new McpRelationship(friendship is not null, friendship?.FriendNumber, friendship?.StartedAt, together.FriendLog, moderations, string.IsNullOrEmpty(note) ? null : note),
+            string.IsNullOrEmpty(stored.Memo) ? null : stored.Memo,
+            new McpRelationship(stored.IsFriend, stored.FriendNumber, stored.FriendsSince, together.FriendLog, stored.Moderations, string.IsNullOrEmpty(stored.Note) ? null : stored.Note),
             new McpTimeTogether(together.JoinCount, together.TimeTogetherMs, together.LastSeen));
     }
 
@@ -161,7 +113,7 @@ public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPres
         CancellationToken cancellationToken = default)
     {
         var id = McpLocations.RequireId(userId, "usr_", "userId", "Use find_user to turn a name into an id.");
-        var displayName = await db.Users.AsNoTracking().Where(u => u.Id == id).Select(u => u.DisplayName).FirstOrDefaultAsync(cancellationToken)
+        var displayName = await users.DisplayNameAsync(id, cancellationToken)
             ?? throw new McpException($"This server has never seen {id}. Use find_user to search the stored users by name.");
         var wanted = (kinds ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (wanted.Count == 0) wanted = HistoryKinds.ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -189,6 +141,4 @@ public sealed class UserTools(McpAccountResolver accounts, VrcxContext db, IPres
         var truncated = ordered.Count > limit;
         return new McpUserHistory(id, displayName, page, truncated, truncated ? page[^1].At : null);
     }
-
-    private static string EscapeLike(string s) => s.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
 }

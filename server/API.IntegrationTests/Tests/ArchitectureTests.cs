@@ -26,19 +26,14 @@ public sealed class ArchitectureTests
     /// </summary>
     private static readonly string[] NotYetMoved =
     [
-        "AccountTools: IAccountSessionManager",
-        "AccountTools: VrcxContext",
         "AccountsController: IAccountSessionManager",
         "AccountsController: VrcxContext",
         "AvatarsController: IAccountSessionManager",
         "AvatarsController: VrcxContext",
-        "ContentTools: VrcxContext",
-        "DatabaseController: VrcxContext",
         "GroupsController: IAccountSessionManager",
         "GroupsController: VrcxContext",
         "InstancesController: IAccountSessionManager",
         "InstancesController: VrcxContext",
-        "UserTools: VrcxContext",
         "UsersController: IAccountSessionManager",
         "UsersController: VrcxContext",
         "WorldsController: IAccountSessionManager",

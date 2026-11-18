@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
-using VRCX.Common.Services.Queries;
+using VRCX.Common.Features.Users;
 using VRCX.Vrchat;
 
 namespace VRCX.API.Controller.Users;

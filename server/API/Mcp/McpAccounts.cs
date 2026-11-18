@@ -1,6 +1,5 @@
-using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol;
-using VRCX.Common.VrcxDb;
+using VRCX.Common.Features.Accounts;
 
 namespace VRCX.API.Mcp;
 
@@ -12,14 +11,11 @@ public sealed record McpAccount(string Id, string DisplayName);
 /// and an AI caller must never be answered from the wrong one: with no <c>account</c> argument the
 /// only account is used, and with several the call fails with the list so the caller can choose.
 /// </summary>
-public sealed class McpAccountResolver(VrcxContext db)
+public sealed class McpAccountResolver(AccountQueries accounts)
 {
     public async Task<McpAccount> ResolveAsync(string? account, CancellationToken cancellationToken)
     {
-        var all = await db.Accounts.AsNoTracking()
-            .OrderBy(a => a.User.DisplayName).ThenBy(a => a.UserId)
-            .Select(a => new McpAccount(a.UserId, a.User.DisplayName))
-            .ToListAsync(cancellationToken);
+        var all = (await accounts.ListAsync(cancellationToken)).Select(a => new McpAccount(a.UserId, a.DisplayName)).ToList();
         if (all.Count == 0)
             throw new McpException("No VRChat account has logged into this server yet, so there is nothing stored to answer from.");
 
