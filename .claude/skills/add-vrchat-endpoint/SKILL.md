@@ -1,14 +1,16 @@
 ---
 name: add-vrchat-endpoint
-description: Add a call to a VRChat API endpoint on the server, through VrchatApiClient and the shared rate limiter, with the FakeVrchatApi route and the request-budget tests. Use when the server needs a VRChat endpoint it does not call yet, or when a flow starts calling VRChat more often.
+description: Add a call to a VRChat API endpoint on the server, through VrchatApiClient and upstream's pacing, with the FakeVrchatApi route and the request-budget tests. Use when the server needs a VRChat endpoint it does not call yet, or when a flow starts calling VRChat more often.
 ---
 
 # Add a VRChat endpoint
 
-VRChat limits requests per IP. Every account on the server shares one budget
-(`VrchatRateLimiter.Shared`: 5 per second, 60 per minute, sliding windows; a 429 parks it for
-`Retry-After`). Each request spent on something stored data could answer is taken from the
-syncs and the pipeline.
+VRChat limits requests per IP, and every account on the server sends from one. Requests are paced
+exactly as upstream paces its own (`VrchatRatePolicy.Upstream`: the friend list's pages at 60 a
+minute, mutual friends' pages at 5 a second, everything else as it comes; a 429 with
+`Retry-After` pauses every account). A new endpoint is paced only if upstream paces its call to
+it, with upstream's numbers. A request spent on something stored data could answer is still one
+VRChat counts.
 
 ## 1. Do you need the call?
 
@@ -37,7 +39,7 @@ public Task<Thing?> GetThingAsync(string worldId, CancellationToken ct = default
 - Response models go in `server/Vrchat/Models/<Area>.cs`, shaped like VRChat's JSON (`VrchatJson`
   options). Only the fields the server uses.
 - Never create an `HttpClient` to VRChat anywhere else, and never pass
-  `VrchatRateLimiter.Unlimited` outside tests.
+  `VrchatRatePolicy.None` outside tests.
 
 ## 3. Use it
 

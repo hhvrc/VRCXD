@@ -33,7 +33,7 @@ public sealed class FakeVrchat : HttpMessageHandler
     }
 
     public VrchatApiClient Client(CookieContainer? cookies = null) =>
-        VrchatApiClient.Create(cookies, this, VrchatRateLimiter.Unlimited);
+        VrchatApiClient.Create(cookies, this, VrchatRatePolicy.None);
 
     protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {

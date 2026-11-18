@@ -74,11 +74,15 @@ many Postgres databases; run it once at the end, not in a loop.
 
 These are decided. Follow them; do not work around them.
 
-- **VRChat requests are scarce.** Every call goes through `VrchatApiClient` (`server/Vrchat/`)
-  and the one shared `VrchatRateLimiter` (5 per second, 60 per minute, per IP across all
-  accounts). Never make a second `HttpClient` to VRChat, never call VRChat in a loop per item
-  when a list endpoint or stored data answers, and pin new request patterns in
-  `VrchatRequestBudgetTests`.
+- **VRChat requests are scarce, and paced exactly as upstream paces them.** Every call goes
+  through `VrchatApiClient` (`server/Vrchat/`) and `VrchatRatePolicy.Upstream`, which holds the
+  server to what the original VRCX holds itself to, no stricter and no looser: the friend list's
+  pages at 60 a minute, a user's mutual friends' pages at 5 a second, and everything else sent as
+  it comes. A 403 or 404 on a GET is not asked again for 15 minutes, and an identical GET under
+  way is shared. VRChat's own `Retry-After` on a 429 pauses every account. Do not add a pace
+  upstream does not have, and do not drop one it has; when upstream changes its own, port it.
+  Never make a second `HttpClient` to VRChat, never call VRChat in a loop per item when a list
+  endpoint or stored data answers, and pin new request patterns in `VrchatRequestBudgetTests`.
 - **SQL round trips are bounded.** No query per item in loops over friends, groups or players.
   `QueryCountTests` pin the bounds with `app.Sql`; extend them when you add such a flow.
 - **REST and MCP share one query.** Anything both read lives in its feature's folder,

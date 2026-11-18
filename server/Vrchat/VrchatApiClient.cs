@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -21,26 +22,41 @@ public sealed class VrchatApiClient : IDisposable
     // VRChat's edge rejects requests (and websocket handshakes) with no User-Agent.
     public const string UserAgent = "VRCX.Server/2.0 (github.com/vrcx-team/VRCX)";
 
+    /// <summary>How long a GET VRChat answered with 403 or 404 is not sent again: the original's failedGetRequests, 15 minutes.</summary>
+    public static readonly TimeSpan FailedGetQuiet = TimeSpan.FromMinutes(15);
+
+    /// <summary>How long a GET still under way is shared with whoever asks for the same URL: the original's pendingGetRequests, 10 seconds.</summary>
+    public static readonly TimeSpan PendingGetShare = TimeSpan.FromSeconds(10);
+
     private readonly HttpClient _http;
+    private readonly TimeProvider _time;
+    // Both as the original's request layer keeps them (src/services/request.js): failed GETs by
+    // path without the query, GETs under way by the whole URL.
+    private readonly ConcurrentDictionary<string, (DateTimeOffset At, HttpStatusCode Status)> _failedGets = new();
+    private readonly ConcurrentDictionary<string, (DateTimeOffset At, Task<GetAnswer> Answer)> _pendingGets = new();
+
+    private sealed record GetAnswer(HttpStatusCode Status, byte[] Body);
+    private static readonly byte[] RefusedRecently = "{\"error\":{\"message\":\"VRChat refused this less than 15 minutes ago; it was not asked again\"}}"u8.ToArray();
 
     public CookieContainer Cookies { get; }
 
     /// <summary>The API and pipeline this client talks to.</summary>
     public VrchatEndpoint Endpoint { get; }
 
-    public VrchatApiClient(HttpClient http, CookieContainer cookies, VrchatEndpoint? endpoint = null)
+    public VrchatApiClient(HttpClient http, CookieContainer cookies, VrchatEndpoint? endpoint = null, TimeProvider? time = null)
     {
         _http = http;
+        _time = time ?? TimeProvider.System;
         Cookies = cookies;
         Endpoint = endpoint ?? VrchatEndpoint.Default;
     }
 
     /// <summary>
-    /// A client with its own cookie jar, sharing the process-wide VRChat rate limit
-    /// (<see cref="VrchatRateLimiter.Shared"/> unless told otherwise). Pass an inner handler to fake
-    /// VRChat in tests, and <see cref="VrchatRateLimiter.Unlimited"/> to skip the limiter there.
+    /// A client with its own cookie jar, pacing its requests as the original does
+    /// (<see cref="VrchatRatePolicy.Upstream"/> unless told otherwise). Pass an inner handler to fake
+    /// VRChat in tests, and <see cref="VrchatRatePolicy.None"/> to skip the pacing there.
     /// </summary>
-    public static VrchatApiClient Create(CookieContainer? cookies = null, HttpMessageHandler? inner = null, VrchatRateLimiter? rateLimiter = null, VrchatEndpoint? endpoint = null)
+    public static VrchatApiClient Create(CookieContainer? cookies = null, HttpMessageHandler? inner = null, VrchatRatePolicy? rates = null, VrchatEndpoint? endpoint = null, TimeProvider? time = null)
     {
         cookies ??= new CookieContainer();
         inner ??= new SocketsHttpHandler
@@ -50,10 +66,10 @@ public sealed class VrchatApiClient : IDisposable
             AutomaticDecompression = DecompressionMethods.All,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10),
         };
-        var http = new HttpClient(new VrchatThrottlingHandler(inner, rateLimiter ?? VrchatRateLimiter.Shared)) { BaseAddress = (endpoint ?? VrchatEndpoint.Default).Api };
+        var http = new HttpClient(new VrchatThrottlingHandler(inner, rates ?? VrchatRatePolicy.Upstream)) { BaseAddress = (endpoint ?? VrchatEndpoint.Default).Api };
         http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        return new VrchatApiClient(http, cookies, endpoint);
+        return new VrchatApiClient(http, cookies, endpoint, time);
     }
 
     public void Dispose() => _http.Dispose();
@@ -1136,17 +1152,68 @@ public sealed class VrchatApiClient : IDisposable
 
     private async Task<T> GetRequiredAsync<T>(string path, CancellationToken ct)
     {
-        using var response = await _http.GetAsync(path, ct);
-        await EnsureSuccessAsync(response, "GET", path, ct);
-        return await ReadAsync<T>(response, ct);
+        var answer = await GetAsync(path, ct);
+        EnsureSuccess(answer, path);
+        return Read<T>(answer.Body);
     }
 
     private async Task<T?> GetOrNullAsync<T>(string path, CancellationToken ct) where T : class
     {
-        using var response = await _http.GetAsync(path, ct);
-        if (response.StatusCode == HttpStatusCode.NotFound) return null;
-        await EnsureSuccessAsync(response, "GET", path, ct);
-        return await ReadAsync<T>(response, ct);
+        var answer = await GetAsync(path, ct);
+        if (answer.Status == HttpStatusCode.NotFound) return null;
+        EnsureSuccess(answer, path);
+        return Read<T>(answer.Body);
+    }
+
+    /// <summary>
+    /// One GET, with the two rules the original's request layer has for them
+    /// (src/services/request.js). A path VRChat answered with 403 or 404 is not asked again for
+    /// 15 minutes: the answer it gave stands, and no request is sent ("don't retry recent
+    /// 404/403"; auth/user is exempt there too). And a GET for a URL that is already under way is
+    /// that same request, for as long as it is younger than 10 seconds ("merge requests").
+    /// </summary>
+    private async Task<GetAnswer> GetAsync(string path, CancellationToken ct)
+    {
+        var endpoint = path.Split('?')[0];
+        var now = _time.GetUtcNow();
+        if (_failedGets.TryGetValue(endpoint, out var failed))
+        {
+            // The answer VRChat gave stands: a caller that takes "no such thing" for an answer still gets it.
+            if (now - failed.At < FailedGetQuiet) return new GetAnswer(failed.Status, RefusedRecently);
+            _failedGets.TryRemove(endpoint, out _);
+        }
+
+        if (!_pendingGets.TryGetValue(path, out var pending) || pending.Answer.IsCompleted || now - pending.At >= PendingGetShare)
+        {
+            // Not the caller's token: the others sharing this request must not lose it when one of them gives up.
+            pending = (now, SendGetAsync(path));
+            _pendingGets[path] = pending;
+            var mine = pending.Answer;
+            _ = mine.ContinueWith(_ => _pendingGets.TryRemove(new KeyValuePair<string, (DateTimeOffset, Task<GetAnswer>)>(path, (now, mine))), TaskScheduler.Default);
+        }
+        var answer = await pending.Answer.WaitAsync(ct);
+        if (answer.Status is HttpStatusCode.NotFound or HttpStatusCode.Forbidden && !endpoint.StartsWith("auth/user", StringComparison.Ordinal))
+            _failedGets[endpoint] = (_time.GetUtcNow(), answer.Status);
+        return answer;
+    }
+
+    private async Task<GetAnswer> SendGetAsync(string path)
+    {
+        using var response = await _http.GetAsync(path, CancellationToken.None);
+        return new GetAnswer(response.StatusCode, await response.Content.ReadAsByteArrayAsync(CancellationToken.None));
+    }
+
+    private static T Read<T>(byte[] body) =>
+        VrchatJson.Deserialize<T>(body) ?? throw new JsonException($"VRChat returned a null body for {typeof(T).Name}");
+
+    private static void EnsureSuccess(GetAnswer answer, string path)
+    {
+        if ((int)answer.Status is >= 200 and < 300) return;
+        var message = ErrorMessage(Encoding.UTF8.GetString(answer.Body));
+        var cleanPath = path.Split('?')[0];
+        throw answer.Status == HttpStatusCode.Unauthorized
+            ? new VrchatUnauthorizedException("GET", cleanPath, message)
+            : new VrchatApiException(answer.Status, "GET", cleanPath, message);
     }
 
     private async Task<T> SendJsonAsync<T>(HttpMethod method, string path, object? body, CancellationToken ct)
@@ -1184,10 +1251,14 @@ public sealed class VrchatApiClient : IDisposable
 
     private static async Task<string?> ReadErrorMessageAsync(HttpResponseMessage response, CancellationToken ct)
     {
+        return ErrorMessage(await response.Content.ReadAsStringAsync(ct));
+    }
+
+    private static string? ErrorMessage(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body)) return null;
         try
         {
-            var body = await response.Content.ReadAsStringAsync(ct);
-            if (string.IsNullOrWhiteSpace(body)) return null;
             return VrchatJson.Deserialize<ErrorEnvelope>(body)?.Error?.Message ?? body[..Math.Min(body.Length, 200)];
         }
         catch (JsonException)

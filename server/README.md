@@ -101,11 +101,15 @@ Table and column names are explicit snake_case in `VrcxContext`.
   the dashboard is at `/hangfire` behind the same API token.
 - `AccountSessionManager` owns one `VrchatApiClient` per account: login + 2FA, cookie
   persistence, resume at startup, and `session_valid = false` on a 401 instead of retrying.
-- Every client shares one `VrchatRateLimiter` (`VrchatRateLimiter.Shared`): VRChat limits per
-  IP, not per session, so the budget is process-wide across accounts. It holds the limits the
-  upstream VRCX client uses on itself - 5 requests/second burst, 60/minute sustained, sliding
-  windows - and a 429 parks the whole budget for VRChat's `Retry-After` before the retry. Only
-  `*.vrchat.cloud` / `*.vrchat.com` hosts count; tests pass `VrchatRateLimiter.Unlimited`.
+- Every client shares one `VrchatRatePolicy` (`VrchatRatePolicy.Upstream`), which paces requests
+  exactly as the upstream VRCX client paces its own: the friend list's pages at 60 a minute
+  (`bulkRefreshFriends`), a user's mutual friends' pages at 5 a second (`fetchMutualGraph`), each
+  retrying a 429 with upstream's backoff, and everything else sent as it comes with a 429 handed
+  back as the error. VRChat counts per IP, not per session, so each pace is process-wide across
+  accounts. The client also keeps upstream's two GET rules: a 403 or 404 is not asked again for
+  15 minutes, and an identical GET already under way is shared. One thing goes beyond upstream:
+  a 429 that carries `Retry-After` pauses every request from the server until it has passed, and
+  the refused request is sent again. Tests pass `VrchatRatePolicy.None`.
 
 ## Transport
 
@@ -164,7 +168,7 @@ claude mcp add --transport http vrcxd http://<server>:5280/1/mcp --header "Autho
 ```
 
 Version 1 is read-only plus memos: the tools read Postgres and Redis and never call VRChat (so
-they cannot spend the shared rate limit or change anything there); the only writes are VRCXD's
+they cannot send VRChat anything or change anything there); the only writes are VRCXD's
 own user, world and avatar memos. With several VRChat accounts logged in, account-scoped tools
 need an `account` argument (`list_accounts` names them) and fail rather than pick one. Lists are
 paged (50 rows by default, 200 at most). It is off by default because a client holding the

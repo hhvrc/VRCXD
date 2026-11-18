@@ -16,11 +16,11 @@ public interface IVrchatClientFactory
     VrchatApiClient Create(CookieContainer? cookies = null, VrchatEndpoint? endpoint = null);
 }
 
-/// <summary>Every client shares <see cref="VrchatRateLimiter.Shared"/>: VRChat limits per IP, so accounts must not each get a budget.</summary>
-public sealed class VrchatClientFactory : IVrchatClientFactory
+/// <summary>Every client shares <see cref="VrchatRatePolicy.Upstream"/>: VRChat counts per IP, so accounts must not each get a pace of their own.</summary>
+public sealed class VrchatClientFactory(TimeProvider time) : IVrchatClientFactory
 {
     public VrchatApiClient Create(CookieContainer? cookies = null, VrchatEndpoint? endpoint = null) =>
-        VrchatApiClient.Create(cookies, rateLimiter: VrchatRateLimiter.Shared, endpoint: endpoint);
+        VrchatApiClient.Create(cookies, rates: VrchatRatePolicy.Upstream, endpoint: endpoint, time: time);
 }
 
 /// <summary>

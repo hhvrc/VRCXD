@@ -403,7 +403,7 @@ public sealed class FakeVrchatApi : HttpMessageHandler, IVrchatClientFactory
     public VrchatApiClient Create(CookieContainer? cookies = null, VrchatEndpoint? endpoint = null)
     {
         lock (_gate) CreatedFor.Add(endpoint);
-        return VrchatApiClient.Create(cookies, new NonDisposingHandler(this), VrchatRateLimiter.Unlimited, endpoint);
+        return VrchatApiClient.Create(cookies, new NonDisposingHandler(this), VrchatRatePolicy.None, endpoint, Time);
     }
 
     /// <summary>The endpoint each client was made for, so tests can check a custom one was used.</summary>
