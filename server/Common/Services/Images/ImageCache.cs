@@ -164,7 +164,20 @@ public sealed class ImageCache(IDbContextFactory<VrcxContext> dbFactory, IImageF
 
             var path = PathFor(sha256);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.Move(temp, path, overwrite: true);
+            // Named by its content, so a file already there is this image. Identical images that
+            // finish downloading together would otherwise move onto each other, which Windows
+            // refuses while the other move is under way (Linux renames over it).
+            if (!File.Exists(path))
+            {
+                try
+                {
+                    File.Move(temp, path, overwrite: true);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && File.Exists(path))
+                {
+                    // The other download put it there first.
+                }
+            }
 
             await using var db = await dbFactory.CreateDbContextAsync();
             var now = DateTimeOffset.UtcNow;
