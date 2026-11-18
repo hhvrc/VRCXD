@@ -11,7 +11,7 @@ changing before you change it.
 | A VRChat call | `Vrchat/VrchatApiClient.cs`, models in `Vrchat/Models/` (skill `add-vrchat-endpoint`) |
 | Storing what VRChat returned | `Common/Services/Ingestion/VrchatStore.cs`, the only writer of VRChat data. Its methods take the caller's `VrcxContext` and do not save |
 | A read that REST and MCP share | `Common/Services/Queries/`, or `Common/Features/<Feature>/` for a moved feature; registered scoped in `Common/VrcxServiceHelper.cs` |
-| An endpoint | `API/Controller/<Area>/<Name>.cs`, one file per endpoint, a `partial` of the area's controller, `[MapToApiVersion("1")]` |
+| An endpoint | `API/Controller/<Area>/`, in the area's controller (a `partial` class when it spans files), `[MapToApiVersion("1")]`. It takes feature classes, never the database or a session |
 | An API error | `Common/Errors/Errors.cs`: one static class per domain, stable `Domain.Reason` type strings |
 | A recurring job | `API/Jobs/`, found by `[CronJob]` |
 | A live event | today `ILiveEventBus.Publish` after the commit, and a case in `vrcx_live.proto`. New live data is meant to be a topic (skill `add-live-topic`) |
@@ -41,18 +41,18 @@ is where its code lives.
   publish nothing, so pages go stale.
 - The topic's snapshot builder is the code that serves the REST GET and the MCP read. Do not
   write a second query for one of them.
-- `API.IntegrationTests/Tests/ArchitectureTests.cs` is the ratchet: it lists the controllers and
-  MCP tools that still take one of those three, and fails on a new one or on a line that no longer
-  applies. The list may only shrink.
+- `API.IntegrationTests/Tests/ArchitectureTests.cs` is the ratchet: it fails when a controller or
+  MCP tool takes one of those three. Its allow-list of older violations is empty and stays empty.
 - Friends is the moved feature to copy: `Common/Features/Friends/` (`FriendQueries`,
   `FriendActions` for what goes to VRChat, `FriendWriter`, `FriendsTopic`) and
   `API/Controller/Friends/FriendsController.cs`. GameLog, Memos, Feed, Notifications,
   Moderation, Favorites, Charts, UserActivity, QuickSearch and the avatar history (in `Avatars`)
   have moved the same way, and so have the get-by-id controllers (users, worlds, avatars, groups,
-  instances) and the account's group endpoints. What is left in `API/Controller/Accounts/` is the
-  rest of the forwarding endpoints (worlds, avatars, instances, search, tools, profile), which move
-  to forwarding controllers of their own, plus login, the agent and desktop endpoints, settings
-  and the sidebar. `Features/Accounts/AccountQueries` answers a feature
+  instances). `API/Controller/Accounts/` holds only the account list, login and saved logins,
+  done by `Features/Accounts/AccountLogin`. What an account does with VRChat lives in a
+  forwarding controller per area (`Groups`, `Worlds`, `Avatars`, `Instances`, `Search`, `Tools`,
+  `Profile`, `Users`, `Desktop`, `Settings`), each with the feature classes for what it stores.
+  `Features/Accounts/AccountQueries` answers a feature
   controller's "is this account logged in", `Features/Accounts/AccountSessionRunner` runs an
   actions class's VRChat calls with the account's session and maps the failures to problems, and
   `Features/Locations/LocationQueries` names location tags for the MCP tools.

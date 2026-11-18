@@ -12,22 +12,20 @@ namespace VRCX.API.IntegrationTests.Tests;
 /// <summary>
 /// The ratchet for the target architecture (AGENTS.md): controllers and MCP tools call
 /// Common/Features and do not take the database, a VRChat client or the session manager
-/// themselves. What did so before its feature moved is listed in <see cref="NotYetMoved"/>; the
-/// list may only shrink, and nothing new may join it.
+/// themselves. Everything that did so has moved, so <see cref="NotYetMoved"/> is empty and stays
+/// that way: nothing may join it.
 /// </summary>
 public sealed class ArchitectureTests
 {
     private static readonly Type[] Banned = [typeof(VrcxContext), typeof(VrchatApiClient), typeof(IAccountSessionManager)];
 
     /// <summary>
-    /// Today's violations, as "Type: what it takes". Remove a line when its feature moves. Never add
-    /// one to make a change pass: move the code into the feature instead. The pure VRChat proxy
-    /// controllers stay as they are, so their lines stay too.
+    /// Violations that predate the rule, as "Type: what it takes". There are none left. Never add a
+    /// line to make a change pass: move the code into its feature instead, or derive a controller
+    /// that only forwards to VRChat from AccountForwardController.
     /// </summary>
     private static readonly string[] NotYetMoved =
     [
-        "AccountsController: IAccountSessionManager",
-        "AccountsController: VrcxContext",
     ];
 
     private static List<string> Violations() =>
@@ -81,6 +79,7 @@ public sealed class ArchitectureTests
     [Arguments(typeof(VRCX.API.Controller.Users.AccountUsersController))]
     [Arguments(typeof(VRCX.API.Controller.Desktop.AccountDesktopController))]
     [Arguments(typeof(VRCX.API.Controller.Settings.AccountSettingsController))]
+    [Arguments(typeof(VRCX.API.Controller.Accounts.AccountsController))]
     public async Task A_moved_feature_takes_none_of_them(Type controller)
     {
         await Assert.That(Violations().Where(v => v.StartsWith(controller.Name + ":", StringComparison.Ordinal)).ToList()).IsEmpty();

@@ -130,9 +130,9 @@ Client (details in `client/AGENTS.md`):
 - Components do not call `#lib/api/client` for a feature that has a store.
 
 Enforcement: architecture ratchet tests, `server/API.IntegrationTests/Tests/ArchitectureTests.cs`
-and `client/src/lib/__tests__/architecture.test.ts`. Today's violations go on a checked-in
-allow-list that may only shrink; a new violation fails the suite. Never add to the allow-list to
-make a change pass.
+and `client/src/lib/__tests__/architecture.test.ts`. Both started with an allow-list of the
+violations there were; both lists are empty now, and a new violation fails the suite. Never add
+to an allow-list to make a change pass.
 
 Rejected. Never do these:
 

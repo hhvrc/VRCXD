@@ -260,6 +260,8 @@ public static class VrcxServiceHelper
         // the MCP tools share them, so neither carries query logic of its own.
         services.AddScoped<VRCX.Common.Features.Accounts.AccountQueries>();
         services.AddScoped<VRCX.Common.Features.Accounts.AccountSettingsStore>();
+        services.AddScoped<VRCX.Common.Features.Accounts.AccountLogin>();
+        services.AddScoped<VRCX.Common.Features.Groups.GroupStore>();
         services.AddSingleton<VRCX.Common.Features.Accounts.AccountSessionRunner>();
         services.AddSingleton<VRCX.Common.Features.Notifications.NotificationRefreshGate>();
         services.AddScoped<VRCX.Common.Features.Notifications.NotificationQueries>();
