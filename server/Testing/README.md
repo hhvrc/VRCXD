@@ -10,7 +10,7 @@ and Redis) against a fake VRChat. Every test gets its own world:
 | `FakeVrchatApi` (`app.Vrchat`) | A stateful VRChat: users, friends, worlds, avatars, groups, instances, notifications, favorites, moderations, notes. Modelled GETs answer from that state; writes that the server's flows rely on (favorites, moderations, notification hide/accept, profile edits) change it; other writes answer `200 {}`. Unknown GETs are 404 with VRChat's error envelope. Records every request. A URI outside `/api/1/` throws, so nothing leaves the machine. |
 | `FakeImageFetcher` (`app.Vrchat.Images`) | The image cache's downloader. Every image is a 1x1 PNG. |
 | `FakePipeline` (`app.Pipeline`) | VRChat's pipeline websocket. Frames go through `PipelineEvent.Parse` and `PipelineService.DispatchAsync`, exactly the path the real socket uses, and any error the server logs while handling one fails the call. Helpers keep the fake API in step (`FriendAddAsync` also makes them a friend). |
-| `FakeDesktop` (`app.ConnectDesktopAsync`) | The desktop app on `/1/ws`: ships parsed game log lines (`GameLog.*` builders), reports the game running, receives and completes actions. |
+| `FakeDesktop` (`app.ConnectDesktopAsync`) | The PC's agent on `/1/ws`: ships parsed game log lines (`GameLog.*` builders), reports the game running, receives and completes actions. |
 | `LiveClient` (`app.ConnectLiveAsync`) | A browser's live connection on `/1/ws`. `WaitForAsync<T>(match)` awaits a `ServerEvent` payload; `AssertNoneAsync<T>` proves one did not come. |
 | `ScenarioClock` (`app.Time`) | The server's `TimeProvider`: wall clock plus an offset the test moves with `Advance`. |
 | `SyncTracker` (`app.Syncs`) | Counts friend and full syncs. A login through `app.Api` returns only after the full sync it starts in the background has finished, so tests never race it. |
@@ -79,10 +79,10 @@ into the repo.
    Then find where the port does the same thing (`server/Common/Services/...` for ingestion
    and stores, `server/API/Controller/...` for endpoints, `client/src` for UI).
 3. **Decide whether it applies.** It does not when the behaviour lives entirely in:
-   - the desktop app (`desktop/`: game log parsing, launching VRChat, OSC, Discord presence,
-     screenshots on disk). Log-line parsing regressions belong in the desktop app's own tests;
+   - the PC's agent (`agent/`: game log parsing, launching VRChat, Discord presence, screenshots
+     on disk, the VR overlay). Log-line parsing regressions belong in the agent's own tests;
      the server side starts at a parsed `LogEntry`, so test what the server does with it;
-   - the original's VR overlay, Electron/CEF shell, installer or updater;
+   - the original's Electron/CEF shell, installer or updater;
    - pure UI with no server behaviour (a Playwright test in `client/e2e` if worth it);
    - a question, a duplicate, or a feature the port deliberately dropped.
 
@@ -95,7 +95,7 @@ into the repo.
      `Issue_1228_a_friend_changing_their_name_is_a_name_change_not_an_unfriend`.
    - Tag it `[Test, Issue(1234)]` (add `Pr(n)` too when a PR fixed that issue).
    - One line of comment: what users saw, in your own words.
-   - Arrange with the fakes, act the way VRChat, the desktop app or the browser would (a pipeline
+   - Arrange with the fakes, act the way VRChat, the agent or the browser would (a pipeline
      frame, a game log line, an API call), and assert on what a user would see: the API's
      response, a live event, or a row. Assert on the calls made to VRChat with
      `app.Vrchat.AssertCalled` / `AssertNotCalled` / `Bodies`.

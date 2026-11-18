@@ -109,8 +109,8 @@ Table and column names are explicit snake_case in `VrcxContext`.
 - **One websocket, `/1/ws`, carrying protobuf frames both ways** (`Common/Protos/vrcx_live.proto`):
   `ClientMessage` in, `ServerMessage` out. Both envelopes are a `oneof` that grows by adding
   cases; the hellos carry a protocol version. Today the client side sends game-log batches from
-  the desktop app (`GameLogBatch` of `LogEntry`, the same shape `desktop/src/log_parser.cpp`
-  already produces) and the server side streams `ServerEvent`s (presence, user changes,
+  the PC's agent (`GameLogBatch` of `LogEntry`, the shape `agent/src/log_parser.rs`
+  produces) and the server side streams `ServerEvent`s (presence, user changes,
   friendships, notifications, instance visits, account sessions) plus `ClientAction`s for the
   PC. Auth is the same token, as a header or `?token=` for browsers. The web UI generates its
   TypeScript from the same `.proto` (protobuf-es / buf).
@@ -157,7 +157,7 @@ dotnet run --project server/API                        # http://localhost:5280
 
 The stack is five containers: Postgres, Redis, the API, the web client (Caddy serving the static
 build and proxying `/1/...` to the API, websocket included) and a nightly database dump. Browsers
-and the desktop app both use the web container's address; the API itself is not published.
+and the agent both use the web container's address; the API itself is not published.
 
 On the NAS, with Docker Compose:
 
@@ -168,8 +168,8 @@ docker compose up -d --build                  # build here, or
 docker compose pull && docker compose up -d   # use the images CI publishes from master
 ```
 
-Then open `http://<nas>:5280`, enter the token, and log in to VRChat. In the desktop app, set the
-server address to the same `http://<nas>:5280` and the same token.
+Then open `http://<nas>:5280`, enter the token, and log in to VRChat. On the gaming PC, give the
+agent the same `http://<nas>:5280` and the same token (`agent/README.md`).
 
 | Folder (next to the compose file) | Holds | Back it up? |
 |---|---|---|
@@ -204,11 +204,8 @@ Debug builds treat warnings as errors.
 
 ## Not here yet
 
-- Tools still to come: screenshots. The
-  folder shortcuts, VRChat config, launch options and registry backup work on the player's own
-  PC, so they belong to the desktop app.
 - Game-log lines with no table (api-request, avatar change, udon exceptions) are acknowledged
-  and dropped. Screenshot lines are not stored either; they only trigger the desktop app's
+  and dropped. Screenshot lines are not stored either; they only trigger the agent's
   metadata action.
 - Momentary counts VRChat reports (occupants, heat, popularity, online members, instance user
   counts) are deliberately not stored; anything relative to the viewing account (membership,
