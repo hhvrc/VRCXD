@@ -8,6 +8,10 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
 	import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
+	import { getServerToken } from '#lib/api/client.js';
+	import { serverAuth } from '#lib/api/server-auth.svelte.js';
+	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
+	import { welcomeDue } from '#lib/onboarding/welcome.js';
 
 	// The original's onboarding SpotlightDialog: the first time VRCX opens in this browser, a welcome
 	// with four features people tend to miss. Escape, a click outside or Get Started dismisses it for good.
@@ -22,8 +26,13 @@
 
 	let open = $state(false);
 
+	// Not over the server token prompt or the VRChat login: it waits until both are done (welcome.ts).
 	$effect(() => {
-		if (readSetting(SEEN_KEY, false)) return;
+		const due = welcomeDue({ seen: readSetting(SEEN_KEY, false), hasToken: !!getServerToken(), needsToken: serverAuth.needsToken, signedIn: !!vrchatAuth.ownerUserId });
+		if (!due) {
+			open = false;
+			return;
+		}
 		const timer = setTimeout(() => (open = true), 800);
 		return () => clearTimeout(timer);
 	});
