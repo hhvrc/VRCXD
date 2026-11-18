@@ -17,7 +17,7 @@ using VRCX.Common.HealthChecks;
 using VRCX.Common.Options;
 using VRCX.Common.Problems;
 using VRCX.Common.Services.Automation;
-using VRCX.Common.Services.Charts;
+using VRCX.Common.Features.Charts;
 using VRCX.Common.Features.Feed;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Common.Services.Live;
@@ -268,6 +268,7 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Services.Queries.UserQueries>();
         services.AddScoped<VRCX.Common.Features.Favorites.FavoriteQueries>();
         services.AddScoped<VRCX.Common.Features.Favorites.FavoriteActions>();
+        services.AddScoped<VRCX.Common.Features.UserActivity.UserActivityQueries>();
         services.AddScoped<VRCX.Common.Features.Memos.MemoStore>();
 
         return services;

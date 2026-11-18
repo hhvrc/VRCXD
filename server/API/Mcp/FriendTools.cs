@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 using VRCX.Common.Features.Locations;
-using VRCX.Common.Services.Charts;
+using VRCX.Common.Features.Charts;
 using VRCX.Common.Features.Friends;
 using VRCX.Common.VrcxDb;
 

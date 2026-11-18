@@ -12,6 +12,9 @@ namespace VRCX.Common.Features.Accounts;
 /// </summary>
 public sealed class AccountSessionRunner(IAccountSessionManager sessions)
 {
+    /// <summary>Whether this server holds a live VRChat session for the account right now.</summary>
+    public bool HasSession(string accountId) => sessions.Get(accountId) is not null;
+
     /// <summary>
     /// Null when the action ran. Otherwise the problem: no live session, a session VRChat no longer
     /// accepts (which is then marked invalid, and not retried), or VRChat's own refusal.

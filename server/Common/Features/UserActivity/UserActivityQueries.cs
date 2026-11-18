@@ -1,11 +1,8 @@
-using System.Net.Mime;
-using Asp.Versioning;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VRCX.Common.Features.GameLog;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.Common.Features.UserActivity;
 
 /// <summary>A friend going online or offline, the rows the original's activity engine builds sessions from.</summary>
 public sealed record ActivityPresenceRow(DateTimeOffset CreatedAt, string Type);
@@ -30,23 +27,23 @@ public sealed class TopWorldResponse
     public required long TotalTime { get; init; }
 }
 
-// The original's Activity tab of the user pop-up (its activity store and gamelog queries): the
-// rows for the online heatmap, the overlap with a friend, daily playtime and most visited worlds.
-public sealed partial class AccountsController
+/// <summary>
+/// The original's Activity tab of the user pop-up (its activity store and gamelog queries): the
+/// rows for the online heatmap, the overlap with a friend, daily playtime and most visited worlds.
+/// Read only. The folder is UserActivity rather than upstream's Activity, which as a namespace
+/// would hide System.Diagnostics.Activity from the code beside it.
+/// </summary>
+public sealed class UserActivityQueries(VrcxContext db)
 {
-    /// <summary>The rows the Activity tab builds its charts from, over the last <paramref name="days"/> days, or everything for 0.</summary>
-    /// <response code="200">The rows, oldest first</response>
-    [HttpGet("{accountId}/users/{userId}/activity")]
-    [ProducesResponseType<UserActivityResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [MapToApiVersion("1")]
-    public async Task<IActionResult> GetUserActivity([FromRoute] string accountId, [FromRoute] string userId, [FromQuery] int days, CancellationToken cancellationToken)
+    /// <summary>The rows the Activity tab builds its charts from, over the last <paramref name="days"/> days, or everything for 0. Oldest first.</summary>
+    public async Task<UserActivityResponse> UserActivityAsync(string accountId, string userId, int days, CancellationToken cancellationToken)
     {
         DateTimeOffset? from = days > 0 ? DateTimeOffset.UtcNow.AddDays(-days) : null;
 
         var events = new List<ActivityPresenceRow>();
         if (userId != accountId)
         {
-            var online = _db.PresenceEvents.AsNoTracking()
+            var online = db.PresenceEvents.AsNoTracking()
                 .Where(e => e.UserId == userId && (e.Kind == PresenceKind.Online || e.Kind == PresenceKind.Offline));
             if (from is { } start)
             {
@@ -61,21 +58,17 @@ public sealed partial class AccountsController
         // A stay that began before the period but runs into it still counts toward it.
         if (from is { } since) stays = stays.Where(s => s.JoinedAt >= since || s.LeftAt is null || s.LeftAt > since).ToList();
 
-        return Ok(new UserActivityResponse
+        return new UserActivityResponse
         {
             Events = events,
             SelfVisits = stays.Select(s => new ActivityVisitRow(s.JoinedAt, PreviousInstanceQueries.StayMs(s.JoinedAt, s.LeftAt))).ToList(),
-        });
+        };
 
         static ActivityPresenceRow Row(PresenceEvent e) => new(e.At, e.Kind == PresenceKind.Online ? "Online" : "Offline");
     }
 
-    /// <summary>The worlds this account spent the most time in, or visited most, the original's getMyTopWorlds.</summary>
-    /// <response code="200">The worlds, best first</response>
-    [HttpGet("{accountId}/top-worlds")]
-    [ProducesResponseType<IReadOnlyList<TopWorldResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    [MapToApiVersion("1")]
-    public async Task<IActionResult> ListTopWorlds([FromRoute] string accountId, [FromQuery] int days, [FromQuery] int limit = 5, [FromQuery] string sortBy = "time", [FromQuery] string? excludeWorldId = null, CancellationToken cancellationToken = default)
+    /// <summary>The worlds this account spent the most time in, or visited most, the original's getMyTopWorlds. Best first.</summary>
+    public async Task<List<TopWorldResponse>> TopWorldsAsync(string accountId, int days, int limit, string sortBy, string? excludeWorldId, CancellationToken cancellationToken)
     {
         DateTimeOffset? from = days > 0 ? DateTimeOffset.UtcNow.AddDays(-days) : null;
         var stays = await OwnStaysAsync(accountId, from, cancellationToken);
@@ -89,7 +82,7 @@ public sealed partial class AccountsController
             TotalTime = g.Sum(r => PreviousInstanceQueries.StayMs(r.JoinedAt, r.LeftAt)),
         });
         worlds = sortBy == "count" ? worlds.OrderByDescending(w => w.VisitCount) : worlds.OrderByDescending(w => w.TotalTime);
-        return Ok(worlds.Take(Math.Clamp(limit, 1, 100)).ToList());
+        return worlds.Take(Math.Clamp(limit, 1, 100)).ToList();
     }
 
     private sealed record OwnStay(string Location, string WorldId, string? WorldName, string? ThumbnailImageUrl, DateTimeOffset JoinedAt, DateTimeOffset? LeftAt, VisitSource Source);
@@ -102,7 +95,7 @@ public sealed partial class AccountsController
     /// </summary>
     private async Task<List<OwnStay>> OwnStaysAsync(string accountId, DateTimeOffset? from, CancellationToken ct)
     {
-        var visits = _db.InstanceVisits.AsNoTracking().Where(v => v.UserId == accountId);
+        var visits = db.InstanceVisits.AsNoTracking().Where(v => v.UserId == accountId);
         // A day before the period, so a stay running into it and the stay after an open one are known.
         if (from is { } since) visits = visits.Where(v => v.JoinedAt >= since.AddDays(-1) || v.LeftAt == null || v.LeftAt > since);
         var rows = await visits.OrderBy(v => v.JoinedAt)

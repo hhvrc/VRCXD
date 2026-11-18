@@ -5,7 +5,7 @@ using VRCX.Common.Services.Sessions;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 
-namespace VRCX.Common.Services.Charts;
+namespace VRCX.Common.Features.Charts;
 
 public sealed class MutualGraphMetaEntry
 {

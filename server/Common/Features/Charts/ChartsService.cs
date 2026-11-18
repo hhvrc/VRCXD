@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Services;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.Common.Services.Charts;
+namespace VRCX.Common.Features.Charts;
 
 /// <summary>One stay in an instance, as the Instance Activity chart draws it.</summary>
 public sealed class ActivityVisit

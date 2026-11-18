@@ -1,17 +1,28 @@
 using System.Net.Mime;
 using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
+using VRCX.Common;
+using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
-using VRCX.Common.Services.Charts;
-using VRCX.Vrchat;
+using VRCX.Common.Features.Accounts;
+using VRCX.Common.Features.Charts;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Charts;
 
-// The Charts pages: instance activity (from the game log), hot worlds (from friends' moves)
-// and the mutual-friend network (fetched from VRChat on request).
-public sealed partial class AccountsController
+/// <summary>
+/// The Charts pages: instance activity (from the game log), hot worlds (from friends' moves) and
+/// the mutual-friend network (fetched from VRChat on request). Everything is done by
+/// Common/Features/Charts; the routes stay under /accounts, where they were while they were part of
+/// the accounts controller.
+/// </summary>
+[ApiController]
+[Tags("Accounts")]
+[ApiVersion("1")]
+[Route("/{version:apiVersion}/accounts")]
+[Authorize(AuthenticationSchemes = VrcxAuthSchemes.ApiToken)]
+public sealed class ChartsController(AccountQueries accounts, AccountSessionRunner runner, IChartsService charts, MutualGraphService mutuals) : VrcxControllerBase
 {
     /// <summary>When the account's game-log stays ended, so the activity chart knows which days have data.</summary>
     /// <response code="200">Timestamps</response>
@@ -20,9 +31,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<DateTimeOffset[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetActivityDates([FromRoute] string accountId, [FromServices] IChartsService charts, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetActivityDates([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await charts.GetActivityDatesAsync(accountId, cancellationToken));
     }
 
@@ -33,9 +44,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<InstanceActivity>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetActivity([FromRoute] string accountId, [FromQuery] DateTimeOffset from, [FromQuery] DateTimeOffset to, [FromServices] IChartsService charts, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetActivity([FromRoute] string accountId, [FromQuery] DateTimeOffset from, [FromQuery] DateTimeOffset to, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await charts.GetInstanceActivityAsync(accountId, from, to, cancellationToken));
     }
 
@@ -43,7 +54,6 @@ public sealed partial class AccountsController
     /// <param name="accountId"></param>
     /// <param name="days">7, 30 or 90 in the original; any positive number</param>
     /// <param name="limit">Default 30</param>
-    /// <param name="charts"></param>
     /// <param name="cancellationToken"></param>
     /// <response code="200">The worlds</response>
     /// <response code="404">No such account</response>
@@ -51,9 +61,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<HotWorld[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetHotWorlds([FromRoute] string accountId, [FromQuery] int days, [FromQuery] int limit, [FromServices] IChartsService charts, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetHotWorlds([FromRoute] string accountId, [FromQuery] int days, [FromQuery] int limit, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await charts.GetHotWorldsAsync(accountId, days <= 0 ? 30 : days, limit <= 0 ? 30 : limit, cancellationToken));
     }
 
@@ -64,9 +74,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<HotWorldFriend[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetHotWorldFriends([FromRoute] string accountId, [FromRoute] string worldId, [FromQuery] int days, [FromServices] IChartsService charts, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetHotWorldFriends([FromRoute] string accountId, [FromRoute] string worldId, [FromQuery] int days, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await charts.GetHotWorldFriendsAsync(accountId, worldId, days <= 0 ? 30 : days, cancellationToken));
     }
 
@@ -77,9 +87,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<MutualGraphSnapshot>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetMutualGraph([FromRoute] string accountId, [FromServices] MutualGraphService mutuals, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMutualGraph([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await mutuals.GetSnapshotAsync(accountId, cancellationToken));
     }
 
@@ -88,7 +98,7 @@ public sealed partial class AccountsController
     [HttpGet("{accountId}/mutuals/fetch")]
     [ProducesResponseType<MutualGraphFetchStatus>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [MapToApiVersion("1")]
-    public IActionResult GetMutualGraphFetch([FromRoute] string accountId, [FromServices] MutualGraphService mutuals) => Ok(mutuals.GetStatus(accountId));
+    public IActionResult GetMutualGraphFetch([FromRoute] string accountId) => Ok(mutuals.GetStatus(accountId));
 
     /// <summary>Starts fetching every friend's mutuals in the background.</summary>
     /// <response code="202">Started</response>
@@ -99,10 +109,10 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> StartMutualGraphFetch([FromRoute] string accountId, [FromServices] MutualGraphService mutuals, CancellationToken cancellationToken)
+    public async Task<IActionResult> StartMutualGraphFetch([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-        if (_sessions.Get(accountId) is null) return Problem(AccountError.NoLiveSession);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!runner.HasSession(accountId)) return Problem(AccountError.NoLiveSession);
         if (!await mutuals.StartFetchAsync(accountId, cancellationToken)) return Problem(AccountError.FetchAlreadyRunning);
         return Accepted();
     }
@@ -112,7 +122,7 @@ public sealed partial class AccountsController
     [HttpDelete("{accountId}/mutuals/fetch")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [MapToApiVersion("1")]
-    public IActionResult CancelMutualGraphFetch([FromRoute] string accountId, [FromServices] MutualGraphService mutuals)
+    public IActionResult CancelMutualGraphFetch([FromRoute] string accountId)
     {
         mutuals.CancelFetch(accountId);
         return NoContent();
@@ -127,22 +137,10 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> RefreshMutuals([FromRoute] string accountId, [FromRoute] string userId, [FromServices] MutualGraphService mutuals, CancellationToken cancellationToken)
+    public async Task<IActionResult> RefreshMutuals([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-        if (_sessions.Get(accountId) is null) return Problem(AccountError.NoLiveSession);
-        try
-        {
-            return Ok(await mutuals.RefreshFriendAsync(accountId, userId, cancellationToken));
-        }
-        catch (VrchatUnauthorizedException)
-        {
-            await _sessions.InvalidateAsync(accountId, cancellationToken);
-            return Problem(VrchatError.SessionExpired);
-        }
-        catch (VrchatApiException ex)
-        {
-            return VrchatProblem(ex);
-        }
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        var read = await runner.ReadAsync(accountId, _ => mutuals.RefreshFriendAsync(accountId, userId, cancellationToken), cancellationToken);
+        return read.Problem is { } problem ? Problem(problem) : Ok(read.Value);
     }
 }
