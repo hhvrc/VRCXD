@@ -43,7 +43,7 @@ public interface IAccountSessionManager
     /// <summary>The original's QR login: a code waiting, under a pendingId, for another device to approve it.</summary>
     Task<(string PendingId, DeviceCodeGrant Code)> StartDeviceLoginAsync(CancellationToken ct);
     /// <summary>Null while the code waits for approval; LoggedIn once approved; UnknownAttempt for an unknown pendingId.</summary>
-    Task<LoginOutcome?> PollDeviceLoginAsync(string pendingId, CancellationToken ct);
+    Task<LoginOutcome> PollDeviceLoginAsync(string pendingId, CancellationToken ct);
     /// <summary>Asks VRChat to mail a password recovery link, on a throwaway client.</summary>
     Task RequestPasswordResetAsync(string email, CancellationToken ct);
     /// <summary>Re-saves the cookie jar (VRChat rotates cookies occasionally). Cheap; call after sync cycles.</summary>
@@ -179,11 +179,11 @@ public sealed class AccountSessionManager(
         return (pendingId, code);
     }
 
-    public async Task<LoginOutcome?> PollDeviceLoginAsync(string pendingId, CancellationToken ct)
+    public async Task<LoginOutcome> PollDeviceLoginAsync(string pendingId, CancellationToken ct)
     {
         if (!_pending.TryGetValue(pendingId, out var client) || !_deviceCodes.TryGetValue(pendingId, out var deviceCode))
             return new LoginOutcome.UnknownAttempt();
-        if (!await client.PollDeviceLoginAsync(deviceCode, ct)) return null;
+        if (!await client.PollDeviceLoginAsync(deviceCode, ct)) return new LoginOutcome.Pending();
 
         var user = await client.GetCurrentUserAsync(ct);
         _pending.TryRemove(pendingId, out _);
@@ -476,4 +476,6 @@ public closed record LoginOutcome
     public sealed record Rejected(string Reason) : LoginOutcome;
     /// <summary>The pendingId is not one we are waiting on.</summary>
     public sealed record UnknownAttempt : LoginOutcome;
+    /// <summary>A QR login the other device has not approved yet: ask again.</summary>
+    public sealed record Pending : LoginOutcome;
 }

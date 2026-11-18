@@ -86,7 +86,7 @@ public sealed partial class AccountToolsController
     public async Task<IActionResult> GetCalendarEventIcs([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken)
     {
         var ics = await Runner.ReadAsync(accountId, client => client.GetCalendarEventIcsAsync(groupId, eventId, cancellationToken), cancellationToken);
-        return ics.Problem is { } problem ? Problem(problem) : Content(ics.Value!, "text/calendar");
+        return Answer(ics, text => Content(text, "text/calendar"));
     }
 
     /// <summary>Opens the event's .ics with the calendar app on the account's PC (the original's Export to Calendar, OpenCalendarFile).</summary>
@@ -100,8 +100,8 @@ public sealed partial class AccountToolsController
     public async Task<IActionResult> OpenCalendarEventOnPc([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken)
     {
         var ics = await Runner.ReadAsync(accountId, client => client.GetCalendarEventIcsAsync(groupId, eventId, cancellationToken), cancellationToken);
-        if (ics.Problem is { } problem) return Problem(problem);
-        return Desktop(await desktop.RequestAsync(accountId, VRCX.Common.Live.Capability.Calendar, new VRCX.Common.Live.ClientAction { OpenCalendarFile = new VRCX.Common.Live.OpenCalendarFile { Ics = ics.Value! } }, cancellationToken));
+        if (ics is not string text) return Answer(ics);
+        return Desktop(await desktop.RequestAsync(accountId, VRCX.Common.Live.Capability.Calendar, new VRCX.Common.Live.ClientAction { OpenCalendarFile = new VRCX.Common.Live.OpenCalendarFile { Ics = text } }, cancellationToken));
     }
 
     /// <summary>VRChat's info push items: help articles, quick menu banners and loading screens. The shape varies by item, so it is passed through.</summary>

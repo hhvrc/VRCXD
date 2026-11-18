@@ -28,11 +28,11 @@ public sealed class UserSearch(VrcxContext db, AccountSessionRunner runner, Vrch
     /// Up to 20 results, each marked when it is a friend of the account searched with. The problem
     /// when no account is logged in or VRChat refused. A blank search answers nothing without asking.
     /// </summary>
-    public async Task<LiveRead<UserSearchResultResponse[]>> SearchAsync(string? query, string? account, CancellationToken ct)
+    public async Task<Result<UserSearchResultResponse[]>> SearchAsync(string? query, string? account, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(query)) return new LiveRead<UserSearchResultResponse[]>([], null);
+        if (string.IsNullOrWhiteSpace(query)) return Array.Empty<UserSearchResultResponse>();
         var via = runner.PickAccount(account);
-        if (via is null) return new LiveRead<UserSearchResultResponse[]>(null, Errors.AccountError.NoAccounts);
+        if (via is null) return Errors.AccountError.NoAccounts;
 
         return await runner.ReadAsync(via, async client =>
         {

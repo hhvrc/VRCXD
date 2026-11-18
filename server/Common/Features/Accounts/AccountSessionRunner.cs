@@ -49,27 +49,25 @@ public sealed class AccountSessionRunner(IAccountSessionManager sessions)
 
     /// <summary>
     /// The same for something read live from VRChat: the value, or the problem it failed with. A
-    /// read may answer nothing (VRChat has no such thing), which is a value of null and no problem.
+    /// read that may answer nothing (VRChat has no such thing) is one of a nullable type, and
+    /// nothing is then its value, not a problem.
     /// </summary>
-    public async Task<LiveRead<T>> ReadAsync<T>(string accountId, Func<VrchatApiClient, Task<T>> read, CancellationToken ct)
+    public async Task<Result<T>> ReadAsync<T>(string accountId, Func<VrchatApiClient, Task<T>> read, CancellationToken ct)
     {
         var client = sessions.Get(accountId);
-        if (client is null) return new LiveRead<T>(default, AccountError.NoLiveSession);
+        if (client is null) return AccountError.NoLiveSession;
         try
         {
-            return new LiveRead<T>(await read(client), null);
+            return await read(client);
         }
         catch (VrchatUnauthorizedException)
         {
             await sessions.InvalidateAsync(accountId, ct);
-            return new LiveRead<T>(default, VrchatError.SessionExpired);
+            return VrchatError.SessionExpired;
         }
         catch (VrchatApiException ex)
         {
-            return new LiveRead<T>(default, VrchatError.Upstream(ex.Message));
+            return VrchatError.Upstream(ex.Message);
         }
     }
 }
-
-/// <summary>What <see cref="AccountSessionRunner.ReadAsync{T}"/> came back with: the value when <see cref="Problem"/> is null.</summary>
-public readonly record struct LiveRead<T>(T? Value, OpenShockProblem? Problem);

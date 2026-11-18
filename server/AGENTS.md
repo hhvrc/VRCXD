@@ -36,6 +36,14 @@ is where its code lives.
   `AccountSessionRunner` (`API/Controller/Groups/` is the example). What such an endpoint reads or
   writes in the database goes through a feature class, as `GroupQueries` does for the group
   pop-up's visit counts.
+- A feature method that can fail returns `Result<T>` (`Common/Result.cs`), a union of the value and
+  the problem: write `return AccountError.NoLiveSession;` or `return avatar;`, and declare
+  `Result<T?>` when finding nothing is an answer and not a failure. A controller answers with
+  `Answer(result)` (200, 204 for nothing, or the problem), or `Answer(result, value => ...)` to
+  shape the value first. More than two outcomes get a `closed` record hierarchy as the value
+  (`Result<LoginOutcome>`), switched over without a default arm so a new case fails the build. A
+  method with nothing to hand back returns a nullable problem. Do not add a record that pairs a
+  nullable value with a nullable problem.
 - Only the feature's writer changes its topic tables and emits its deltas. No `ExecuteUpdate` or
   `ExecuteDelete` on those tables anywhere else: bulk writes bypass `LiveChangeInterceptor` and
   publish nothing, so pages go stale.

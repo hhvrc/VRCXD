@@ -128,9 +128,9 @@ public sealed class OwnAvatars(
     /// Renames, changes the description or the visibility of one of the account's avatars (PUT
     /// avatars/{id} on VRChat) and stores it as VRChat now has it.
     /// </summary>
-    public async Task<LiveRead<Avatar>> UpdateAsync(string accountId, string avatarId, string? name, string? description, string? releaseStatus, CancellationToken cancellationToken)
+    public async Task<Result<Avatar>> UpdateAsync(string accountId, string avatarId, string? name, string? description, string? releaseStatus, CancellationToken cancellationToken)
     {
-        if (!await db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return new LiveRead<Avatar>(null, AccountError.AccountNotFound);
+        if (!await db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return AccountError.AccountNotFound;
         var changes = new Dictionary<string, string>();
         if (name is not null) changes["name"] = name;
         if (description is not null) changes["description"] = description;
@@ -156,10 +156,10 @@ public sealed class OwnAvatars(
         db.Avatars.Where(a => a.Id == avatarId).ExecuteUpdateAsync(set => set.SetProperty(a => a.ReleaseStatus, "hidden"), cancellationToken);
 
     /// <summary>Replaces VRCX's tags on an avatar and answers the stored ones.</summary>
-    public async Task<LiveRead<List<OwnAvatarTag>>> PutTagsAsync(string accountId, string avatarId, OwnAvatarTag[] body, CancellationToken cancellationToken)
+    public async Task<Result<List<OwnAvatarTag>>> PutTagsAsync(string accountId, string avatarId, OwnAvatarTag[] body, CancellationToken cancellationToken)
     {
-        if (!await db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return new LiveRead<List<OwnAvatarTag>>(null, AccountError.AccountNotFound);
-        if (!await db.Avatars.AnyAsync(a => a.Id == avatarId, cancellationToken)) return new LiveRead<List<OwnAvatarTag>>(null, AvatarError.AvatarNotFound);
+        if (!await db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return AccountError.AccountNotFound;
+        if (!await db.Avatars.AnyAsync(a => a.Id == avatarId, cancellationToken)) return AvatarError.AvatarNotFound;
 
         var wanted = body.GroupBy(t => t.Tag.Trim()).Where(g => g.Key.Length > 0).ToDictionary(g => g.Key, g => g.First().Color is { Length: > 0 } c ? c : null);
         // Tags are per avatar, as in the original's avatar_tags table (one install, one set of labels).
@@ -177,7 +177,7 @@ public sealed class OwnAvatars(
         await db.SaveChangesAsync(cancellationToken);
         var tags = await db.AvatarTags.AsNoTracking().Where(t => t.AvatarId == avatarId).OrderBy(t => t.Tag)
             .Select(t => new OwnAvatarTag { Tag = t.Tag, Color = t.Color }).ToListAsync(cancellationToken);
-        return new LiveRead<List<OwnAvatarTag>>(tags, null);
+        return tags;
     }
 
     /// <summary>

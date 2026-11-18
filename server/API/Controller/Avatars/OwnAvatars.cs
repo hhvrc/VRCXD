@@ -77,7 +77,7 @@ public sealed partial class AccountAvatarsController
     public async Task<IActionResult> UpdateAvatar([FromRoute] string accountId, [FromRoute] string avatarId, [FromBody] UpdateAvatarRequest body, CancellationToken cancellationToken)
     {
         var saved = await ownAvatars.UpdateAsync(accountId, avatarId, body.Name, body.Description, body.ReleaseStatus, cancellationToken);
-        return saved.Problem is { } problem ? Problem(problem) : Ok(AvatarResponse.From(saved.Value!));
+        return Answer(saved, avatar => Ok(AvatarResponse.From(avatar)));
     }
 
     /// <summary>Ask VRChat to build the avatar's impostor.</summary>
@@ -101,8 +101,7 @@ public sealed partial class AccountAvatarsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> PutAvatarTags([FromRoute] string accountId, [FromRoute] string avatarId, [FromBody] OwnAvatarTag[] body, CancellationToken cancellationToken)
     {
-        var tags = await ownAvatars.PutTagsAsync(accountId, avatarId, body, cancellationToken);
-        return tags.Problem is { } problem ? Problem(problem) : Ok(tags.Value);
+        return Answer(await ownAvatars.PutTagsAsync(accountId, avatarId, body, cancellationToken));
     }
 
     /// <summary>Which avatar a wearer's picture shows, the original's showAvatarAuthorDialog: their own current avatar, one the server has seen with that image, and otherwise only who owns it.</summary>

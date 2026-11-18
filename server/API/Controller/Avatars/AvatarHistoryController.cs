@@ -50,7 +50,6 @@ public sealed class AvatarHistoryController(AvatarHistory history) : VrcxControl
     [MapToApiVersion("1")]
     public async Task<IActionResult> AvatarExists([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken)
     {
-        var read = await history.ExistsAsync(accountId, avatarId, cancellationToken);
-        return read.Problem is { } problem ? Problem(problem) : Ok(read.Value);
+        return Answer(await history.ExistsAsync(accountId, avatarId, cancellationToken));
     }
 }

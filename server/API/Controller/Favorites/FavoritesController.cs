@@ -68,7 +68,7 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetFavoritePicker([FromRoute] string accountId, [FromQuery] FavoriteType type, [FromQuery] string? targetId, CancellationToken cancellationToken) =>
-        Read(await actions.PickerAsync(accountId, type, targetId, cancellationToken));
+        Answer(await actions.PickerAsync(accountId, type, targetId, cancellationToken));
 
     /// <summary>Add a favorite to one of VRChat's groups.</summary>
     /// <response code="204">Added</response>
@@ -108,7 +108,7 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetFavoriteWorldOccupants([FromRoute] string accountId, [FromQuery] string[]? ids, CancellationToken cancellationToken) =>
-        Read(await actions.WorldOccupantsAsync(accountId, ids, cancellationToken));
+        Answer(await actions.WorldOccupantsAsync(accountId, ids, cancellationToken));
 
     /// <summary>Everything in the local favorite groups of one kind.</summary>
     /// <response code="200">The favorites</response>
@@ -144,7 +144,7 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> RefreshLocalFavorite([FromRoute] string accountId, [FromQuery] FavoriteType type, [FromQuery] string targetId, CancellationToken cancellationToken) =>
-        Read(await actions.RefreshLocalAsync(accountId, type, targetId, cancellationToken));
+        Answer(await actions.RefreshLocalAsync(accountId, type, targetId, cancellationToken));
 
     /// <summary>Take something out of a local group.</summary>
     /// <response code="204">Removed</response>
@@ -242,5 +242,4 @@ public sealed class FavoritesController(AccountQueries accounts, FavoriteQueries
 
     private IActionResult Done(OpenShockProblem? problem) => problem is null ? NoContent() : Problem(problem);
 
-    private IActionResult Read<T>(LiveRead<T> read) => read.Problem is { } problem ? Problem(problem) : Ok(read.Value);
 }

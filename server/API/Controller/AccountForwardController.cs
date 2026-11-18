@@ -25,11 +25,12 @@ public abstract class AccountForwardController(AccountSessionRunner runner) : Vr
 
     /// <summary>What the agent on the account's PC answered: 204 for nothing, 200 with its JSON, else its problem.</summary>
     [NonAction]
-    protected IActionResult Desktop(DesktopAnswer answer)
+    protected IActionResult Desktop(Result<string?> answer) => answer switch
     {
-        if (answer.Problem is { } problem) return Problem(problem);
-        return string.IsNullOrEmpty(answer.Json) ? NoContent() : Content(answer.Json, System.Net.Mime.MediaTypeNames.Application.Json);
-    }
+        VrcxProblem problem => Problem(problem),
+        string { Length: > 0 } json => Content(json, System.Net.Mime.MediaTypeNames.Application.Json),
+        _ => NoContent(),
+    };
 
     /// <summary>Runs an action on VRChat with the account's own session and answers 204, or the problem it failed with.</summary>
     [NonAction]
@@ -38,20 +39,13 @@ public abstract class AccountForwardController(AccountSessionRunner runner) : Vr
 
     /// <summary>Reads something live from VRChat and answers 200 with it, or the problem it failed with.</summary>
     [NonAction]
-    protected async Task<IActionResult> ReadLiveAsync<T>(string accountId, Func<VrchatApiClient, Task<T>> read)
-    {
-        var result = await runner.ReadAsync(accountId, read, HttpContext.RequestAborted);
-        return result.Problem is { } problem ? Problem(problem) : Ok(result.Value);
-    }
+    protected async Task<IActionResult> ReadLiveAsync<T>(string accountId, Func<VrchatApiClient, Task<T>> read) =>
+        Answer(await runner.ReadAsync(accountId, read, HttpContext.RequestAborted));
 
     /// <summary>The same for a fetch that may have nothing to answer: 204 then, 200 with the value otherwise.</summary>
     [NonAction]
-    protected async Task<IActionResult> FetchAsync(string accountId, Func<VrchatApiClient, Task<object>> fetch)
-    {
-        var result = await runner.ReadAsync(accountId, fetch, HttpContext.RequestAborted);
-        if (result.Problem is { } problem) return Problem(problem);
-        return result.Value is null ? NoContent() : Ok(result.Value);
-    }
+    protected async Task<IActionResult> FetchAsync(string accountId, Func<VrchatApiClient, Task<object>> fetch) =>
+        Answer(await runner.ReadAsync(accountId, fetch, HttpContext.RequestAborted));
 
     /// <summary>An uploaded file's bytes, for the uploads VRChat takes as one request.</summary>
     [NonAction]

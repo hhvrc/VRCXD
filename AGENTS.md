@@ -119,6 +119,10 @@ Server (details in `server/AGENTS.md`):
   call with the account's session through `AccountSessionRunner`, and needs no feature class
   because it has no logic. Anything that also reads or writes the database does that through its
   feature's classes.
+- What a feature hands back to a controller or an MCP tool when it can fail is a union, never a
+  record with a nullable value and a nullable problem: `Result<T>` (the value or the problem), or
+  a closed hierarchy of its own when there are more outcomes (`LoginOutcome`). What can only fail
+  or not stays a nullable problem.
 - Only a feature's writer changes its topic tables and emits its deltas.
 - A topic's snapshot builder is the same code that serves the REST GET and the MCP read.
 

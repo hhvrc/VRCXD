@@ -75,7 +75,6 @@ public sealed class UsersController(UserQueries users, UserSearch search, Conten
     [MapToApiVersion("1")]
     public async Task<IActionResult> Search([FromQuery] string q, [FromQuery] string? account, CancellationToken cancellationToken)
     {
-        var read = await search.SearchAsync(q, account, cancellationToken);
-        return read.Problem is { } problem ? Problem(problem) : Ok(read.Value);
+        return Answer(await search.SearchAsync(q, account, cancellationToken));
     }
 }

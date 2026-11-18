@@ -95,7 +95,8 @@ public sealed partial class AccountUsersController
                 return null;
             }
         }, cancellationToken);
-        return Ok(new UserLookupResponse(found.Problem is null ? found.Value : null));
+        // A session that cannot ask is the same as nobody found: the lookup has no problem to answer with.
+        return Ok(new UserLookupResponse(found is string id ? id : null));
     }
 
     [HttpGet("{accountId}/users/{userId}/groups")]

@@ -7,9 +7,6 @@ using VRCX.Common.VrcxDb;
 
 namespace VRCX.Common.Features.Desktop;
 
-/// <summary>What the agent on an account's PC answered: the problem, or its JSON (empty when it answered with nothing).</summary>
-public readonly record struct DesktopAnswer(OpenShockProblem? Problem, string? Json);
-
 /// <summary>A tag another program on the account's PC gave a user over the VRCX named pipe.</summary>
 public sealed record CustomTagResponse(string UserId, string Tag, string? Colour);
 
@@ -42,22 +39,22 @@ public sealed class AccountDesktop(VrcxContext db, DesktopClients desktops)
         return clientId is null ? null : desktops.Get(clientId);
     }
 
-    /// <summary>Relays one action to the account's PC and answers what it said, or the problem matching its status.</summary>
-    public async Task<DesktopAnswer> RequestAsync(string accountId, Capability capability, ClientAction action, CancellationToken ct, TimeSpan? timeout = null)
+    /// <summary>Relays one action to the account's PC and answers the JSON it said (nothing for an action with no answer), or the problem matching its status.</summary>
+    public async Task<Result<string?>> RequestAsync(string accountId, Capability capability, ClientAction action, CancellationToken ct, TimeSpan? timeout = null)
     {
-        if (await FindAsync(accountId, ct) is not { } desktop) return new DesktopAnswer(DesktopError.NotConnected, null);
-        if (!desktop.Can(capability)) return new DesktopAnswer(AgentError.Unsupported, null);
+        if (await FindAsync(accountId, ct) is not { } desktop) return DesktopError.NotConnected;
+        if (!desktop.Can(capability)) return AgentError.Unsupported;
 
         var result = await desktops.RequestAsync(desktop.ClientId, action, ct, timeout);
         return result?.Status switch
         {
-            null => new DesktopAnswer(DesktopError.NoAnswer, null),
-            ActionStatus.Ok => new DesktopAnswer(null, result.Json),
-            ActionStatus.Unsupported => new DesktopAnswer(AgentError.Unsupported, null),
-            ActionStatus.NotConfirmed => new DesktopAnswer(AgentError.NotConfirmed, null),
-            ActionStatus.NotFound => new DesktopAnswer(AgentError.NotFound(result.Error), null),
-            ActionStatus.GameRunning => new DesktopAnswer(DesktopError.GameRunning, null),
-            _ => new DesktopAnswer(DesktopError.ActionFailed(result.Error), null),
+            null => DesktopError.NoAnswer,
+            ActionStatus.Ok => result.Json,
+            ActionStatus.Unsupported => AgentError.Unsupported,
+            ActionStatus.NotConfirmed => AgentError.NotConfirmed,
+            ActionStatus.NotFound => AgentError.NotFound(result.Error),
+            ActionStatus.GameRunning => DesktopError.GameRunning,
+            _ => DesktopError.ActionFailed(result.Error),
         };
     }
 

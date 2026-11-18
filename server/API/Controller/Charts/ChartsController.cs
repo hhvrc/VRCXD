@@ -140,7 +140,6 @@ public sealed class ChartsController(AccountQueries accounts, AccountSessionRunn
     public async Task<IActionResult> RefreshMutuals([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken)
     {
         if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-        var read = await runner.ReadAsync(accountId, _ => mutuals.RefreshFriendAsync(accountId, userId, cancellationToken), cancellationToken);
-        return read.Problem is { } problem ? Problem(problem) : Ok(read.Value);
+        return Answer(await runner.ReadAsync(accountId, _ => mutuals.RefreshFriendAsync(accountId, userId, cancellationToken), cancellationToken));
     }
 }

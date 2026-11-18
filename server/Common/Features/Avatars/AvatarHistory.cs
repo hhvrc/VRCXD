@@ -44,7 +44,7 @@ public sealed class AvatarHistory(VrcxContext db, AccountSessionRunner runner)
     }
 
     /// <summary>Whether VRChat still serves an avatar: any refusal counts as gone, as the original's check does.</summary>
-    public Task<LiveRead<AvatarExistsResponse>> ExistsAsync(string accountId, string avatarId, CancellationToken cancellationToken) =>
+    public Task<Result<AvatarExistsResponse>> ExistsAsync(string accountId, string avatarId, CancellationToken cancellationToken) =>
         runner.ReadAsync(accountId, async client =>
         {
             try

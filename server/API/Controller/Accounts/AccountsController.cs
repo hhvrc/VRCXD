@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Requests;
 using VRCX.API.Models.Response;
+using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
 using VRCX.Common.Features.Accounts;
@@ -114,9 +115,8 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     [MapToApiVersion("1")]
     public async Task<IActionResult> StartDeviceLogin(CancellationToken cancellationToken)
     {
-        var started = await login.StartDeviceLoginAsync(cancellationToken);
-        if (started.Problem is { } problem || started.Code is not { } code) return Problem(started.Problem ?? LoginError.VrchatUnavailable(null));
-        return Ok(new DeviceLoginResponse { PendingId = started.PendingId, VerificationUrl = code.VerificationUrlComplete, Interval = code.Interval, ExpiresIn = code.ExpiresIn });
+        return Answer(await login.StartDeviceLoginAsync(cancellationToken), started =>
+            Ok(new DeviceLoginResponse { PendingId = started.PendingId, VerificationUrl = started.Code.VerificationUrlComplete, Interval = started.Code.Interval, ExpiresIn = started.Code.ExpiresIn }));
     }
 
     /// <summary>Whether a QR login has been approved: pending until it is, then loggedIn.</summary>
@@ -129,7 +129,7 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public async Task<IActionResult> PollDeviceLogin([FromRoute] string pendingId, CancellationToken cancellationToken) =>
-        Answer(await login.PollDeviceLoginAsync(pendingId, cancellationToken), null);
+        Answer(await login.PollDeviceLoginAsync(pendingId, cancellationToken), rejected => LoginError.InvalidCredentials(rejected.Reason));
 
     /// <summary>Gives up on a QR login.</summary>
     /// <response code="204">Abandoned (or already gone)</response>
@@ -228,17 +228,13 @@ public sealed class AccountsController(AccountSessionRunner runner, AccountQueri
     /// A login step as its response: the problem; pending while a QR login waits; logged in; a second
     /// factor needed; an unknown attempt; or rejected, which each step words its own way.
     /// </summary>
-    private IActionResult Answer(LoginAttempt attempt, Func<LoginOutcome.Rejected, OpenShockProblem>? rejected)
+    private IActionResult Answer(Result<LoginOutcome> attempt, Func<LoginOutcome.Rejected, VrcxProblem> rejected) => attempt switch
     {
-        if (attempt.Problem is { } problem) return Problem(problem);
-        return attempt.Outcome switch
-        {
-            null => Ok(new LoginResponse { Status = "pending" }),
-            LoginOutcome.LoggedIn ok => Ok(new LoginResponse { Status = "loggedIn", UserId = ok.UserId, DisplayName = ok.DisplayName }),
-            LoginOutcome.NeedsTwoFactor two => Ok(new LoginResponse { Status = "needsTwoFactor", PendingId = two.PendingId, Methods = two.Methods }),
-            LoginOutcome.UnknownAttempt => Problem(LoginError.UnknownAttempt),
-            LoginOutcome.Rejected refused when rejected is not null => Problem(rejected(refused)),
-            _ => throw new InvalidOperationException($"Unexpected login outcome {attempt.Outcome.GetType().Name}"),
-        };
-    }
+        VrcxProblem problem => Problem(problem),
+        LoginOutcome.Pending => Ok(new LoginResponse { Status = "pending" }),
+        LoginOutcome.LoggedIn ok => Ok(new LoginResponse { Status = "loggedIn", UserId = ok.UserId, DisplayName = ok.DisplayName }),
+        LoginOutcome.NeedsTwoFactor two => Ok(new LoginResponse { Status = "needsTwoFactor", PendingId = two.PendingId, Methods = two.Methods }),
+        LoginOutcome.UnknownAttempt => Problem(LoginError.UnknownAttempt),
+        LoginOutcome.Rejected refused => Problem(rejected(refused)),
+    };
 }

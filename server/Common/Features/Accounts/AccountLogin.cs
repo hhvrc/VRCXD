@@ -11,11 +11,8 @@ using VRCX.Vrchat.Models;
 
 namespace VRCX.Common.Features.Accounts;
 
-/// <summary>How a login step ended: the outcome to answer with, or the problem. Neither means it is still pending (a QR login waiting for approval).</summary>
-public readonly record struct LoginAttempt(LoginOutcome? Outcome, OpenShockProblem? Problem);
-
-/// <summary>A QR login waiting for approval, or the problem starting it.</summary>
-public readonly record struct DeviceLoginStart(string PendingId, DeviceCodeGrant? Code, OpenShockProblem? Problem);
+/// <summary>A QR login waiting for approval: the id to poll with and the code to show.</summary>
+public sealed record DeviceLoginStart(string PendingId, DeviceCodeGrant Code);
 
 /// <summary>
 /// Logging VRChat accounts in and out of this server: the password login with its second factor,
@@ -29,12 +26,12 @@ public sealed class AccountLogin(
     /// Logs an account in with its password. The outcome is logged in, needs a second factor, or
     /// rejected. With <paramref name="saveCredentials"/> the password is kept for logging in again.
     /// </summary>
-    public async Task<LoginAttempt> LoginAsync(
+    public async Task<Result<LoginOutcome>> LoginAsync(
         string username, string password, string? endpointAddress, string? websocketAddress, bool saveCredentials, string? primaryPassword, CancellationToken cancellationToken)
     {
         var vrchatOptions = services.GetService<VrchatOptions>() ?? new VrchatOptions();
         if (!VrchatEndpoint.TryParse(endpointAddress, websocketAddress, vrchatOptions.EndpointHosts, out var endpoint, out var endpointError))
-            return Failed(new OpenShockProblem("Login.InvalidEndpoint", "The custom endpoint is not allowed", System.Net.HttpStatusCode.BadRequest, endpointError));
+            return new OpenShockProblem("Login.InvalidEndpoint", "The custom endpoint is not allowed", System.Net.HttpStatusCode.BadRequest, endpointError);
 
         // The original's Save Credentials: with the primary password on, the password is encrypted
         // with it, and a wrong one stops the login before VRChat is asked.
@@ -44,8 +41,8 @@ public sealed class AccountLogin(
             string? sealWith = null;
             if (await credentials.PrimaryPasswordEnabledAsync(cancellationToken))
             {
-                if (string.IsNullOrEmpty(primaryPassword)) return Failed(SavedLoginError.PrimaryPasswordRequired);
-                if (!await credentials.CheckPrimaryPasswordAsync(primaryPassword, cancellationToken)) return Failed(SavedLoginError.IncorrectPrimaryPassword);
+                if (string.IsNullOrEmpty(primaryPassword)) return SavedLoginError.PrimaryPasswordRequired;
+                if (!await credentials.CheckPrimaryPasswordAsync(primaryPassword, cancellationToken)) return SavedLoginError.IncorrectPrimaryPassword;
                 sealWith = primaryPassword;
             }
             sealedPassword = credentials.Seal(password, sealWith);
@@ -59,7 +56,7 @@ public sealed class AccountLogin(
         catch (Exception ex) when (ex is HttpRequestException or VrchatApiException)
         {
             logger.LogWarning(ex, "VRChat login failed to complete");
-            return Failed(LoginError.VrchatUnavailable(ex.Message));
+            return LoginError.VrchatUnavailable(ex.Message);
         }
 
         if (sealedPassword is not null)
@@ -68,11 +65,11 @@ public sealed class AccountLogin(
             else if (outcome is LoginOutcome.NeedsTwoFactor pending) credentials.Hold(pending.PendingId, username, sealedPassword);
         }
         if (outcome is LoginOutcome.LoggedIn loggedIn) StartInitialSync(loggedIn.UserId);
-        return new LoginAttempt(outcome, null);
+        return outcome;
     }
 
     /// <summary>Finishes a login that needed a second factor. <paramref name="methodName"/> is totp, otp (or recovery) or emailOtp (or email).</summary>
-    public async Task<LoginAttempt> CompleteTwoFactorAsync(string pendingId, string methodName, string code, CancellationToken cancellationToken)
+    public async Task<Result<LoginOutcome>> CompleteTwoFactorAsync(string pendingId, string methodName, string code, CancellationToken cancellationToken)
     {
         var method = methodName.ToLowerInvariant() switch
         {
@@ -81,7 +78,7 @@ public sealed class AccountLogin(
             "emailotp" or "email" => TwoFactorMethod.EmailOtp,
             _ => (TwoFactorMethod?)null,
         };
-        if (method is null) return Failed(LoginError.UnknownMethod);
+        if (method is null) return LoginError.UnknownMethod;
 
         LoginOutcome outcome;
         try
@@ -91,7 +88,7 @@ public sealed class AccountLogin(
         catch (Exception ex) when (ex is HttpRequestException or VrchatApiException)
         {
             logger.LogWarning(ex, "VRChat two-factor verification failed to complete");
-            return Failed(LoginError.VrchatUnavailable(ex.Message));
+            return LoginError.VrchatUnavailable(ex.Message);
         }
 
         if (outcome is LoginOutcome.LoggedIn verified)
@@ -99,28 +96,28 @@ public sealed class AccountLogin(
             await credentials.CommitHeldAsync(pendingId, verified.UserId, cancellationToken);
             StartInitialSync(verified.UserId);
         }
-        return new LoginAttempt(outcome, null);
+        return outcome;
     }
 
     /// <summary>The original's QR login: a code for another device signed in to VRChat to approve.</summary>
-    public async Task<DeviceLoginStart> StartDeviceLoginAsync(CancellationToken cancellationToken)
+    public async Task<Result<DeviceLoginStart>> StartDeviceLoginAsync(CancellationToken cancellationToken)
     {
         try
         {
             var (pendingId, code) = await sessions.StartDeviceLoginAsync(cancellationToken);
-            return new DeviceLoginStart(pendingId, code, null);
+            return new DeviceLoginStart(pendingId, code);
         }
         catch (Exception ex) when (ex is HttpRequestException or VrchatApiException)
         {
             logger.LogWarning(ex, "VRChat QR login failed to start");
-            return new DeviceLoginStart("", null, LoginError.VrchatUnavailable(ex.Message));
+            return LoginError.VrchatUnavailable(ex.Message);
         }
     }
 
-    /// <summary>Whether a QR login has been approved: no outcome until it is, then logged in.</summary>
-    public async Task<LoginAttempt> PollDeviceLoginAsync(string pendingId, CancellationToken cancellationToken)
+    /// <summary>Whether a QR login has been approved: pending until it is, then logged in.</summary>
+    public async Task<Result<LoginOutcome>> PollDeviceLoginAsync(string pendingId, CancellationToken cancellationToken)
     {
-        LoginOutcome? outcome;
+        LoginOutcome outcome;
         try
         {
             outcome = await sessions.PollDeviceLoginAsync(pendingId, cancellationToken);
@@ -129,11 +126,11 @@ public sealed class AccountLogin(
         {
             sessions.AbandonPending(pendingId);
             logger.LogWarning(ex, "VRChat QR login failed");
-            return Failed(LoginError.VrchatUnavailable(ex.Message));
+            return LoginError.VrchatUnavailable(ex.Message);
         }
 
         if (outcome is LoginOutcome.LoggedIn loggedIn) StartInitialSync(loggedIn.UserId);
-        return new LoginAttempt(outcome, null);
+        return outcome;
     }
 
     /// <summary>Gives up on a QR login.</summary>
@@ -166,12 +163,12 @@ public sealed class AccountLogin(
     /// The original's saved account click (relogin): logs in with the account's saved password. A
     /// password VRChat refuses is removed, and so is one that can no longer be decrypted.
     /// </summary>
-    public async Task<LoginAttempt> ReloginAsync(string accountId, string? primaryPassword, CancellationToken cancellationToken)
+    public async Task<Result<LoginOutcome>> ReloginAsync(string accountId, string? primaryPassword, CancellationToken cancellationToken)
     {
         var saved = await credentials.FindAsync(accountId, cancellationToken);
-        if (saved is null) return Failed(SavedLoginError.NotFound);
+        if (saved is null) return SavedLoginError.NotFound;
         var account = await db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == accountId, cancellationToken);
-        if (account is null) return Failed(SavedLoginError.NotFound);
+        if (account is null) return SavedLoginError.NotFound;
 
         string password;
         try
@@ -180,14 +177,14 @@ public sealed class AccountLogin(
         }
         catch (PrimaryPasswordException)
         {
-            return Failed(string.IsNullOrEmpty(primaryPassword) ? SavedLoginError.PrimaryPasswordRequired : SavedLoginError.IncorrectPrimaryPassword);
+            return string.IsNullOrEmpty(primaryPassword) ? SavedLoginError.PrimaryPasswordRequired : SavedLoginError.IncorrectPrimaryPassword;
         }
         catch (CryptographicException ex)
         {
             // The keys are gone (a new keys directory): the password cannot be read again.
             logger.LogWarning(ex, "The saved password for {AccountId} cannot be decrypted", accountId);
             await credentials.DeleteAsync(accountId, cancellationToken);
-            return Failed(SavedLoginError.Invalid);
+            return SavedLoginError.Invalid;
         }
 
         var endpoint = account.ApiEndpoint is null ? null : new VrchatEndpoint(new Uri(account.ApiEndpoint), new Uri(account.PipelineEndpoint ?? VrchatEndpoint.Default.Pipeline.ToString()));
@@ -199,16 +196,16 @@ public sealed class AccountLogin(
         catch (Exception ex) when (ex is HttpRequestException or VrchatApiException)
         {
             logger.LogWarning(ex, "VRChat login with saved credentials failed to complete");
-            return Failed(LoginError.VrchatUnavailable(ex.Message));
+            return LoginError.VrchatUnavailable(ex.Message);
         }
 
         if (outcome is LoginOutcome.LoggedIn loggedIn) StartInitialSync(loggedIn.UserId);
         if (outcome is LoginOutcome.Rejected rejected && rejected.Reason.Contains("Invalid Username/Email or Password", StringComparison.Ordinal))
         {
             await credentials.DeleteAsync(accountId, cancellationToken);
-            return Failed(SavedLoginError.Invalid);
+            return SavedLoginError.Invalid;
         }
-        return new LoginAttempt(outcome, null);
+        return outcome;
     }
 
     /// <summary>
@@ -246,8 +243,6 @@ public sealed class AccountLogin(
         }
         return null;
     }
-
-    private static LoginAttempt Failed(OpenShockProblem problem) => new(null, problem);
 
     // A fresh login should not sit empty until the next Hangfire tick: pull everything now, in
     // the background, with the same error handling the jobs have.

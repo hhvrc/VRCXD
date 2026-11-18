@@ -18,7 +18,7 @@ namespace VRCX.Common.Features.Favorites;
 public sealed class FavoriteActions(VrcxContext db, AccountSessionRunner runner, IAccountSyncService sync, VrchatStore store, FavoriteQueries queries)
 {
     /// <summary>What the favorite dialog offers for one thing: every group slot with its count, and the local groups.</summary>
-    public async Task<LiveRead<FavoritePickerResponse>> PickerAsync(string accountId, FavoriteType type, string? targetId, CancellationToken ct)
+    public async Task<Result<FavoritePickerResponse>> PickerAsync(string accountId, FavoriteType type, string? targetId, CancellationToken ct)
     {
         var stored = await db.FavoriteGroups.AsNoTracking().Where(g => g.OwnerUserId == accountId).ToListAsync(ct);
         var counts = await db.Favorites.AsNoTracking()
@@ -77,7 +77,7 @@ public sealed class FavoriteActions(VrcxContext db, AccountSessionRunner runner,
     /// issue 674): VRChat's favorite worlds in one call, plus any of <paramref name="ids"/> (local
     /// favorites, at most 100) fetched one by one. Momentary counts, so nothing is stored.
     /// </summary>
-    public Task<LiveRead<Dictionary<string, int>>> WorldOccupantsAsync(string accountId, string[]? ids, CancellationToken ct) =>
+    public Task<Result<Dictionary<string, int>>> WorldOccupantsAsync(string accountId, string[]? ids, CancellationToken ct) =>
         runner.ReadAsync(accountId, async client =>
         {
             var occupants = new Dictionary<string, int>();
@@ -129,7 +129,7 @@ public sealed class FavoriteActions(VrcxContext db, AccountSessionRunner runner,
     /// Fetches one local favorite from VRChat again and stores it, the original's local Refresh, which
     /// the client runs one per second. Unavailable when VRChat no longer shows it (upstream PR 1525).
     /// </summary>
-    public Task<LiveRead<LocalFavoriteRefreshResponse>> RefreshLocalAsync(string accountId, FavoriteType type, string targetId, CancellationToken ct) =>
+    public Task<Result<LocalFavoriteRefreshResponse>> RefreshLocalAsync(string accountId, FavoriteType type, string targetId, CancellationToken ct) =>
         runner.ReadAsync(accountId, async client =>
         {
             var now = DateTimeOffset.UtcNow;
