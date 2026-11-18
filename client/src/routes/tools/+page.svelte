@@ -9,6 +9,7 @@
 	import ExportDialogs from '#lib/components/tools/export-dialogs.svelte';
 	import GroupListsDialog from '#lib/components/tools/group-lists-dialog.svelte';
 	import InfoPushDialog from '#lib/components/tools/info-push-dialog.svelte';
+	import LaunchOptionsDialog from '#lib/components/tools/launch-options-dialog.svelte';
 	import InviteMessagesDialog from '#lib/components/tools/invite-messages-dialog.svelte';
 	import ModerationReportsDialog from '#lib/components/tools/moderation-reports-dialog.svelte';
 	import NoteExportDialog from '#lib/components/tools/note-export-dialog.svelte';
@@ -42,6 +43,7 @@
 	let autoStatusOpen = $state(false);
 	let vrchatConfigOpen = $state(false);
 	let registryBackupOpen = $state(false);
+	let launchOptionsOpen = $state(false);
 	let notice = $state('');
 
 	onMount(() => {
@@ -64,10 +66,6 @@
 
 	function trigger(tool: Tool) {
 		notice = '';
-		if (tool.kind === 'desktop') {
-			notice = `${tool.title} works on your own PC's files, so it needs the desktop app.`;
-			return;
-		}
 		if (tool.kind === 'pending') {
 			notice = `${tool.title} is not in this client yet.`;
 			return;
@@ -136,6 +134,9 @@
 			case 'registry-backup':
 				registryBackupOpen = true;
 				break;
+			case 'launch-options':
+				launchOptionsOpen = true;
+				break;
 		}
 	}
 
@@ -184,8 +185,8 @@
 												size="icon-xs"
 												variant={pinned ? 'secondary' : 'ghost'}
 												class="opacity-0 transition-opacity group-hover:opacity-100"
-												title={pinned ? 'Unpin from nav' : 'Pin to nav'}
-												aria-label={pinned ? 'Unpin from nav' : 'Pin to nav'}
+												title={pinned ? m.nav_menu_custom_nav_unpin_from_nav() : m.nav_menu_custom_nav_pin_to_nav()}
+												aria-label={pinned ? m.nav_menu_custom_nav_unpin_from_nav() : m.nav_menu_custom_nav_pin_to_nav()}
 												onclick={(e: MouseEvent) => {
 													e.stopPropagation();
 													togglePin(tool);
@@ -222,3 +223,4 @@
 <AutoChangeStatusDialog bind:open={autoStatusOpen} />
 <VrchatConfigDialog bind:open={vrchatConfigOpen} />
 <RegistryBackupDialog bind:open={registryBackupOpen} />
+<LaunchOptionsDialog bind:open={launchOptionsOpen} />

@@ -6,7 +6,7 @@ import type { AgentFolder } from '#lib/agent/agent.js';
 // wording. `kind` says how this client runs each one: a dialog here, a job the PC's agent does
 // (offered when it declares `capability`), or one nothing here does yet.
 
-export type ToolKind = 'dialog' | 'agent' | 'desktop' | 'pending';
+export type ToolKind = 'dialog' | 'agent' | 'pending';
 
 export type Tool = {
 	key: string;
@@ -40,7 +40,7 @@ export const tools: Tool[] = [
 	{ key: 'vrchat-data', category: 'shortcuts', icon: 'ri-folder-settings-line', get title() { return m.view_tools_shortcuts_vrchat_data(); }, get description() { return m.view_tools_shortcuts_vrchat_data_description(); }, kind: 'agent', capability: 'folders', folder: 'app_data' },
 	{ key: 'crash-dumps', category: 'shortcuts', icon: 'ri-folder-warning-line', get title() { return m.view_tools_shortcuts_crash_dumps(); }, get description() { return m.view_tools_shortcuts_crash_dumps_description(); }, kind: 'agent', capability: 'folders', folder: 'crash_dumps' },
 	{ key: 'vrchat-config', category: 'system', icon: 'ri-settings-3-line', get title() { return m.view_tools_system_tools_vrchat_config(); }, get description() { return m.view_tools_system_tools_vrchat_config_description(); }, kind: 'agent', capability: 'vrchat_config' },
-	{ key: 'launch-options', category: 'system', icon: 'ri-terminal-box-line', get title() { return m.view_settings_advanced_advanced_launch_options(); }, get description() { return m.view_tools_system_tools_launch_options_description(); }, kind: 'desktop' },
+	{ key: 'launch-options', category: 'system', icon: 'ri-terminal-box-line', get title() { return m.view_settings_advanced_advanced_launch_options(); }, get description() { return m.view_tools_system_tools_launch_options_description(); }, kind: 'dialog' },
 	{ key: 'registry-backup', category: 'system', icon: 'ri-archive-stack-line', get title() { return m.view_tools_system_tools_registry_backup(); }, get description() { return m.view_tools_system_tools_registry_backup_description(); }, kind: 'agent', capability: 'registry' },
 	{ key: 'auto-change-status', category: 'system', icon: 'ri-user-settings-line', get title() { return m.view_settings_general_automation_auto_change_status_switch(); }, description: 'Change your status automatically', kind: 'dialog' },
 	{ key: 'group-calendar', category: 'group', icon: 'ri-calendar-event-line', get title() { return m.view_tools_group_calendar(); }, get description() { return m.view_tools_group_calendar_description(); }, kind: 'dialog' },
