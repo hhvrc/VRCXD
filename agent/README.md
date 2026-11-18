@@ -1,6 +1,6 @@
 # VRCXD agent
 
-A small headless program for the gaming PC. It has no window: the web client is its interface.
+A small headless program for the PC that runs VRChat. It has no window: the web client is its interface.
 
 - Ships VRChat's logs (`output_log_*.txt`) to the server over its websocket
   (`server/Common/Protos/vrcx_live.proto`), resuming where the server's stored log ends.
@@ -19,7 +19,7 @@ install of that app keeps its settings.
 ## Use
 
 ```powershell
-vrcxd-agent setup --server http://nas:5280 --token <the server's VRCX__AUTH__TOKEN>
+vrcxd-agent setup --server http://server:5280 --token <the server's VRCX__AUTH__TOKEN>
 vrcxd-agent install      # start at login, and open vrcx:// links
 vrcxd-agent run          # or start it now
 vrcxd-agent status       # settings, and what the running agent is doing

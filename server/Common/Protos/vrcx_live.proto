@@ -460,7 +460,7 @@ message GameLogAck {
     int32 accepted = 1;
 }
 
-// A local action the server asks the gaming PC to perform - decided server-side,
+// A local action the server asks the PC that runs VRChat to perform - decided server-side,
 // since it needs session state and settings the server owns.
 message ClientAction {
     oneof action {

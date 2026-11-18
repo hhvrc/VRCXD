@@ -184,7 +184,7 @@ public sealed class ResourceLoad
 }
 
 /// <summary>
-/// One game-log-shipping client (one gaming PC): which account plays there, and how far its log has been ingested - what a reconnecting client resumes from.
+/// One game-log-shipping client (one PC that runs VRChat): which account plays there, and how far its log has been ingested - what a reconnecting client resumes from.
 /// </summary>
 public sealed class GameLogClient
 {

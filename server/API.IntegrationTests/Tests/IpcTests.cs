@@ -6,7 +6,7 @@ using VRCX.Testing.Desktop;
 
 namespace VRCX.API.IntegrationTests.Tests;
 
-// The VRCX named pipe on the gaming PC (the original's Dotnet/IPC, ipcEvent and eventVrcxMessage),
+// The VRCX named pipe on the PC that runs VRChat (the original's Dotnet/IPC, ipcEvent and eventVrcxMessage),
 // with the desktop app relaying what other programs write to it.
 public sealed class IpcTests
 {

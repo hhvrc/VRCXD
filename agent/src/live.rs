@@ -344,9 +344,9 @@ mod tests {
 
     #[test]
     fn the_socket_is_under_the_server_address() {
-        assert_eq!(socket_url("http://nas:5280").unwrap().as_str(), "ws://nas:5280/1/ws");
+        assert_eq!(socket_url("http://server:5280").unwrap().as_str(), "ws://server:5280/1/ws");
         assert_eq!(socket_url("https://vrcx.example/base/").unwrap().as_str(), "wss://vrcx.example/base/1/ws");
-        assert!(socket_url("ftp://nas").is_err());
+        assert!(socket_url("ftp://server").is_err());
         assert!(socket_url("not a url").is_err());
     }
 }

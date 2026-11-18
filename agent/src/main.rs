@@ -1,4 +1,4 @@
-//! The VRCXD agent: a small headless program on the gaming PC. It ships VRChat's logs to the VRCXD
+//! The VRCXD agent: a small headless program on the PC that runs VRChat. It ships VRChat's logs to the VRCXD
 //! server, carries out what the web client asks of the PC (start VRChat, open an instance in it,
 //! write screenshot metadata), and runs the original VRCX's named pipe for other programs. It has
 //! no window: the web client is its interface.
@@ -55,7 +55,7 @@ enum Command {
     },
     /// Change the settings; only the options given change. A running agent picks them up within 30 s.
     Setup {
-        /// The server's address, e.g. http://nas:5280.
+        /// The server's address, e.g. http://server:5280.
         #[arg(long)]
         server: Option<String>,
         /// The server's API token.

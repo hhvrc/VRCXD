@@ -213,7 +213,7 @@ public sealed class VrcxScenario : IAsyncDisposable
     }
 
     /// <summary>
-    /// A desktop app connecting from a gaming PC. With signedInAs it first ships the "User
+    /// A desktop app connecting from a PC that runs VRChat. With signedInAs it first ships the "User
     /// Authenticated" line, as the app does at the top of every log, so the server knows whose PC it is.
     /// </summary>
     public async Task<FakeDesktop> ConnectDesktopAsync(string clientId = "pc-test", string? signedInAs = null, bool muteEvents = true, IEnumerable<VRCX.Common.Live.Capability>? capabilities = null)

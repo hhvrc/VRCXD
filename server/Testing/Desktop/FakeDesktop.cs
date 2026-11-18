@@ -6,7 +6,7 @@ using VRCX.Testing.Live;
 namespace VRCX.Testing.Desktop;
 
 /// <summary>
-/// The desktop app on a gaming PC (desktop/src/log_service.cpp), as the server sees it: it says
+/// The desktop app on a PC that runs VRChat (desktop/src/log_service.cpp), as the server sees it: it says
 /// hello with its client id, ships parsed VRChat log lines in batches and waits for the ack,
 /// reports whether the game runs, and carries out the actions the server sends (launch,
 /// screenshot metadata, the quit fix). It says hello as the agent (agent/) does, declaring every

@@ -4,7 +4,7 @@ VRCXD is a self-hosted companion for VRChat, built from [VRCX](https://github.co
 It keeps track of your friends, their status and locations, your game log and your feed, and
 shows it all in a web UI you can open from any device on your network.
 
-**Why VRCXD: the D is for daemon.** The server runs on its own machine (a NAS, a home server) and
+**Why VRCXD: the D is for daemon.** The server runs on its own machine (a home server, any machine that stays on) and
 keeps tracking while your PC and the game are off. The web UI and the PC agent connect to it
 when they are running, and nothing is missed in between.
 
@@ -26,7 +26,7 @@ tracking all the time on a separate machine. A database from VRCX can be importe
 | --- | --- | --- |
 | Server | `server/` | ASP.NET Core with Postgres and Redis. Holds the VRChat sessions, listens to VRChat's pipeline websocket, syncs friends, favorites, groups and notifications on a schedule, stores the history and serves the REST API and a live websocket. |
 | Web client | `client/` | SvelteKit, built to a static site and served by Caddy next to the API. The UI: friends, feed, friend log, game log, notifications, favorites, charts, tools and settings. |
-| Agent | `agent/` | A small headless Rust program for the gaming PC, with no window of its own. Reads VRChat's log and ships it to the server, runs the actions that need the PC (launching VRChat, joining an instance, writing screenshot metadata) and the original's named pipe for other programs. |
+| Agent | `agent/` | A small headless Rust program for the PC that runs VRChat, with no window of its own. Reads VRChat's log and ships it to the server, runs the actions that need the PC (launching VRChat, joining an instance, writing screenshot metadata) and the original's named pipe for other programs. |
 
 `legacy/` holds the original VRCX code the port was made from (its `src/`, `Dotnet/` and build
 files), kept for reference and for following upstream changes. Nothing in it is built or shipped.
@@ -36,7 +36,7 @@ files), kept for reference and for following upstream changes. Nothing in it is 
 - Run the server stack with Docker Compose: `server/README.md`, section Deploy. It starts
   Postgres, Redis, the API, the web client and a nightly database backup.
 - Open the web address, enter the API token and log in to VRChat.
-- On the gaming PC, point the agent at the same address and token and start it at login:
+- On the PC that runs VRChat, point the agent at the same address and token and start it at login:
   `vrcxd-agent setup --server <address> --token <token>`, then `vrcxd-agent install` (`agent/README.md`).
 
 For development: `server/README.md` (build, tests, configuration), `client/README.md`,

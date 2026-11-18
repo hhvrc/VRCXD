@@ -1,9 +1,9 @@
 # VRCXD: instructions for coding agents
 
 VRCXD is a self-hosted port of [VRCX](https://github.com/vrcx-team/VRCX) (git remote `vrcx`). A
-server on a NAS tracks VRChat all the time, a static web client shows it, and a headless agent on
-the gaming PC ships the game log and does what needs the PC. `README.md` is the overview for
-people; this file is the rules for agents. Each part has its own `AGENTS.md` with the rules that
+server that is always on tracks VRChat all the time, a static web client shows it, and a headless
+agent on the PC that runs VRChat ships the game log and does what needs that PC. `README.md` is
+the overview for people; this file is the rules for agents. Each part has its own `AGENTS.md` with the rules that
 apply only there.
 
 ## Repo map
@@ -15,7 +15,7 @@ apply only there.
 | `server/Testing/` | The integration test harness (`VrcxScenario` and the fakes) | `server/Testing/README.md` |
 | `server/LegacyImport/` | One-time import of an original VRCX database | `server/LegacyImport/README.md` |
 | `client/` | SvelteKit static web client, Svelte 5 runes, paraglide i18n | `client/README.md`, `client/AGENTS.md` |
-| `agent/` | Headless Rust agent for the gaming PC | `agent/README.md`, `agent/AGENTS.md` |
+| `agent/` | Headless Rust agent for the PC that runs VRChat | `agent/README.md`, `agent/AGENTS.md` |
 | `docs/desktop-ipc.md` | The VRCX named pipe the agent runs | |
 | `legacy/` | The original VRCX sources, unchanged. Reference only | |
 | `.github/workflows/` | CI per part (`server.yml`, `client.yml`, `agent.yml`) and `repo.yml` | |

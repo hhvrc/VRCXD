@@ -1,7 +1,7 @@
 name: Server
 
 # Builds and tests the server (server/) and, on master, publishes its image to GHCR for the
-# NAS to pull. See server/README.md.
+# server to pull. See server/README.md.
 
 on:
   push:

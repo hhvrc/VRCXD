@@ -8,7 +8,7 @@ using VRCX.Vrchat;
 namespace VRCX.Common.Services.Live;
 
 /// <summary>
-/// What one game-log-shipping client (one gaming PC) is in the middle of: which account plays
+/// What one game-log-shipping client (one PC that runs VRChat) is in the middle of: which account plays
 /// there, which instance it is in, and how far its log has been stored. Mirrors the
 /// game_log_clients row; kept in memory by the websocket connection between batches.
 /// </summary>

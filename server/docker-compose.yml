@@ -8,7 +8,7 @@
 #   VRCX_HTTPS_PORT=5443   host port for HTTPS (only used when VRCX_SITE is a domain)
 #   VRCX_SITE=:80          a domain here makes Caddy fetch a certificate and serve HTTPS
 #   VRCX_BIND=0.0.0.0      host address it is published on. Without HTTPS the token travels in the
-#                          clear and can act as your VRChat account: set this to the NAS's LAN
+#                          clear and can act as your VRChat account: set this to the server's LAN
 #                          address and never forward the port unless VRCX_SITE is a domain.
 #   BACKUP_DIR=./backups   where the nightly database dumps go; put it on a different disk
 #   BACKUP_KEEP_DAYS=7     how many days of dumps are kept

@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Config {
-    /// The server's http(s) base, e.g. `http://nas:5280`; the socket is `/1/ws`.
+    /// The server's http(s) base, e.g. `http://server:5280`; the socket is `/1/ws`.
     pub server_address: String,
     /// The server's API token (`VRCX:Auth:Token`).
     pub bearer_token: String,
@@ -167,16 +167,16 @@ mod tests {
         let file = dir.path().join("client-service.json");
         std::fs::write(
             &file,
-            r#"{"serverAddress":"http://nas:5280","bearerToken":"t","clientId":"pc","vrchatLogDir":"D:/logs","launchArguments":"--fps=144","vrcLaunchPathOverride":"","unknown":1}"#,
+            r#"{"serverAddress":"http://server:5280","bearerToken":"t","clientId":"pc","vrchatLogDir":"D:/logs","launchArguments":"--fps=144","vrcLaunchPathOverride":"","unknown":1}"#,
         )
         .unwrap();
         let config = Config::load_from(&file);
-        assert_eq!(config.server_address, "http://nas:5280");
+        assert_eq!(config.server_address, "http://server:5280");
         assert_eq!(config.bearer_token, "t");
         assert_eq!(config.client_id, "pc");
         assert_eq!(config.log_dir(), Some(PathBuf::from("D:/logs")));
         assert_eq!(config.launch_arguments, "--fps=144");
-        assert_eq!(config.web_base(), "http://nas:5280");
+        assert_eq!(config.web_base(), "http://server:5280");
     }
 
     #[test]
@@ -189,7 +189,7 @@ mod tests {
     #[test]
     fn the_web_address_wins_when_set() {
         let config = Config {
-            server_address: "http://nas:5280/".into(),
+            server_address: "http://server:5280/".into(),
             web_address: "https://vrcx.example/".into(),
             ..Default::default()
         };

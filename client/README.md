@@ -2,7 +2,7 @@
 
 The browser UI for the server in `../server`, and the replacement for the original
 Electron/CefSharp client (now in `../legacy`). Opened from any device on the LAN/VPN; the
-gaming PC runs the agent in `../agent`, which ships game logs and does what needs the PC.
+PC that runs VRChat runs the agent in `../agent`, which ships game logs and does what needs the PC.
 
 - **Frontend**: SvelteKit, fully prerendered (`export const prerender = true` in
   `src/routes/+layout.ts`) via `@sveltejs/adapter-static`. All dynamic data comes from the
