@@ -9,8 +9,8 @@ namespace VRCX.API.IntegrationTests.Tests;
 // groups make someone a favorite friend, and the setting following a local group's rename and delete.
 public sealed class FavoriteFriendGroupsTests
 {
-    [Test]
-    public async Task Selected_groups_decide_who_is_a_favorite_friend()
+    [Test, Regressions.Issue(1907)]
+    public async Task Issue_1907_selected_groups_decide_who_is_a_favorite_friend()
     {
         await using var app = await VrcxScenario.StartAsync();
         await app.LoginAsync();
@@ -39,9 +39,9 @@ public sealed class FavoriteFriendGroupsTests
         await app.Api.PutAsJsonAsync(settings, new { favoriteFriendGroups = new[] { "friend:group_1" } });
         await Assert.That(await Favorites()).IsEquivalentTo(new[] { "usr_g1" });
 
-        // Only local groups picked: VRChat's groups all still count, as in the original.
+        // Only local groups picked: VRChat's groups no longer count (upstream issue 1907).
         await app.Api.PutAsJsonAsync(settings, new { favoriteFriendGroups = new[] { "local:Close" } });
-        await Assert.That(await Favorites()).IsEquivalentTo(new[] { "usr_g0", "usr_g1", "usr_local" });
+        await Assert.That(await Favorites()).IsEquivalentTo(new[] { "usr_local" });
 
         await app.Api.PutAsJsonAsync(settings, new { favoriteFriendGroups = new[] { "friend:group_0", "local:Close" } });
         await Assert.That(await Favorites()).IsEquivalentTo(new[] { "usr_g0", "usr_local" });

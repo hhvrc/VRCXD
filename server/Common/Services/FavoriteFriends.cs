@@ -22,8 +22,9 @@ public static class FavoriteFriends
         {
             var remoteGroups = groups.Where(g => g.StartsWith(RemotePrefix, StringComparison.Ordinal)).Select(g => g[RemotePrefix.Length..]).ToArray();
             var localGroups = groups.Where(g => g.StartsWith(LocalPrefix, StringComparison.Ordinal)).Select(g => g[LocalPrefix.Length..]).ToArray();
-            // As the original: picking only local groups still counts every VRChat group.
-            if (remoteGroups.Length > 0) remote = remote.Where(f => f.GroupName != null && remoteGroups.Contains(f.GroupName));
+            // As the original since upstream #1907: once any group is picked, only the picked groups
+            // count, so picking only local groups leaves out every VRChat group.
+            remote = remote.Where(f => f.GroupName != null && remoteGroups.Contains(f.GroupName));
             local = local.Where(f => localGroups.Contains(f.GroupName));
         }
         return remote.Select(f => f.TargetId).Concat(local.Select(f => f.TargetId));
