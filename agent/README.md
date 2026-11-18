@@ -57,10 +57,13 @@ headset's proximity sensor and the device batteries.
 ## Build and test
 
 ```powershell
-cargo build --release    # target/release/vrcxd-agent.exe
-cargo test
-cargo clippy --all-targets -- -D warnings
+cargo build --release --locked    # target/release/vrcxd-agent.exe
+cargo test --locked
+cargo clippy --all-targets --locked -- -D warnings
+cargo fmt --check
 ```
+
+CI runs these on Windows and Linux.
 
 `build.rs` compiles the proto with `protox`, so no `protoc` is needed, and copies OpenVR's
 `openvr_api.dll` (or `libopenvr_api.so`) from `assets/` beside the exe, where the agent loads it;
@@ -72,8 +75,13 @@ screenshot chunk.
 
 - `src/log_parser.rs`, `src/log_watcher.rs`: log lines to `LogEntry`s, and tailing the files.
 - `src/live.rs`: the server connection, batches and acknowledgements, actions, the game monitor.
-- `src/game.rs`, `src/screenshot.rs`: the actions.
+- `src/game.rs`, `src/screenshot.rs`: launching and ending VRChat, and screenshot metadata.
+- `src/actions/`: the other actions the server relays, one module per family, and which of them
+  this agent supports.
+- `src/launcher.rs`: the app launcher (shortcuts started with VRChat).
+- `src/discord.rs`: Discord Rich Presence, built by the server and shown through Discord's IPC.
 - `src/ipc.rs`: the VRCX named pipe.
 - `src/vr/`: OpenVR through its C function tables: HMD AFK and the device rows.
-- `src/config.rs`, `src/status.rs`, `src/platform.rs`: settings, the status file, and what differs
+- `src/config.rs`, `src/settings.rs`, `src/status.rs`, `src/platform.rs`: the connection settings,
+  the behaviour set from the web client (`agent-settings.json`), the status file, and what differs
   between Windows and Linux.

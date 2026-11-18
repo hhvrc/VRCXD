@@ -4,7 +4,7 @@ The original VRCX ran a named pipe (`Dotnet/IPC/IPCServer.cs`, `IPCClient.cs`, `
 other programs on the PC use: VRCX's Photon logger mod, external notifiers, tools that tag users.
 The PC agent (`agent/src/ipc.rs`) owns that pipe now. It parses each packet and relays it to the server over the live
 socket (`server/Common/Protos/vrcx_live.proto`); the server applies it. The server can also ask the
-app to write a packet to the pipe. This page is what the desktop side needs to build it.
+agent to write a packet to the pipe. This page is the contract between the agent and the server.
 
 ## The pipe
 
@@ -22,7 +22,7 @@ app to write a packet to the pipe. This page is what the desktop side needs to b
 - A read may hold part of a packet or several packets. Append to a buffer; when the buffer ends
   in `0x00`, split it on `0x00`, skip empty pieces and handle each piece. The original only split
   when the data read so far ended in `0x00`; splitting on every `0x00` as it arrives is equivalent.
-- Packets the app writes use the same framing: compact JSON, then `0x00`.
+- Packets the agent writes use the same framing: compact JSON, then `0x00`.
 - A read of 0 bytes, or an error, means the program went away: drop that client.
 
 ## Packets read from the pipe
@@ -50,7 +50,7 @@ drops it while VRChat is not running there.
 Not relayed:
 
 - `OnOperationRequest`: the original only logged it.
-- `LaunchCommand` (`command`): another VRCX start handing over a `vrcx://` command. The app handles it
+- `LaunchCommand` (`command`): another VRCX start handing over a `vrcx://` command. The agent handles it
   itself by opening the web UI's `/launch?command=<command>` page, which does what the original's
   `eventLaunchCommand` did.
 - `VRCXLaunch` and anything else: ignore (the original only logged them).

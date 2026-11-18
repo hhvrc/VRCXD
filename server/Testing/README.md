@@ -41,7 +41,16 @@ Other things a scenario can do: `app.Api` (an authenticated `HttpClient` for `/1
 `app.CreateDbContext()` to arrange or inspect rows, `app.RestartAsync()` (a new server process
 over the same database, Redis and fake VRChat), `ScenarioOptions.ConfigureServices` to replace
 a service, `ScenarioOptions.KestrelPort` for a real socket, and `ScenarioOptions.EnableMcp` with
-`app.ConnectMcpAsync()` for an MCP client on `/1/mcp` (the SDK's `McpClient`, token as a Bearer header).
+`app.ConnectMcpAsync()` for an MCP client on `/1/mcp` (the SDK's `McpClient`, token as a Bearer header),
+and `app.Sql` to count the SQL round trips a flow makes:
+
+```csharp
+var trips = await app.Sql.CountAsync(() => app.Jobs.FriendSyncAsync());
+await Assert.That(trips).IsLessThanOrEqualTo(16).Because(app.Sql.Describe());
+```
+
+`QueryCountTests` bounds the syncs and game-log batches this way, and `VrchatRequestBudgetTests`
+pins how often flows call VRChat (`app.Vrchat.CountOf`, `AssertNotCalled`).
 
 `server/API.IntegrationTests/IsolatedHost.cs` adapts a scenario to TUnit's `ClassDataSource`
 for the older test classes; new tests just `await using` a scenario.
@@ -53,6 +62,7 @@ cd server
 dotnet test VRCXBackend.slnx                      # everything (Docker must be running)
 dotnet test --project API.IntegrationTests -- --treenode-filter "/*/*/*/*[Category=Regression]"
 dotnet test --project API.IntegrationTests -- --treenode-filter "/*/*/*/*[Upstream=vrcx-team/VRCX#1228]"
+dotnet test --project API.IntegrationTests --treenode-filter "/*/*/McpTests/*" --list-tests   # one class, listed
 ```
 
 The browser tests in `client/e2e` run the built client against `server/Testing.E2EHost`, which
@@ -87,8 +97,11 @@ into the repo.
    - pure UI with no server behaviour (a Playwright test in `client/e2e` if worth it);
    - a question, a duplicate, or a feature the port deliberately dropped.
 
-   Record it in `server/API.IntegrationTests/Regressions/NotApplicable.cs` with a short reason
-   using one of the prefixes there. `LedgerTests` checks the ledger stays consistent.
+   When the agent's or the web client's own tests can cover it (a log line the parser gets
+   wrong, logic in a client module), write that test instead (step 4) and leave it out of the
+   ledger. Otherwise record it in `server/API.IntegrationTests/Regressions/NotApplicable.cs` with
+   a short reason using one of the prefixes there. `LedgerTests` checks the ledger stays
+   consistent: nothing in it may also carry a server tag.
 4. **Write the test** in `server/API.IntegrationTests/Regressions/`, in the file for its area
    (`FriendRegressions.cs`, `NotificationRegressions.cs`, `GameLogRegressions.cs`, or a new
    `<Area>Regressions.cs` with `[Category("Regression")]` on the class).

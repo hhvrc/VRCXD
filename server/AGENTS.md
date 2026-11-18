@@ -1,0 +1,70 @@
+# Server: rules for coding agents
+
+The root `AGENTS.md` applies here too. `README.md` describes the layout, model, ingestion,
+transport, API and MCP; `Testing/README.md` describes the test harness. Read the section you are
+changing before you change it.
+
+## Where things go
+
+| Change | Where |
+| --- | --- |
+| A VRChat call | `Vrchat/VrchatApiClient.cs`, models in `Vrchat/Models/` (skill `add-vrchat-endpoint`) |
+| Storing what VRChat returned | `Common/Services/Ingestion/VrchatStore.cs`, the only writer of VRChat data. Its methods take the caller's `VrcxContext` and do not save |
+| A read that REST and MCP share | `Common/Services/Queries/`, registered scoped in `Common/VrcxServiceHelper.cs` |
+| An endpoint | `API/Controller/<Area>/<Name>.cs`, one file per endpoint, a `partial` of the area's controller, `[MapToApiVersion("1")]` |
+| An API error | `Common/Errors/Errors.cs`: one static class per domain, stable `Domain.Reason` type strings |
+| A recurring job | `API/Jobs/`, found by `[CronJob]` |
+| A live event | today `ILiveEventBus.Publish` after the commit, and a case in `vrcx_live.proto`. New live data is meant to be a topic (skill `add-live-topic`) |
+| An MCP tool | `API/Mcp/` (skill `add-mcp-tool`) |
+| The model | `Common/VrcxDb/`, then a migration (skill `add-ef-migration`) |
+
+## Target architecture
+
+The root `AGENTS.md` (Target architecture) is the summary; this is how it applies here. It is
+introduced feature by feature with the live topics. Until a feature has moved, the table above
+is where its code lives.
+
+- A moved feature lives in `Common/Features/<Feature>/` inside the existing `Common` project: its
+  queries, its writer, its topic (snapshot and deltas) and small queryable extensions
+  (`IQueryable<T>` helpers). Name it after upstream's store or coordinator where there is one
+  (`legacy/src/stores`, `legacy/src/coordinators`).
+- Its controller is thin, one per feature, and keeps the same routes. The pure VRChat proxy
+  controllers (about 20, which only forward to VRChat) stay as they are.
+- Controllers and MCP tools call `Features/*` only. They do not inject `VrcxContext`,
+  `VrchatApiClient` or `IAccountSessionManager`.
+- Only the feature's writer changes its topic tables and emits its deltas. No `ExecuteUpdate` or
+  `ExecuteDelete` on those tables anywhere else: bulk writes bypass `LiveChangeInterceptor` and
+  publish nothing, so pages go stale.
+- The topic's snapshot builder is the code that serves the REST GET and the MCP read. Do not
+  write a second query for one of them.
+- Planned: a TUnit `ArchitectureTests` ratchet with a checked-in allow-list of today's
+  violations that may only shrink.
+- Never: a Domain / Application / Infrastructure project split, a generic `IRepository<T>`,
+  MediatR or pipeline behaviours, route or proto shape changes inside a refactor, or large file
+  moves while other worktrees are active.
+
+## Rules
+
+- Build in Debug before you finish: `dotnet build VRCXBackend.slnx`. Debug treats warnings as
+  errors; Release, which CI builds, does not, so a Release-only build misses them.
+- Keep `.cs` files CRLF. If you write them with a script, convert with `unix2dos` or write `\r\n`.
+- Every VRChat call must be visible in a test. Arrange with `app.Vrchat` and assert with
+  `AssertCalled`, `AssertNotCalled`, `CountOf` or `Calls`. A flow that could repeat a call
+  (a sync, a dialog open, a refresh) gets a budget test in `VrchatRequestBudgetTests`.
+- Flows over lists the account controls (friends, groups, players, game-log batches) get a
+  round-trip bound in `QueryCountTests` with `app.Sql.CountAsync`. Preload rows before the loop.
+- New code that compares or stores times reads the injected `TimeProvider`, so `app.Time.Advance`
+  moves it. Older code reads `DateTimeOffset.UtcNow`; see "Time" in `Testing/README.md`.
+- Moments VRChat reports (occupants, member counts online, heat) are not stored. Anything relative
+  to the viewing account lives in a connecting table, never on the entity.
+- Extend the fakes in `Testing/` when a test needs VRChat behaviour they lack. Model VRChat's real
+  response shape (from `Vrchat/Models` and the original's code), not what makes the test pass.
+
+## Tests
+
+- Integration tests: `API.IntegrationTests/Tests/<Area>Tests.cs`, `await using var app = await
+  VrcxScenario.StartAsync();`. Regressions from upstream: `API.IntegrationTests/Regressions/`.
+- Unit tests: `Common.Tests/`, with its own `Issue`/`Pr` attributes in `Upstream.cs`.
+- Run one class: `dotnet test --project API.IntegrationTests --treenode-filter "/*/*/<Class>/*"`.
+  Docker must be running (Testcontainers starts Postgres 18 and Redis 8).
+- `VRCX_TEST_LOG=1` echoes the server's log to the console.

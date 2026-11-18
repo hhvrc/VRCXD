@@ -27,10 +27,13 @@ server/
   API/                  controllers (one file per endpoint), request/response models,
                         Hangfire jobs ([CronJob]), the pipeline hosted service, Program.cs
   MigrationHelper/      startup project for dotnet ef
+  LegacyImport/         one-time import of an original VRCX database (LegacyImport/README.md)
   Common.Tests/         TUnit: wire protocol + store semantics (Postgres via Testcontainers)
   API.IntegrationTests/ TUnit: the real host, fake VRChat, Testcontainers Postgres
+  Testing/              the integration test harness: VrcxScenario and the fakes (Testing/README.md)
+  Testing.E2EHost/      one scenario on a real port, for the client's Playwright tests
   docker/               Base + API Dockerfiles, container appsettings
-  docker-compose.yml    Postgres + API
+  docker-compose.yml    Postgres, Redis, API, web client, nightly backup
   VRCXBackend.slnx
 ```
 
@@ -119,6 +122,8 @@ Table and column names are explicit snake_case in `VrcxContext`.
   (`source = game_log`), other players' visits from OnPlayerJoined/Left, video plays and portal
   spawns. Everything the ingestion writes is announced on `ILiveEventBus` after commit, so a
   REST read right after an event sees it.
+- Planned: pages subscribe to topics on `/1/ws` (friends first) and get a snapshot, then deltas,
+  instead of an event followed by a REST read. See `AGENTS.md`, Architecture rules.
 
 ## API
 
@@ -184,7 +189,7 @@ and the agent both use the web container's address; the API itself is not publis
 On the NAS, with Docker Compose:
 
 ```sh
-git clone https://github.com/hhvrc/VRCXD && cd VRCXD/Server
+git clone https://github.com/hhvrc/VRCXD && cd VRCXD/server
 cp .env.example .env        # set PG_PASS and VRCX_TOKEN (16+ chars, e.g. openssl rand -hex 24)
 docker compose up -d --build                  # build here, or
 docker compose pull && docker compose up -d   # use the images CI publishes from master
@@ -215,14 +220,19 @@ To import the original VRCX's database once the server has started, see `LegacyI
 ## Develop
 
 ```sh
-dotnet build server/VRCXBackend.slnx
-cd server && dotnet test VRCXBackend.slnx             # needs Docker; run from Server so its global.json applies
-cd server && dotnet ef migrations add <Name> --project Common --startup-project MigrationHelper \
-    --context MigrationVrcxContext -o Migrations      # after changing the model
+cd server                                         # so its global.json (SDK, test runner) applies
+dotnet build VRCXBackend.slnx
+dotnet test VRCXBackend.slnx                      # needs Docker
+dotnet test --project API.IntegrationTests --treenode-filter "/*/*/McpTests/*"   # one class
+dotnet ef migrations add <Name> --project Common --startup-project MigrationHelper \
+    --context MigrationVrcxContext -o Migrations  # after changing the model
+dotnet ef migrations has-pending-model-changes --project Common --startup-project MigrationHelper \
+    --context MigrationVrcxContext                # CI fails when the model and migrations differ
 ```
 
 `dotnet ef` 11 is pinned in `server/.config/dotnet-tools.json` (`dotnet tool restore`).
-Debug builds treat warnings as errors.
+Debug builds treat warnings as errors. CI builds with `-c Release`, which does not, so build in
+Debug before committing.
 
 ## Not here yet
 

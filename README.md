@@ -39,8 +39,10 @@ files), kept for reference and for following upstream changes. Nothing in it is 
 - On the gaming PC, point the agent at the same address and token and start it at login:
   `vrcxd-agent setup --server <address> --token <token>`, then `vrcxd-agent install` (`agent/README.md`).
 
-For development: `server/README.md` (build, tests, configuration), `client/README.md` and
-`server/Testing/README.md` (the integration test harness).
+For development: `server/README.md` (build, tests, configuration), `client/README.md`,
+`agent/README.md` and `server/Testing/README.md` (the integration test harness).
+`.github/CONTRIBUTING.md` has the rules for changes. `AGENTS.md` holds the same rules for AI
+coding agents (Claude Code, Codex and others), with the commands each part's CI runs.
 
 ## Is this against VRChat's TOS?
 

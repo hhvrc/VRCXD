@@ -12,10 +12,12 @@ Installer/version_define.nsh
 bun.lock
 
 .env.sentry-build-plugin
-AGENTS.md
 AI_GUIDE.md
-CLAUDE.md
 coverage/
+
+# Coding agents: AGENTS.md, CLAUDE.md and .claude/ are shared; these are personal
+CLAUDE.local.md
+.claude/settings.local.json
 
 # VRCX.Server: real connection strings/tokens go here, never committed
 server/VRCX.Server/appsettings.Development.json

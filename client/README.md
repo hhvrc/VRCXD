@@ -38,6 +38,20 @@ pnpm run dev
 REST calls and the websocket are proxied to a running server, `http://localhost:5280` by
 default; override with `VRCX_SERVER_URL`.
 
+## Checking and testing
+
+```sh
+pnpm install --frozen-lockfile
+pnpm run check                      # generates the proto and message code, then svelte-check
+pnpm test                           # vitest: the modules under src/lib (src/**/*.test.ts)
+pnpm exec playwright install chromium   # once
+pnpm run test:e2e                   # Playwright in e2e/ against server/Testing.E2EHost (needs Docker)
+```
+
+CI runs `check`, `test` and `build`. The e2e setup is in `server/Testing/README.md`. UI text is
+paraglide messages (`m.*`) from `src/lib/localization/en.json`; the other locale files are the
+original's translations.
+
 ## Building
 
 ```sh

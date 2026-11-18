@@ -1,40 +1,27 @@
-# Contributing to VRCX
+# Contributing to VRCXD
 
-Thank you for your interest in contributing to VRCX! Here are a few guidelines to help things go smoothly.
+VRCXD is a port of [VRCX](https://github.com/vrcx-team/VRCX). Report problems with VRCXD here, not
+to VRCX. Changes that belong in the original (its design, wording, features) are better made
+upstream, from where they are ported.
 
-## Before You Start
+## Before you start
 
-- **Large changes require prior discussion.** If your PR involves significant new features, refactors, or architectural changes, please open an issue first to discuss the approach. PRs submitted without prior discussion may not be accepted.
-- **Small fixes are always welcome.** Typo fixes, bug fixes, and minor improvements can be submitted directly.
-- **UI-related PRs will most likely be declined.** To maintain a consistent and cohesive user interface, PRs that modify UI elements (layouts, styling, visual components, etc.) are generally not accepted. If you have a UI suggestion or improvement idea, please [Open an issue](https://github.com/vrcx-team/VRCX/issues/new) instead so we can discuss it with the team.
+- Open an issue first for anything larger than a fix, so the approach can be agreed.
+- Features, wording and layout follow the original. A change that departs from it needs a reason
+  the port has (a browser instead of a desktop window, a server instead of a PC).
+- Keep the original's performance baseline: users with 1,000 to 4,000 friends, and years of
+  history. Server flows over lists (friends, groups, players) are bounded in SQL round trips and
+  in VRChat requests, and tests pin both.
 
-## Important Considerations
+## Making a change
 
-VRCX is used by a diverse, international community with users from many different countries and cultures. Because of this, we need to ensure that contributions are broadly applicable. Before submitting a PR, please consider:
+- `AGENTS.md` has the commands each part's CI runs, the testing rules, the architecture rules and
+  the commit message format. It is written for AI coding agents, and it applies to people as well.
+- Every feature and fix comes with tests. Every upstream VRCX bug that applies to the port gets
+  a regression test (`server/Testing/README.md`, "Turning an upstream issue or PR into a test").
+- Development setup: `server/README.md`, `client/README.md`, `agent/README.md`.
+- `legacy/` is the original's code, kept for reference. Do not change it.
 
-- **Is this feature broadly useful and valuable?** Niche or low-value features increase maintenance burden without proportional benefits and may not be accepted.
-- **Could it negatively impact other features?** Changes that interfere with or degrade existing functionality will not be merged.
+## Commits
 
-Please think carefully about these factors before investing time in a contribution.
-
-### Performance Design Baseline
-
-VRCX is designed to perform well for users with **1,000 to 4,000 friends**. For any changes involving data operations, the design should be able to handle databases up to **8 GB** in size. Please keep these baselines in mind when implementing features or optimizations.
-
-**PRs that do not follow these guidelines may be closed without review.**
-
-## Looking for Something to Work On?
-
-Check out issues labeled [`PR welcome`](https://github.com/vrcx-team/VRCX/issues?q=label%3A%22pr+welcome%22+is%3Aclosed) — these are contributions we'd love to see.
-
-- These issues are listed under **Closed** issues, not Open, so make sure to check the closed tab. We keep them in Closed to avoid cluttering the Open issues list.
-- You can link the issue in your PR, and once merged, we will mark the issue as completed.
-- Even for `PR welcome` issues, if the change involves core functionality, please discuss it in the issue first.
-
-## Submitting a Pull Request
-
-1. Fork the repository and create your branch from `master`.
-2. Make your changes and test them locally.
-3. Open a pull request with a clear description of what you changed and why.
-
-Thanks for helping make VRCX better!
+Conventional commits (`feat(server): ...`, `fix(client): ...`), with a body that says why.

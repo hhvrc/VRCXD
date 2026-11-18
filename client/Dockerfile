@@ -3,7 +3,7 @@
 # same-origin, exactly as `vite dev` arranges it, and Caddy is where HTTPS comes from (VRCX_SITE).
 #
 # Build context is the repository root: the client's protobuf types are generated from
-# server/Common/Protos, the same .proto the server and the desktop app compile.
+# server/Common/Protos, the same .proto the server and the agent compile.
 #   docker build -f client/Dockerfile .
 
 FROM node:26.13.0-alpine3.24 AS build
