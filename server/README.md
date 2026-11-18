@@ -130,7 +130,7 @@ with stable `type` strings (`Login.InvalidCredentials`, `User.NotFound`, …). O
 | --- | --- |
 | `POST /1/accounts/login`, `POST /1/accounts/login/2fa` | Log a VRChat account in |
 | `GET /1/accounts`, `DELETE /1/accounts/{id}/session`, `POST /1/accounts/{id}/sync` | Accounts, logout, pull everything now |
-| `GET /1/accounts/{id}/friends`, `GET /1/accounts/{id}/friend-log?page=&pageSize=` | Current friends with presence; friendships over time |
+| `GET /1/accounts/{id}/friends`, `GET /1/accounts/{id}/friend-log?limit=&before=` | Current friends with presence; friendships over time |
 | `GET /1/accounts/{id}/notifications`, `/moderations`, `/favorites?type=`, `/visits` | The per-account lists the sync mirrors, and the account's own game log |
 | `POST`/`DELETE /1/accounts/{id}/friend-requests/{userId}`, `DELETE /1/accounts/{id}/friends/{userId}` | Friend actions on VRChat |
 | `GET /1/users/{id}[?refresh=true&account=]`, `GET /1/users/{id}/history` | A user and everything that changed about them |

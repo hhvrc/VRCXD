@@ -125,6 +125,7 @@ public sealed class AccountSyncService(
             ApplyCurrentUser(account, me);
         }
         await db.SaveChangesAsync(ct);
+        await VrchatStore.ConfirmFriendshipsAsync(db, diff, now, ct);
         await sessions.PersistCookiesAsync(accountId, ct);
 
         if (diff.Added.Count > 0 || diff.Removed.Count > 0)
@@ -212,26 +213,35 @@ public sealed class AccountSyncService(
         await Step("groups", async () =>
         {
             var groups = await client.GetUserGroupsWithRepresentationAsync(accountId, ct);
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-            var before = await GroupSnapshotAsync(db, accountId, ct);
-            var listed = groups.Select(g => g.GroupId).ToHashSet(StringComparer.Ordinal);
-            var stillMember = await FindMissedGroupsAsync(db, client, accountId, listed, ct);
-            await store.SyncUserGroupsAsync(db, accountId, groups, DateTimeOffset.UtcNow, ct, stillMember);
-            // The original's onGroupLeft: a group the account was in and VRChat no longer lists.
-            foreach (var left in before.Values.Where(b => !listed.Contains(b.GroupId) && !stillMember.Contains(b.GroupId)))
-                db.Notifications.Add(VrchatStore.GroupChangeNotice(accountId, left.GroupId, left.Name, left.IconUrl, "Left group", DateTimeOffset.UtcNow));
-            await db.SaveChangesAsync(ct);
-
-            // Roles and the account's own membership details come from the full group object.
-            foreach (var g in groups)
+            Dictionary<string, GroupBefore> before;
+            List<string> stale;
+            await using (var db = await dbFactory.CreateDbContextAsync(ct))
             {
-                var full = await client.GetGroupAsync(g.GroupId, includeRoles: true, ct);
-                if (full is null) continue;
-                await using var groupDb = await dbFactory.CreateDbContextAsync(ct);
-                await store.UpsertGroupAsync(groupDb, full, DateTimeOffset.UtcNow, ct);
-                if (before.TryGetValue(g.GroupId, out var old))
-                    await AddGroupChangesAsync(groupDb, accountId, old, full, ct);
-                await groupDb.SaveChangesAsync(ct);
+                before = await GroupSnapshotAsync(db, accountId, ct);
+                stale = await GroupsToFetchAsync(db, groups, before, DateTimeOffset.UtcNow, ct);
+                var listed = groups.Select(g => g.GroupId).ToHashSet(StringComparer.Ordinal);
+                // Upstream #1455: a group the list leaves out is asked about on its own before it counts
+                // as left. That GET is the membership check, apart from the daily full-record refetch.
+                var stillMember = await FindMissedGroupsAsync(db, client, accountId, listed, ct);
+                await store.SyncUserGroupsAsync(db, accountId, groups, DateTimeOffset.UtcNow, ct, stillMember);
+                // The original's onGroupLeft: a group the account was in and VRChat no longer lists.
+                foreach (var left in before.Values.Where(b => !listed.Contains(b.GroupId) && !stillMember.Contains(b.GroupId)))
+                    db.Notifications.Add(VrchatStore.GroupChangeNotice(accountId, left.GroupId, left.Name, left.IconUrl, "Left group", DateTimeOffset.UtcNow));
+                await db.SaveChangesAsync(ct);
+            }
+
+            // Roles and the account's own membership details come from the full group object, which
+            // is fetched only for the groups that need it (see GroupsToFetchAsync). Whatever was
+            // fetched is stored even when a later fetch fails, as one save per group did before.
+            var fetched = new List<VRCX.Vrchat.Models.Group>();
+            try
+            {
+                foreach (var groupId in stale)
+                    if (await client.GetGroupAsync(groupId, includeRoles: true, ct) is { } full) fetched.Add(full);
+            }
+            finally
+            {
+                if (fetched.Count > 0) await StoreFullGroupsAsync(accountId, fetched, before, ct);
             }
         });
 
@@ -265,6 +275,8 @@ public sealed class AccountSyncService(
             var v2 = await client.GetNotificationsV2Async(100, 0, ct);
             var now = DateTimeOffset.UtcNow;
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            await VrchatStore.PreloadNotificationsAsync(db, accountId, v1.Select(n => n.Id).Concat(v2.Select(n => n.Id)), ct);
+            await VrchatStore.PreloadUsersAsync(db, v1.Select(n => n.SenderUserId).Concat(v2.Select(n => n.SenderUserId)), ct);
             foreach (var n in v1) await store.UpsertNotificationAsync(db, accountId, n, now, ct);
             foreach (var n in v2) await store.UpsertNotificationAsync(db, accountId, n, now, ct);
             await db.SaveChangesAsync(ct);
@@ -349,9 +361,14 @@ public sealed class AccountSyncService(
 
         // The cards need names and pictures. Only these lists give them for avatars that are not public.
         var now = DateTimeOffset.UtcNow;
-        foreach (var avatar in (await client.GetFavoriteAvatarsAsync(ct)).Where(a => a.Name != "???").DistinctBy(a => a.Id))
+        var avatars = (await client.GetFavoriteAvatarsAsync(ct)).Where(a => a.Name != "???").DistinctBy(a => a.Id).ToList();
+        var worlds = (await client.GetFavoriteWorldsAsync(ct)).DistinctBy(w => w.Id).ToList();
+        await VrchatStore.PreloadAvatarsAsync(db, avatars.Select(a => a.Id), ct);
+        await VrchatStore.PreloadWorldsAsync(db, worlds.Select(w => w.Id), ct);
+        await VrchatStore.PreloadUsersAsync(db, avatars.Select(a => a.AuthorId).Concat(worlds.Select(w => w.AuthorId)), ct);
+        foreach (var avatar in avatars)
             await store.UpsertAvatarAsync(db, avatar, now, ct);
-        foreach (var world in (await client.GetFavoriteWorldsAsync(ct)).DistinctBy(w => w.Id))
+        foreach (var world in worlds)
             await store.UpsertWorldAsync(db, world, now, ct);
         await db.SaveChangesAsync(ct);
     }
@@ -418,6 +435,57 @@ public sealed class AccountSyncService(
         return instance;
     }
 
+    /// <summary>How long a stored group may go without its full record being read again, when the list shows no change.</summary>
+    public static readonly TimeSpan GroupMaxAge = TimeSpan.FromDays(1);
+
+    /// <summary>
+    /// The listed groups whose full record (GET groups/{id}) is worth reading: ones never fetched,
+    /// ones the account was not yet known to be in, ones whose list entry differs from what is stored
+    /// (a rename, a new owner, a member joining) and ones not read for <see cref="GroupMaxAge"/>.
+    /// Reading every group every hour was one request per group per hour for nothing; the original
+    /// read them once at startup and then followed the pipeline's group events.
+    /// </summary>
+    private static async Task<List<string>> GroupsToFetchAsync(VrcxContext db, IReadOnlyList<LimitedUserGroup> groups, IReadOnlyDictionary<string, GroupBefore> member, DateTimeOffset now, CancellationToken ct)
+    {
+        var ids = groups.Select(g => g.GroupId).ToList();
+        var stored = await db.Groups.AsNoTracking().Where(g => ids.Contains(g.Id)).ToDictionaryAsync(g => g.Id, ct);
+        return groups.Where(g => NeedsFullFetch(g, stored.GetValueOrDefault(g.GroupId), member.ContainsKey(g.GroupId), now)).Select(g => g.GroupId).Distinct().ToList();
+    }
+
+    internal static bool NeedsFullFetch(LimitedUserGroup listed, Group? stored, bool knownMember, DateTimeOffset now)
+    {
+        if (stored is null || stored.IsStub || stored.FetchedAt is not { } fetchedAt || !knownMember) return true;
+        if (now - fetchedAt > GroupMaxAge) return true;
+        static bool Same(string? a, string? b) => (a ?? "") == (b ?? "");
+        // Compared as UpsertGroupAsync stores them, sanitized.
+        return !Same(stored.Name, VrchatText.ReplaceBioSymbols(listed.Name))
+            || !Same(stored.Description, VrchatText.ReplaceBioSymbolsOrNull(listed.Description))
+            || !Same(stored.ShortCode, listed.ShortCode)
+            || !Same(stored.Discriminator, listed.Discriminator)
+            || !Same(stored.IconUrl, listed.IconUrl)
+            || !Same(stored.BannerUrl, listed.BannerUrl)
+            || !Same(stored.OwnerUserId, listed.OwnerId)
+            || !Same(stored.Privacy, listed.Privacy)
+            || stored.MemberCount != listed.MemberCount;
+    }
+
+    private async Task StoreFullGroupsAsync(string accountId, IReadOnlyList<VRCX.Vrchat.Models.Group> fetched, IReadOnlyDictionary<string, GroupBefore> before, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        await VrchatStore.PreloadGroupsAsync(db, fetched.Select(g => g.Id), ct);
+        await VrchatStore.PreloadUsersAsync(db, fetched.Select(g => g.OwnerId).Concat(fetched.Select(g => g.MyMember?.UserId)), ct);
+        await VrchatStore.PreloadGroupRolesAsync(db, fetched.SelectMany(g => (g.Roles?.Select(r => r.Id) ?? []).Concat(g.MyMember?.RoleIds ?? [])), ct);
+        await VrchatStore.PreloadMembershipsAsync(db, accountId, fetched.Where(g => g.MyMember?.UserId == accountId).Select(g => g.Id), ct);
+        foreach (var full in fetched)
+        {
+            await store.UpsertGroupAsync(db, full, now, ct);
+            if (before.TryGetValue(full.Id, out var old))
+                await AddGroupChangesAsync(db, accountId, old, full, ct);
+        }
+        await db.SaveChangesAsync(ct);
+    }
+
     /// <summary>What the account's groups looked like before a sync, for the original's groupChange notices.</summary>
     private sealed record GroupBefore(string GroupId, string Name, string? IconUrl, string? OwnerUserId, IReadOnlyList<string> RoleIds);
 
@@ -447,7 +515,7 @@ public sealed class AccountSyncService(
         }
         if (!string.IsNullOrEmpty(old.Name) && !string.IsNullOrEmpty(full.Name) && old.Name != full.Name)
             Notice($"Name changed from {old.Name} to {full.Name}");
-        if (full.MyMember?.RoleIds is { } newRoles)
+        if (full.MyMember?.RoleIds is { } newRoles && !newRoles.ToHashSet(StringComparer.Ordinal).SetEquals(old.RoleIds))
         {
             var roleIds = old.RoleIds.Concat(newRoles).Distinct().ToList();
             var roleNames = await db.GroupRoles.Where(r => r.GroupId == full.Id && roleIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.Name, ct);

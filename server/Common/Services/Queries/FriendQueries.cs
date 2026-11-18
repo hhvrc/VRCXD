@@ -136,79 +136,111 @@ public sealed class FriendQueries(VrcxContext db, IPresenceCache presence, IPend
         return (hash[3] << 8) | hash[4];
     }
 
-    /// <summary>The account's friend log: friendships starting and ending, friend requests it sent through VRCX, and friends' name and trust changes while they were friends. Newest first, without the rows the account removed.</summary>
-    public async Task<FriendLogEntryResponse[]> FriendLogAsync(string accountId, CancellationToken cancellationToken)
+    /// <summary>
+    /// The account's friend log: friendships starting and ending, friend requests it sent through
+    /// VRCX, and friends' name and trust changes while they were friends. Newest first, without the
+    /// rows the account removed. Whole by default; with <paramref name="limit"/>, a page of the
+    /// entries older than <paramref name="before"/>: at least limit of them (fewer only at the end),
+    /// and every entry at the oldest time in the page, so the next page is the one before that time
+    /// and no entry is cut in two pages. Paged in SQL: a page reads only its own rows.
+    /// </summary>
+    public async Task<FriendLogEntryResponse[]> FriendLogAsync(string accountId, CancellationToken cancellationToken, int? limit = null, DateTimeOffset? before = null)
     {
-        var friendships = await db.Friendships.AsNoTracking()
-            .Where(f => f.OwnerUserId == accountId)
-            .Select(f => new { f.Id, f.FriendUserId, f.FriendNumber, f.StartedAt, f.EndedAt, CurrentName = f.Friend.DisplayName })
-            .ToListAsync(cancellationToken);
-        var friendIds = friendships.Select(f => f.FriendUserId).Distinct().ToArray();
-        var nameChanges = await db.UserDisplayNameChanges.AsNoTracking().Where(c => friendIds.Contains(c.UserId)).OrderBy(c => c.ChangedAt).ToListAsync(cancellationToken);
-        var trustChanges = await db.UserTrustChanges.AsNoTracking().Where(c => friendIds.Contains(c.UserId)).ToListAsync(cancellationToken);
-        var requests = await db.FriendRequestEvents.AsNoTracking().Where(r => r.OwnerUserId == accountId).ToListAsync(cancellationToken);
-        var hidden = (await db.FriendLogHiddenEntries.AsNoTracking().Where(h => h.OwnerUserId == accountId).Select(h => h.EntryKey).ToListAsync(cancellationToken)).ToHashSet();
+        if (limit is <= 0) limit = null;
 
-        var changesByUser = nameChanges.ToLookup(c => c.UserId);
-        var trustByUser = trustChanges.ToLookup(c => c.UserId);
+        var baseline = await FriendLogBaselineAsync(accountId, cancellationToken);
+        // Hidden keys are "Type:id"; as ids per type they filter in SQL, so a page is counted after them.
+        var hiddenKeys = await db.FriendLogHiddenEntries.AsNoTracking().Where(h => h.OwnerUserId == accountId).Select(h => h.EntryKey).ToListAsync(cancellationToken);
+        long[] Hidden(string type) => hiddenKeys
+            .Select(k => k.Split(':', 2))
+            .Where(k => k.Length == 2 && k[0] == type && long.TryParse(k[1], out _))
+            .Select(k => long.Parse(k[1], System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        var (hiddenFriend, hiddenUnfriend, hiddenName, hiddenTrust, hiddenRequest, hiddenCancel) =
+            (Hidden("Friend"), Hidden("Unfriend"), Hidden("DisplayName"), Hidden("TrustLevel"), Hidden("FriendRequest"), Hidden("CancelFriendRequest"));
+
+        var friendships = db.Friendships.AsNoTracking().Where(f => f.OwnerUserId == accountId);
+        // Each kind of entry as SQL, with the rules that decide whether a row is an entry: the
+        // baseline's friendships are not, nor a change outside the friendship, nor a veteran toggle.
+        IQueryable<FriendLogRow>[] sources =
+        [
+            friendships.Where(f => (baseline == null || f.StartedAt != baseline) && !hiddenFriend.Contains(f.Id))
+                .Select(f => new FriendLogRow { Type = "Friend", Id = f.Id, At = f.StartedAt, UserId = f.FriendUserId, FriendNumber = f.FriendNumber, CurrentName = f.Friend.DisplayName }),
+            friendships.Where(f => f.EndedAt != null && !hiddenUnfriend.Contains(f.Id))
+                .Select(f => new FriendLogRow { Type = "Unfriend", Id = f.Id, At = f.EndedAt!.Value, UserId = f.FriendUserId, CurrentName = f.Friend.DisplayName }),
+            friendships.SelectMany(f => db.UserDisplayNameChanges.Where(c => c.UserId == f.FriendUserId && c.ChangedAt >= f.StartedAt && (f.EndedAt == null || c.ChangedAt <= f.EndedAt)),
+                    (f, c) => new { f, c })
+                .Where(x => !hiddenName.Contains(x.c.Id))
+                .Select(x => new FriendLogRow { Type = "DisplayName", Id = x.c.Id, At = x.c.ChangedAt, UserId = x.f.FriendUserId, FriendNumber = x.f.FriendNumber, DisplayName = x.c.DisplayName, PreviousDisplayName = x.c.PreviousDisplayName }),
+            friendships.SelectMany(f => db.UserTrustChanges.Where(c => c.UserId == f.FriendUserId && c.ChangedAt >= f.StartedAt && (f.EndedAt == null || c.ChangedAt <= f.EndedAt)),
+                    (f, c) => new { f, c })
+                // The original ignores a friend flipping between Trusted and Veteran: it is a VRChat display setting.
+                .Where(x => !hiddenTrust.Contains(x.c.Id)
+                    && !(x.c.PreviousTrustLevel == "Trusted User" && x.c.TrustLevel == "Veteran User")
+                    && !(x.c.PreviousTrustLevel == "Veteran User" && x.c.TrustLevel == "Trusted User"))
+                .Select(x => new FriendLogRow { Type = "TrustLevel", Id = x.c.Id, At = x.c.ChangedAt, UserId = x.f.FriendUserId, FriendNumber = x.f.FriendNumber, CurrentName = x.f.Friend.DisplayName, TrustLevel = x.c.TrustLevel, PreviousTrustLevel = x.c.PreviousTrustLevel }),
+            db.FriendRequestEvents.AsNoTracking().Where(r => r.OwnerUserId == accountId)
+                .Where(r => !(r.Type == "FriendRequest" && hiddenRequest.Contains(r.Id)) && !(r.Type == "CancelFriendRequest" && hiddenCancel.Contains(r.Id)))
+                .Select(r => new FriendLogRow { Type = r.Type, Id = r.Id, At = r.CreatedAt, UserId = r.TargetUserId, DisplayName = r.DisplayName }),
+        ];
+        if (before is { } cutoff) sources = sources.Select(q => q.Where(r => r.At < cutoff)).ToArray();
+
+        // A page: the newest limit times of each kind, and of those together the limit-th newest is
+        // the oldest time in the page; then everything from that time on.
+        if (limit is { } pageSize)
+        {
+            var times = new List<DateTimeOffset>();
+            foreach (var q in sources)
+                times.AddRange(await q.OrderByDescending(r => r.At).Select(r => r.At).Take(pageSize).ToListAsync(cancellationToken));
+            if (times.Count > pageSize)
+            {
+                var oldest = times.OrderByDescending(t => t).ElementAt(pageSize - 1);
+                sources = sources.Select(q => q.Where(r => r.At >= oldest)).ToArray();
+            }
+        }
+        var rows = new List<FriendLogRow>();
+        foreach (var q in sources) rows.AddRange(await q.ToListAsync(cancellationToken));
+
+        // Their name at the time: the name the next change after it replaced, else the current one.
+        var named = rows.Where(r => r.CurrentName is not null).Select(r => r.UserId).Distinct().ToArray();
+        var changesByUser = (await db.UserDisplayNameChanges.AsNoTracking().Where(c => named.Contains(c.UserId)).OrderBy(c => c.ChangedAt).ToListAsync(cancellationToken))
+            .ToLookup(c => c.UserId);
         string NameAt(string userId, string current, DateTimeOffset at) =>
             changesByUser[userId].FirstOrDefault(c => c.ChangedAt > at)?.PreviousDisplayName ?? current;
 
-        var baseline = FriendLogBaseline(friendships.Select(f => f.StartedAt));
-
-        var entries = new List<FriendLogEntryResponse>();
-        foreach (var f in friendships)
+        return rows.Select(r => new FriendLogEntryResponse
         {
-            if (f.StartedAt != baseline)
-                entries.Add(new FriendLogEntryResponse
-                {
-                    Key = $"Friend:{f.Id}", Type = "Friend", CreatedAt = f.StartedAt, UserId = f.FriendUserId,
-                    DisplayName = NameAt(f.FriendUserId, f.CurrentName, f.StartedAt), FriendNumber = f.FriendNumber,
-                });
-            if (f.EndedAt is { } ended)
-                entries.Add(new FriendLogEntryResponse
-                {
-                    Key = $"Unfriend:{f.Id}", Type = "Unfriend", CreatedAt = ended, UserId = f.FriendUserId,
-                    DisplayName = NameAt(f.FriendUserId, f.CurrentName, ended),
-                });
-            bool During(DateTimeOffset at) => at >= f.StartedAt && (f.EndedAt is null || at <= f.EndedAt);
-            foreach (var c in changesByUser[f.FriendUserId].Where(c => During(c.ChangedAt)))
-                entries.Add(new FriendLogEntryResponse
-                {
-                    Key = $"DisplayName:{c.Id}", Type = "DisplayName", CreatedAt = c.ChangedAt, UserId = f.FriendUserId,
-                    DisplayName = c.DisplayName, PreviousDisplayName = c.PreviousDisplayName, FriendNumber = f.FriendNumber,
-                });
-            foreach (var c in trustByUser[f.FriendUserId].Where(c => During(c.ChangedAt) && !IsVeteranToggle(c.PreviousTrustLevel, c.TrustLevel)))
-                entries.Add(new FriendLogEntryResponse
-                {
-                    Key = $"TrustLevel:{c.Id}", Type = "TrustLevel", CreatedAt = c.ChangedAt, UserId = f.FriendUserId,
-                    DisplayName = NameAt(f.FriendUserId, f.CurrentName, c.ChangedAt), TrustLevel = c.TrustLevel, PreviousTrustLevel = c.PreviousTrustLevel, FriendNumber = f.FriendNumber,
-                });
-        }
-        entries.AddRange(requests.Select(r => new FriendLogEntryResponse
-        {
-            Key = $"{r.Type}:{r.Id}", Type = r.Type, CreatedAt = r.CreatedAt, UserId = r.TargetUserId, DisplayName = r.DisplayName,
-        }));
+            Key = $"{r.Type}:{r.Id}", Type = r.Type, CreatedAt = r.At, UserId = r.UserId,
+            DisplayName = r.CurrentName is { } current ? NameAt(r.UserId, current, r.At) : r.DisplayName!,
+            PreviousDisplayName = r.PreviousDisplayName, TrustLevel = r.TrustLevel, PreviousTrustLevel = r.PreviousTrustLevel, FriendNumber = r.FriendNumber,
+        }).OrderByDescending(e => e.CreatedAt).ThenByDescending(e => e.Key, StringComparer.Ordinal).ToArray();
+    }
 
-        return entries.Where(e => !hidden.Contains(e.Key)).OrderByDescending(e => e.CreatedAt).ThenByDescending(e => e.Key, StringComparer.Ordinal).ToArray();
+    private sealed class FriendLogRow
+    {
+        public required string Type { get; init; }
+        public long Id { get; init; }
+        public DateTimeOffset At { get; init; }
+        public required string UserId { get; init; }
+        public int? FriendNumber { get; init; }
+        /// <summary>Set for the entries named as they were then (from the name changes); the others carry <see cref="DisplayName"/>.</summary>
+        public string? CurrentName { get; init; }
+        public string? DisplayName { get; init; }
+        public string? PreviousDisplayName { get; init; }
+        public string? TrustLevel { get; init; }
+        public string? PreviousTrustLevel { get; init; }
     }
 
     /// <summary>
     /// The first sync records everyone who was already a friend at one instant. Those are a
     /// starting point, not new friends, and the original logged nothing for them either.
     /// </summary>
-    private static DateTimeOffset? FriendLogBaseline(IEnumerable<DateTimeOffset> startedAt)
+    private async Task<DateTimeOffset?> FriendLogBaselineAsync(string accountId, CancellationToken cancellationToken)
     {
-        var firstGroup = startedAt.GroupBy(t => t).OrderBy(g => g.Key).FirstOrDefault();
-        return firstGroup is not null && firstGroup.Count() > 1 ? firstGroup.Key : null;
+        var first = await db.Friendships.AsNoTracking().Where(f => f.OwnerUserId == accountId)
+            .GroupBy(f => f.StartedAt).OrderBy(g => g.Key).Select(g => new { g.Key, Count = g.Count() })
+            .FirstOrDefaultAsync(cancellationToken);
+        return first is { Count: > 1 } ? first.Key : null;
     }
-
-    private async Task<DateTimeOffset?> FriendLogBaselineAsync(string accountId, CancellationToken cancellationToken) =>
-        FriendLogBaseline(await db.Friendships.AsNoTracking().Where(f => f.OwnerUserId == accountId).Select(f => f.StartedAt).ToListAsync(cancellationToken));
-
-    // The original ignores a friend flipping between these two: it is a VRChat display setting.
-    private static bool IsVeteranToggle(string previous, string current) =>
-        (previous, current) is ("Trusted User", "Veteran User") or ("Veteran User", "Trusted User");
 
     /// <summary>
     /// How often the account's game log saw a user join and how long they were together: the

@@ -61,15 +61,20 @@ public class VrcxContext : DbContext
     /// <summary>Presence read or changed in this unit of work; see PresenceFlushInterceptor.</summary>
     public VRCX.Common.Services.Presence.PresenceUnitOfWork Presence { get; } = new();
 
+    /// <summary>Keys this unit of work loaded up front; see <see cref="PreloadedKeys"/>.</summary>
+    public PreloadedKeys Preloaded { get; } = new();
+
     public override void Dispose()
     {
         Presence.Clear();
+        Preloaded.Clear();
         base.Dispose();
     }
 
     public override ValueTask DisposeAsync()
     {
         Presence.Clear();
+        Preloaded.Clear();
         return base.DisposeAsync();
     }
 
@@ -586,11 +591,15 @@ public class VrcxContext : DbContext
             entity.Property(x => x.IsStub).HasColumnName("is_stub");
             entity.Property(x => x.FirstSeenAt).HasColumnName("first_seen_at");
             entity.Property(x => x.FetchedAt).HasColumnName("fetched_at");
+            entity.Property(x => x.StubAttemptedAt).HasColumnName("stub_attempted_at");
+            entity.Property(x => x.StubRetryAt).HasColumnName("stub_retry_at");
 
             entity.HasOne(x => x.Author).WithMany().HasForeignKey(x => x.AuthorId)
                 .OnDelete(DeleteBehavior.SetNull).HasConstraintName("fk_worlds_author_id");
             entity.HasIndex(x => x.Name);
             entity.HasIndex(x => x.AuthorId);
+            // The stub refresh's queue: only stubs, least recently tried first.
+            entity.HasIndex(x => new { x.StubAttemptedAt, x.FirstSeenAt }).HasFilter("is_stub");
         });
 
         modelBuilder.Entity<Avatar>(entity =>
@@ -750,11 +759,15 @@ public class VrcxContext : DbContext
             entity.Property(x => x.IsStub).HasColumnName("is_stub");
             entity.Property(x => x.FirstSeenAt).HasColumnName("first_seen_at");
             entity.Property(x => x.FetchedAt).HasColumnName("fetched_at");
+            entity.Property(x => x.StubAttemptedAt).HasColumnName("stub_attempted_at");
+            entity.Property(x => x.StubRetryAt).HasColumnName("stub_retry_at");
 
             entity.HasOne(x => x.Owner).WithMany().HasForeignKey(x => x.OwnerUserId)
                 .OnDelete(DeleteBehavior.SetNull).HasConstraintName("fk_groups_owner_user_id");
             entity.HasIndex(x => x.Name);
             entity.HasIndex(x => new { x.ShortCode, x.Discriminator });
+            // The stub refresh's queue: only stubs, least recently tried first.
+            entity.HasIndex(x => new { x.StubAttemptedAt, x.FirstSeenAt }).HasFilter("is_stub");
         });
 
         modelBuilder.Entity<GroupRole>(entity =>

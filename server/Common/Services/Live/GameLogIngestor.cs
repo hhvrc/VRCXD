@@ -266,9 +266,115 @@ public sealed class GameLogIngestor(
     private static DateTimeOffset? ResumeTime(LogEntry entry) =>
         entry.EntryCase == LogEntry.EntryOneofCase.UdonException ? null : entry.CreatedAt?.ToDateTimeOffset();
 
+    /// <summary>
+    /// What a batch will look up for its players, read in a few queries before its lines are applied:
+    /// their user rows, their open game-log stays and the stays they joined within the batch's time
+    /// span (the resend check), and who goes by each name the batch mentions without an id. Each line
+    /// then asks these instead of the database. A key or name not loaded here still goes to the
+    /// database, as before.
+    /// </summary>
+    private sealed class BatchLookups
+    {
+        private HashSet<string> _visitsOf = new(StringComparer.Ordinal);
+        private DateTimeOffset _from = DateTimeOffset.MaxValue;
+        private DateTimeOffset _to = DateTimeOffset.MinValue;
+        private Dictionary<string, string?> _byName = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, Dictionary<string, string>> _namesInInstance = new(StringComparer.Ordinal);
+
+        /// <summary>Every open game-log stay of this user is tracked by the context.</summary>
+        public bool OpenVisitsLoaded(string userId) => _visitsOf.Contains(userId);
+
+        /// <summary>Every stay this user joined at <paramref name="at"/> is tracked by the context.</summary>
+        public bool JoinsLoaded(string userId, DateTimeOffset at) =>
+            // A time finer than Postgres keeps (microseconds) compares differently there; ask it.
+            _visitsOf.Contains(userId) && at >= _from && at <= _to && at.UtcTicks % 10 == 0;
+
+        /// <summary>The newest stored user with this name, when the batch named them; false when it did not.</summary>
+        public bool TryGetByName(string name, out string? userId) => _byName.TryGetValue(name, out userId);
+
+        public static async Task<BatchLookups> LoadAsync(VrcxContext db, GameLogSession session, IReadOnlyList<LogEntry> entries, CancellationToken ct)
+        {
+            var lookups = new BatchLookups();
+            var ids = new HashSet<string>(StringComparer.Ordinal);
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            if (session.AccountId is { } account) ids.Add(account);
+            foreach (var entry in entries)
+            {
+                if (entry.CreatedAt?.ToDateTimeOffset() is { } at)
+                {
+                    if (at < lookups._from) lookups._from = at;
+                    if (at > lookups._to) lookups._to = at;
+                }
+                switch (entry.EntryCase)
+                {
+                    case LogEntry.EntryOneofCase.UserAuthenticated when entry.UserAuthenticated.UserId.Length > 0:
+                        ids.Add(entry.UserAuthenticated.UserId);
+                        break;
+                    case LogEntry.EntryOneofCase.PlayerJoined:
+                    case LogEntry.EntryOneofCase.PlayerLeft:
+                        var player = entry.EntryCase == LogEntry.EntryOneofCase.PlayerJoined ? entry.PlayerJoined : entry.PlayerLeft;
+                        if (player.UserId.Length > 0) ids.Add(player.UserId);
+                        else if (player.DisplayName.Length > 0) names.Add(player.DisplayName);
+                        break;
+                    case LogEntry.EntryOneofCase.StickerSpawn when entry.StickerSpawn.UserId.Length > 0:
+                        ids.Add(entry.StickerSpawn.UserId);
+                        break;
+                    case LogEntry.EntryOneofCase.VideoPlay when entry.VideoPlay.DisplayName.Length > 0:
+                        names.Add(entry.VideoPlay.DisplayName);
+                        break;
+                    case LogEntry.EntryOneofCase.AvatarChange when entry.AvatarChange.DisplayName.Length > 0:
+                        names.Add(entry.AvatarChange.DisplayName);
+                        break;
+                    case LogEntry.EntryOneofCase.Vrcx when MediaParsers.ParseVrcxLine(entry.Vrcx.Text) is { DisplayName: { Length: > 0 } name }:
+                        names.Add(name);
+                        break;
+                }
+            }
+
+            if (ids.Count > 0)
+            {
+                await VrchatStore.PreloadUsersAsync(db, ids, ct);
+                // Postgres keeps microseconds: widen the span so a time it rounds still falls inside.
+                var (from, to) = lookups._from <= lookups._to
+                    ? (lookups._from.AddTicks(-10), lookups._to.AddTicks(10))
+                    : (DateTimeOffset.MaxValue, DateTimeOffset.MinValue);
+                var list = ids.ToList();
+                await db.InstanceVisits
+                    .Where(v => list.Contains(v.UserId) && v.Source == VisitSource.GameLog && (v.LeftAt == null || (v.JoinedAt >= from && v.JoinedAt <= to)))
+                    .LoadAsync(ct);
+                lookups._visitsOf = ids;
+            }
+            if (names.Count > 0)
+            {
+                var list = names.ToList();
+                var rows = await db.Users.AsNoTracking().Where(u => list.Contains(u.DisplayName))
+                    .Select(u => new { u.Id, u.DisplayName, u.UpdatedAt }).ToListAsync(ct);
+                lookups._byName = names.ToDictionary(n => n, n => rows.Where(r => r.DisplayName == n).MaxBy(r => r.UpdatedAt)?.Id, StringComparer.Ordinal);
+            }
+            return lookups;
+        }
+
+        /// <summary>The players open in an instance by name, read once per instance per batch.</summary>
+        public async Task<string?> InInstanceAsync(VrcxContext db, string location, string displayName, CancellationToken ct)
+        {
+            if (!_namesInInstance.TryGetValue(location, out var here))
+            {
+                var rows = await db.InstanceVisits.AsNoTracking()
+                    .Where(v => v.InstanceLocation == location && v.Source == VisitSource.GameLog && v.LeftAt == null)
+                    .Select(v => new { v.UserId, v.User.DisplayName })
+                    .ToListAsync(ct);
+                here = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var row in rows) here.TryAdd(row.DisplayName, row.UserId);
+                _namesInInstance[location] = here;
+            }
+            return here.GetValueOrDefault(displayName);
+        }
+    }
+
     private async Task<GameLogBatchResult> ApplyAsync(GameLogSession session, IReadOnlyList<LogEntry> entries, Repeats repeats, CancellationToken ct)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var lookups = await BatchLookups.LoadAsync(db, session, entries, ct);
         var published = new List<ServerEvent>();
         var actions = new List<ClientAction>();
         // Built after the save, so the metadata sees the world name and the players this batch added.
@@ -306,7 +412,7 @@ public sealed class GameLogIngestor(
                 if (s.YoutubeApi && !string.IsNullOrEmpty(s.YoutubeApiKey) && await youTube.LookupAsync(youTubeId, s.YoutubeApiKey, ct) is { } video)
                     (videoId, videoName, videoLength) = ("YouTube", video.Title, video.Length ?? videoLength);
             }
-            var player = await ResolvePlayerAsync(db, session, play.DisplayName ?? "", ct);
+            var player = await ResolvePlayerAsync(db, session, lookups, play.DisplayName ?? "", ct);
             storedKinds.Add("video");
             db.VideoPlays.Add(lastSpecPlay = new VideoPlay
             {
@@ -340,7 +446,7 @@ public sealed class GameLogIngestor(
                     break;
 
                 case LogEntry.EntryOneofCase.Location:
-                    await EnterAsync(db, session, entry.Location.Location, entry.Location.WorldName, at, published, ct);
+                    await EnterAsync(db, session, lookups, entry.Location.Location, entry.Location.WorldName, at, published, ct);
                     ResetNowPlaying(session, published);
                     pie = new NowPlayingPie();
                     accepted++;
@@ -358,12 +464,12 @@ public sealed class GameLogIngestor(
                     break;
 
                 case LogEntry.EntryOneofCase.PlayerJoined:
-                    await PlayerAsync(db, session, entry.PlayerJoined, joined: true, at, published, ct);
+                    await PlayerAsync(db, session, lookups, entry.PlayerJoined, joined: true, at, published, ct);
                     accepted++;
                     break;
 
                 case LogEntry.EntryOneofCase.PlayerLeft:
-                    await PlayerAsync(db, session, entry.PlayerLeft, joined: false, at, published, ct);
+                    await PlayerAsync(db, session, lookups, entry.PlayerLeft, joined: false, at, published, ct);
                     accepted++;
                     break;
 
@@ -480,7 +586,7 @@ public sealed class GameLogIngestor(
                             session.AvatarsByName[name] = avatar;
                             if (known && previous != avatar)
                             {
-                                var userId = await ResolvePlayerAsync(db, session, name, ct);
+                                var userId = await ResolvePlayerAsync(db, session, lookups, name, ct);
                                 var n = repeats.Next("avatar", at, instance, name + "|" + avatar);
                                 if (await db.GameLogEvents.CountAsync(e => e.At == at && e.InstanceLocation == instance && e.Kind == "AvatarChange" && e.DisplayName == name && e.Data == avatar, ct) < n)
                                 {
@@ -677,7 +783,7 @@ public sealed class GameLogIngestor(
         };
     }
 
-    private async Task EnterAsync(VrcxContext db, GameLogSession session, string tag, string? worldName, DateTimeOffset at, List<ServerEvent> published, CancellationToken ct)
+    private async Task EnterAsync(VrcxContext db, GameLogSession session, BatchLookups lookups, string tag, string? worldName, DateTimeOffset at, List<ServerEvent> published, CancellationToken ct)
     {
         var location = VrchatLocation.Parse(tag);
         if (!location.IsRealInstance) return;
@@ -694,31 +800,33 @@ public sealed class GameLogIngestor(
         var me = await store.EnsureUserAsync(db, session.AccountId, null, at, ct);
         // A visit of the account's own left open elsewhere (logged from VRChat's location while no PC
         // reported the game, or before this PC reconnected) ends here: the account is in one place.
-        var stale = await db.InstanceVisits
-            .Where(v => v.UserId == me.Id && v.Source == VisitSource.GameLog && v.LeftAt == null && v.InstanceLocation != instance.Location)
-            .ToListAsync(ct);
+        var stale = lookups.OpenVisitsLoaded(me.Id)
+            ? []
+            : await db.InstanceVisits
+                .Where(v => v.UserId == me.Id && v.Source == VisitSource.GameLog && v.LeftAt == null && v.InstanceLocation != instance.Location)
+                .ToListAsync(ct);
         foreach (var visit in stale.Union(db.InstanceVisits.Local.Where(v => v.UserId == me.Id && v.Source == VisitSource.GameLog && v.InstanceLocation != instance.Location)).ToList())
         {
             if (visit.LeftAt is not null) continue;
             visit.LeftAt = at;
             published.Add(LiveEvents.Visit(me.Id, me.DisplayName, visit.InstanceLocation, VrchatLocation.Parse(visit.InstanceLocation).WorldId, joined: false, VisitSource.GameLog));
         }
-        if (await AlreadyStoredAsync(db, me.Id, instance.Location, at, ct)) return;
+        if (await AlreadyStoredAsync(db, lookups, me.Id, instance.Location, at, ct)) return;
         db.InstanceVisits.Add(new InstanceVisit { UserId = me.Id, InstanceLocation = instance.Location, JoinedAt = at, Source = VisitSource.GameLog });
         published.Add(LiveEvents.Visit(me.Id, me.DisplayName, instance.Location, instance.WorldId, joined: true, VisitSource.GameLog));
     }
 
-    private async Task PlayerAsync(VrcxContext db, GameLogSession session, LogPlayer player, bool joined, DateTimeOffset at, List<ServerEvent> published, CancellationToken ct)
+    private async Task PlayerAsync(VrcxContext db, GameLogSession session, BatchLookups lookups, LogPlayer player, bool joined, DateTimeOffset at, List<ServerEvent> published, CancellationToken ct)
     {
         if (session.CurrentInstanceLocation is null) return;
-        var userId = string.IsNullOrEmpty(player.UserId) ? await ResolvePlayerAsync(db, session, player.DisplayName, ct) : player.UserId;
+        var userId = string.IsNullOrEmpty(player.UserId) ? await ResolvePlayerAsync(db, session, lookups, player.DisplayName, ct) : player.UserId;
         if (userId is null) return;
         // The PC's own join/leave lines duplicate what EnterAsync already recorded.
         if (userId == session.AccountId) return;
 
         var user = await store.EnsureUserAsync(db, userId, player.DisplayName, at, ct);
         var open = db.InstanceVisits.Local.FirstOrDefault(v => v.UserId == userId && v.Source == VisitSource.GameLog && v.LeftAt is null)
-            ?? await db.InstanceVisits.FirstOrDefaultAsync(v => v.UserId == userId && v.Source == VisitSource.GameLog && v.LeftAt == null, ct);
+            ?? (lookups.OpenVisitsLoaded(userId) ? null : await db.InstanceVisits.FirstOrDefaultAsync(v => v.UserId == userId && v.Source == VisitSource.GameLog && v.LeftAt == null, ct));
         var instance = await db.Instances.FindAsync([session.CurrentInstanceLocation], ct);
         var worldId = instance?.WorldId ?? VrchatLocation.Parse(session.CurrentInstanceLocation).WorldId;
 
@@ -726,7 +834,7 @@ public sealed class GameLogIngestor(
         {
             if (open is not null && open.InstanceLocation == session.CurrentInstanceLocation) return;
             if (open is not null) open.LeftAt = at;
-            if (await AlreadyStoredAsync(db, userId, session.CurrentInstanceLocation, at, ct)) return;
+            if (await AlreadyStoredAsync(db, lookups, userId, session.CurrentInstanceLocation, at, ct)) return;
             db.InstanceVisits.Add(new InstanceVisit { UserId = userId, InstanceLocation = session.CurrentInstanceLocation, JoinedAt = at, Source = VisitSource.GameLog });
             published.Add(LiveEvents.Visit(userId, user.DisplayName, session.CurrentInstanceLocation, worldId, joined: true, VisitSource.GameLog));
         }
@@ -742,9 +850,9 @@ public sealed class GameLogIngestor(
     /// The desktop app resends log it is unsure was received; a join already stored (with the same
     /// time) is the same stay, which must not be stored again. That copy would never be closed.
     /// </summary>
-    private static async Task<bool> AlreadyStoredAsync(VrcxContext db, string userId, string location, DateTimeOffset at, CancellationToken ct) =>
+    private static async Task<bool> AlreadyStoredAsync(VrcxContext db, BatchLookups lookups, string userId, string location, DateTimeOffset at, CancellationToken ct) =>
         db.InstanceVisits.Local.Any(v => v.UserId == userId && v.InstanceLocation == location && v.JoinedAt == at && v.Source == VisitSource.GameLog)
-        || await db.InstanceVisits.AnyAsync(v => v.UserId == userId && v.InstanceLocation == location && v.JoinedAt == at && v.Source == VisitSource.GameLog, ct);
+        || (!lookups.JoinsLoaded(userId, at) && await db.InstanceVisits.AnyAsync(v => v.UserId == userId && v.InstanceLocation == location && v.JoinedAt == at && v.Source == VisitSource.GameLog, ct));
 
     /// <summary>The PC left its instance: close its own visit and everyone it had seen there.</summary>
     private static async Task LeaveAllAsync(VrcxContext db, GameLogSession session, DateTimeOffset at, List<ServerEvent> published, CancellationToken ct)
@@ -768,7 +876,7 @@ public sealed class GameLogIngestor(
     }
 
     /// <summary>Older log lines name players without an id; whoever we have seen in this instance under that name is the best guess.</summary>
-    private static async Task<string?> ResolvePlayerAsync(VrcxContext db, GameLogSession session, string? displayName, CancellationToken ct)
+    private static async Task<string?> ResolvePlayerAsync(VrcxContext db, GameLogSession session, BatchLookups lookups, string? displayName, CancellationToken ct)
     {
         if (string.IsNullOrEmpty(displayName)) return null;
         if (session.CurrentInstanceLocation is not null)
@@ -779,12 +887,10 @@ public sealed class GameLogIngestor(
                 .Select(v => v.UserId)
                 .FirstOrDefault(id => db.Users.Local.FirstOrDefault(u => u.Id == id)?.DisplayName == displayName);
             if (pending is not null) return pending;
-            var inInstance = await db.InstanceVisits
-                .Where(v => v.InstanceLocation == session.CurrentInstanceLocation && v.Source == VisitSource.GameLog && v.LeftAt == null && v.User.DisplayName == displayName)
-                .Select(v => v.UserId)
-                .FirstOrDefaultAsync(ct);
+            var inInstance = await lookups.InInstanceAsync(db, session.CurrentInstanceLocation, displayName, ct);
             if (inInstance is not null) return inInstance;
         }
+        if (lookups.TryGetByName(displayName, out var known)) return known;
         return await db.Users.Where(u => u.DisplayName == displayName).OrderByDescending(u => u.UpdatedAt).Select(u => u.Id).FirstOrDefaultAsync(ct);
     }
 }

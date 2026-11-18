@@ -17,13 +17,13 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
     // If you encounter a merge conflict in the line below, it means you need to
     // discard one of the migration branches and recreate its migrations on top of
     // the other branch. See https://aka.ms/efcore-docs-migrations-conflicts for more info.
-    public override string LastMigrationId => "20261110204704_VrchatRegistryBackups";
+    public override string LastMigrationId => "20261118132513_StubRefreshAttempts";
 
     protected override void BuildModel(ModelBuilder modelBuilder)
     {
 #pragma warning disable 612, 618
         modelBuilder
-            .HasAnnotation("ProductVersion", "11.0.0-rc.3.26522.148")
+            .HasAnnotation("ProductVersion", "11.0.0")
             .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
         NpgsqlModelBuilderExtensions.HasPostgresEnum(modelBuilder, "favorite_type", new[] { "friend", "world", "avatar" });
@@ -750,6 +750,14 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                     .HasColumnType("text")
                     .HasColumnName("short_code");
 
+                b.Property<DateTimeOffset?>("StubAttemptedAt")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("stub_attempted_at");
+
+                b.Property<DateTimeOffset?>("StubRetryAt")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("stub_retry_at");
+
                 b.Property<string[]>("Tags")
                     .IsRequired()
                     .HasColumnType("text[]")
@@ -767,6 +775,9 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                 b.HasIndex("OwnerUserId");
 
                 b.HasIndex("ShortCode", "Discriminator");
+
+                b.HasIndex("StubAttemptedAt", "FirstSeenAt")
+                    .HasFilter("is_stub");
 
                 b.ToTable("groups");
             });
@@ -2388,6 +2399,14 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                     .HasColumnType("text")
                     .HasColumnName("release_status");
 
+                b.Property<DateTimeOffset?>("StubAttemptedAt")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("stub_attempted_at");
+
+                b.Property<DateTimeOffset?>("StubRetryAt")
+                    .HasColumnType("timestamp with time zone")
+                    .HasColumnName("stub_retry_at");
+
                 b.Property<string[]>("Tags")
                     .IsRequired()
                     .HasColumnType("text[]")
@@ -2415,6 +2434,9 @@ partial class MigrationVrcxContextModelSnapshot : ModelSnapshot
                 b.HasIndex("AuthorId");
 
                 b.HasIndex("Name");
+
+                b.HasIndex("StubAttemptedAt", "FirstSeenAt")
+                    .HasFilter("is_stub");
 
                 b.ToTable("worlds");
             });

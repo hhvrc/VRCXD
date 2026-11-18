@@ -98,7 +98,7 @@ public sealed class VrcxScenario : IAsyncDisposable
     private async Task StartHostAsync()
     {
         _host = await ScenarioHost.StartAsync(new ScenarioHostSettings(
-            _database.ConnectionString, _redis.ConnectionString, ApiToken, _imageDirectory, Vrchat, Time, Logs, _options.KestrelPort, _options.ConfigureServices, Syncs, _options.EnableMcp));
+            _database.ConnectionString, _redis.ConnectionString, ApiToken, _imageDirectory, Vrchat, Time, Logs, _options.KestrelPort, _options.ConfigureServices, Syncs, _options.EnableMcp, Sql));
         _pipelineService = null;
         _api = null;
     }
@@ -124,6 +124,9 @@ public sealed class VrcxScenario : IAsyncDisposable
 
     /// <summary>The friend and full syncs the server has run; a login through <see cref="Api"/> waits for its initial one.</summary>
     public SyncTracker Syncs { get; } = new();
+
+    /// <summary>The SQL commands the server sent (one per round trip), for bounding a flow's queries.</summary>
+    public SqlCommandCounter Sql { get; } = new();
 
     /// <summary>What the server logged.</summary>
     public CapturedLogs Logs { get; } = new();
@@ -323,6 +326,11 @@ public sealed class ScenarioJobs(VrcxScenario scenario)
     public Task ProfileRefreshAsync(string? accountId = null) =>
         ActivatorUtilities.CreateInstance<ProfileRefreshService>(scenario.Services)
             .RefreshOneAsync(accountId ?? scenario.AccountId ?? throw new InvalidOperationException("Log in first"), CancellationToken.None);
+
+    /// <summary>One tick of the stub refresh (StubRefreshService) through the logged-in account. Returns how many stubs were filled in.</summary>
+    public Task<int> StubRefreshAsync() =>
+        ActivatorUtilities.CreateInstance<StubRefreshService>(scenario.Services)
+            .RefreshBatchAsync(scenario.AccountId ?? throw new InvalidOperationException("Log in first"), CancellationToken.None);
 
     /// <summary>One tick of the auto status loop (AutoStatusService) for an account.</summary>
     public Task<string?> AutoStatusAsync(string? accountId = null) =>

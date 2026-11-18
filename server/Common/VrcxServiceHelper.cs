@@ -206,6 +206,7 @@ public static class VrcxServiceHelper
         services.AddSingleton<IVrchatClientFactory, VrchatClientFactory>();
         services.AddSingleton<SavedCredentialStore>();
         services.AddSingleton<IAccountSessionManager, AccountSessionManager>();
+        services.AddSingleton<CurrentUserCache>();
         services.AddSingleton<IAvatarImageResolver, AvatarImageResolver>();
         services.AddSingleton<VrchatStore>();
         services.AddSingleton<PresenceDebouncer>();

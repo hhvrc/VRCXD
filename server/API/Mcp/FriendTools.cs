@@ -65,7 +65,10 @@ public sealed class FriendTools(McpAccountResolver accounts, FriendQueries frien
     {
         var who = await accounts.ResolveAsync(account, cancellationToken);
         var wanted = (types ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var rows = (await friends.FriendLogAsync(who.Id, cancellationToken))
+        // Unfiltered, only the newest offset+limit+1 rows are needed, and the log pages those in SQL
+        // (its page starts newest-first like the whole log, so the rows are the same).
+        int? needed = userId is null && wanted.Count == 0 ? McpPaging.Offset(offset) + McpPaging.Limit(limit) + 1 : null;
+        var rows = (await friends.FriendLogAsync(who.Id, cancellationToken, needed))
             .Where(e => userId is null || e.UserId == userId)
             .Where(e => wanted.Count == 0 || wanted.Contains(e.Type));
         return McpPaging.Page(who, rows.Select(e => new McpFriendLogRow(e.Type, e.CreatedAt, e.UserId, e.DisplayName, e.PreviousDisplayName, e.TrustLevel, e.PreviousTrustLevel)), offset, limit);

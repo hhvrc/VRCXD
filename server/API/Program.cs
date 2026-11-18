@@ -41,6 +41,8 @@ builder.Services.AddHostedService<PipelineService>();
 builder.Services.AddHostedService<PendingPresenceService>();
 builder.Services.AddHostedService<PresencePartitionService>();
 builder.Services.AddSingleton<NotificationRefreshGate>();
+builder.Services.AddSingleton<VrchatReadCache>();
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options => options.Filters.Add<VrchatReadCache.ClearOnWriteFilter>());
 builder.Services.AddHostedService<StubRefreshService>();
 builder.Services.AddHostedService<ProfileRefreshService>();
 builder.Services.AddHostedService<AutoStatusService>();

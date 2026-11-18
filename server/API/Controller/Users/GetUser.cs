@@ -13,12 +13,14 @@ namespace VRCX.API.Controller.Users;
 public sealed partial class UsersController
 {
     /// <summary>
-    /// A user as last seen. With refresh=true, GET users/{id} is fetched from VRChat first (through the given account's session, or any live one).
+    /// A user as last seen. With refresh=true, GET users/{id} is fetched from VRChat first (through the given account's session, or any live one),
+    /// unless it was less than 30 seconds ago.
     /// </summary>
     /// <param name="userId">usr_…</param>
     /// <param name="refresh">Fetch from VRChat before answering</param>
     /// <param name="account">Which logged-in account's session to fetch with</param>
     /// <param name="presence">Where the user is right now.</param>
+    /// <param name="cache">When the last refresh of this user was</param>
     /// <param name="cancellationToken"></param>
     /// <response code="200">The user</response>
     /// <response code="404">Never seen, or VRChat has no such user</response>
@@ -28,7 +30,7 @@ public sealed partial class UsersController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetUser([FromRoute] string userId, [FromQuery] bool refresh, [FromQuery] string? account, [FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetUser([FromRoute] string userId, [FromQuery] bool refresh, [FromQuery] string? account, [FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, [FromServices] VRCX.API.Services.VrchatReadCache cache, CancellationToken cancellationToken)
     {
         if (refresh)
         {
@@ -36,7 +38,10 @@ public sealed partial class UsersController
             if (via is null) return Problem(AccountError.NoAccounts);
             try
             {
-                await _sync.RefreshUserAsync(via, userId, cancellationToken);
+                // The dialog's refresh reads its tabs again too.
+                if (await cache.ThrottleAsync(VRCX.API.Services.VrchatReadCache.Key(via, "refresh-user", userId), VRCX.API.Services.VrchatReadCache.RefreshMinAge,
+                        () => _sync.RefreshUserAsync(via, userId, cancellationToken)))
+                    cache.Forget([.. new[] { "mutual-counts", "public-profile", "user-groups" }.Select(tab => VRCX.API.Services.VrchatReadCache.Key(via, tab, userId))]);
             }
             catch (VrchatApiException ex)
             {

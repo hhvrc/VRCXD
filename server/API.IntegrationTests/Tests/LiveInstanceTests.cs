@@ -46,7 +46,8 @@ public sealed class LiveInstanceTests
         await Assert.That(instance.GetProperty("world").GetProperty("description").GetString()).IsEqualTo("A world");
     }
 
-    // Upstream issue 1394: Refresh must show VRChat's current count, not a stale one.
+    // Upstream issue 1394: Refresh must show VRChat's current count, not a stale one. The bar's
+    // refresh asks with refresh=true; a plain read inside a minute is the kept answer.
     [Test, Regressions.Issue(1394)]
     public async Task Issue_1394_each_read_has_vrchats_current_user_count()
     {
@@ -57,10 +58,14 @@ public sealed class LiveInstanceTests
         app.Vrchat.Json(Path, """{"location":"wrld_x:1","userCount":5,"capacity":32}""");
         var first = await app.Api.GetFromJsonAsync<JsonElement>(url);
         app.Vrchat.Json(Path, """{"location":"wrld_x:1","userCount":7,"capacity":32}""");
-        var second = await app.Api.GetFromJsonAsync<JsonElement>(url);
+        var kept = await app.Api.GetFromJsonAsync<JsonElement>(url);
+        var second = await app.Api.GetFromJsonAsync<JsonElement>(url + "&refresh=true");
+        var afterRefresh = await app.Api.GetFromJsonAsync<JsonElement>(url);
 
         await Assert.That(first.GetProperty("instance").GetProperty("userCount").GetInt32()).IsEqualTo(5);
+        await Assert.That(kept.GetProperty("instance").GetProperty("userCount").GetInt32()).IsEqualTo(5);
         await Assert.That(second.GetProperty("instance").GetProperty("userCount").GetInt32()).IsEqualTo(7);
+        await Assert.That(afterRefresh.GetProperty("instance").GetProperty("userCount").GetInt32()).IsEqualTo(7);
     }
 
     [Test]

@@ -27,8 +27,116 @@ namespace VRCX.Common.Services.Ingestion;
 /// when a value we already knew actually changed - a first sighting is never
 /// a "change", and an endpoint that does not carry a field never clears it.
 /// </summary>
-public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache presenceCache, IAvatarImageResolver? avatarImages = null)
+public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache presenceCache, IAvatarImageResolver? avatarImages = null, Sessions.CurrentUserCache? currentUsers = null)
 {
+    // ---- preloading --------------------------------------------------------
+
+    // A loop over a list VRChat returned (friends, groups, favorites) looks each item up by key.
+    // Loading them all in one query first, and remembering which keys were asked for, lets those
+    // lookups answer from the change tracker: a key loaded and not tracked does not exist.
+
+    private static async ValueTask<T?> FindAsync<T>(VrcxContext db, DbSet<T> set, string key, CancellationToken ct) where T : class
+    {
+        if (!db.Preloaded.Contains<T>(key)) return await set.FindAsync([key], ct);
+        return Tracked(db, set, [key]);
+    }
+
+    private static T? Tracked<T>(VrcxContext db, DbSet<T> set, object?[] key) where T : class
+    {
+        // A key lookup in the identity map; nothing a DetectChanges would find changes a key.
+        var detect = db.ChangeTracker.AutoDetectChangesEnabled;
+        db.ChangeTracker.AutoDetectChangesEnabled = false;
+        try
+        {
+            return set.Local.FindEntryUntyped(key)?.Entity;
+        }
+        finally
+        {
+            db.ChangeTracker.AutoDetectChangesEnabled = detect;
+        }
+    }
+
+    private static List<string> NotPreloaded<T>(VrcxContext db, IEnumerable<string?> keys) =>
+        keys.OfType<string>().Where(k => k.Length > 0 && !db.Preloaded.Contains<T>(k)).Distinct(StringComparer.Ordinal).ToList();
+
+    /// <summary>Loads these users in one query, so the upserts that follow need none each.</summary>
+    public static async Task PreloadUsersAsync(VrcxContext db, IEnumerable<string?> ids, CancellationToken ct)
+    {
+        var keys = NotPreloaded<User>(db, ids);
+        if (keys.Count == 0) return;
+        await db.Users.Where(u => keys.Contains(u.Id)).LoadAsync(ct);
+        db.Preloaded.Add<User>(keys);
+    }
+
+    public static async Task PreloadWorldsAsync(VrcxContext db, IEnumerable<string?> ids, CancellationToken ct)
+    {
+        var keys = NotPreloaded<World>(db, ids);
+        if (keys.Count == 0) return;
+        await db.Worlds.Where(w => keys.Contains(w.Id)).LoadAsync(ct);
+        db.Preloaded.Add<World>(keys);
+    }
+
+    public static async Task PreloadAvatarsAsync(VrcxContext db, IEnumerable<string?> ids, CancellationToken ct)
+    {
+        var keys = NotPreloaded<Avatar>(db, ids);
+        if (keys.Count == 0) return;
+        await db.Avatars.Where(a => keys.Contains(a.Id)).LoadAsync(ct);
+        db.Preloaded.Add<Avatar>(keys);
+    }
+
+    public static async Task PreloadGroupsAsync(VrcxContext db, IEnumerable<string?> ids, CancellationToken ct)
+    {
+        var keys = NotPreloaded<Group>(db, ids);
+        if (keys.Count == 0) return;
+        await db.Groups.Where(g => keys.Contains(g.Id)).LoadAsync(ct);
+        db.Preloaded.Add<Group>(keys);
+    }
+
+    public static async Task PreloadGroupRolesAsync(VrcxContext db, IEnumerable<string?> ids, CancellationToken ct)
+    {
+        var keys = NotPreloaded<GroupRole>(db, ids);
+        if (keys.Count == 0) return;
+        await db.GroupRoles.Where(r => keys.Contains(r.Id)).LoadAsync(ct);
+        db.Preloaded.Add<GroupRole>(keys);
+    }
+
+    /// <summary>One user's memberships of these groups, with their roles.</summary>
+    public static async Task PreloadMembershipsAsync(VrcxContext db, string userId, IEnumerable<string?> groupIds, CancellationToken ct)
+    {
+        var groups = groupIds.OfType<string>().Where(g => !db.Preloaded.Contains<GroupMember>(MembershipKey(g, userId))).Distinct(StringComparer.Ordinal).ToList();
+        if (groups.Count == 0) return;
+        await db.GroupMembers.Include(m => m.Roles).Where(m => m.UserId == userId && groups.Contains(m.GroupId)).LoadAsync(ct);
+        db.Preloaded.Add<GroupMember>(groups.Select(g => MembershipKey(g, userId)));
+    }
+
+    private static string MembershipKey(string groupId, string userId) => groupId + "\n" + userId;
+
+    public static async Task PreloadNotificationsAsync(VrcxContext db, string ownerId, IEnumerable<string?> ids, CancellationToken ct)
+    {
+        var keys = ids.OfType<string>().Where(id => !db.Preloaded.Contains<Notification>(NotificationKey(ownerId, id))).Distinct(StringComparer.Ordinal).ToList();
+        if (keys.Count == 0) return;
+        await db.Notifications.Where(n => n.OwnerUserId == ownerId && keys.Contains(n.Id)).LoadAsync(ct);
+        db.Preloaded.Add<Notification>(keys.Select(id => NotificationKey(ownerId, id)));
+    }
+
+    private static string NotificationKey(string ownerId, string id) => ownerId + "\n" + id;
+
+    /// <summary>The instances behind these location tags, and the worlds, owners and groups an instance row needs.</summary>
+    public static async Task PreloadLocationsAsync(VrcxContext db, IEnumerable<string?> tags, CancellationToken ct)
+    {
+        var locations = tags.OfType<string>().Select(VrchatLocation.Parse).Where(l => l.IsRealInstance).ToList();
+        if (locations.Count == 0) return;
+        var keys = NotPreloaded<Instance>(db, locations.Select(l => l.InstanceLocation));
+        if (keys.Count > 0)
+        {
+            await db.Instances.Where(i => keys.Contains(i.Location)).LoadAsync(ct);
+            db.Preloaded.Add<Instance>(keys);
+        }
+        await PreloadWorldsAsync(db, locations.Select(l => l.WorldId), ct);
+        await PreloadUsersAsync(db, locations.Select(l => l.OwnerUserId), ct);
+        await PreloadGroupsAsync(db, locations.Select(l => l.GroupId), ct);
+    }
+
     // ---- users ------------------------------------------------------------
 
     public Task<User> UpsertUserAsync(VrcxContext db, Vrc.User api, DateTimeOffset now, CancellationToken ct) =>
@@ -70,8 +178,13 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     public Task<User> UpsertCurrentUserAsync(VrcxContext db, CurrentUser api, CancellationToken ct) =>
         UpsertCurrentUserAsync(db, api, DateTimeOffset.UtcNow, ct);
 
-    public Task<User> UpsertCurrentUserAsync(VrcxContext db, CurrentUser api, DateTimeOffset now, CancellationToken ct) =>
-        ApplyUserAsync(db, api.Id, now, new UserFields
+    // whole is false for the pipeline's user-update, which carries only part of the user: it changes
+    // the copy GET /me answers from instead of replacing it.
+    public Task<User> UpsertCurrentUserAsync(VrcxContext db, CurrentUser api, DateTimeOffset now, CancellationToken ct, bool whole = true)
+    {
+        if (whole) currentUsers?.Set(api);
+        else currentUsers?.ApplyUpdate(api);
+        return ApplyUserAsync(db, api.Id, now, new UserFields
         {
             DisplayName = api.DisplayName,
             Bio = api.Bio,
@@ -104,6 +217,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
             AllowAvatarCopying = api.AllowAvatarCopying,
             IsFullFetch = true,
         }, ct);
+    }
 
     /// <summary>
     /// Stores what profile/{id} says, the original's updateUserProfile: the first read sets the
@@ -186,7 +300,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     /// <summary>A row for a user we only know by reference (author id, log line). Never downgrades a real row.</summary>
     public async Task<User> EnsureUserAsync(VrcxContext db, string userId, string? displayName, DateTimeOffset now, CancellationToken ct)
     {
-        var user = await db.Users.FindAsync([userId], ct);
+        var user = await FindAsync(db, db.Users, userId, ct);
         if (user is not null)
         {
             if (user.IsStub && !string.IsNullOrEmpty(displayName) && user.DisplayName != displayName)
@@ -245,7 +359,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     private async Task<User> ApplyUserAsync(VrcxContext db, string id, DateTimeOffset now, UserFields f, CancellationToken ct)
     {
-        var user = await db.Users.FindAsync([id], ct);
+        var user = await FindAsync(db, db.Users, id, ct);
         var isNew = user is null;
         if (user is null)
         {
@@ -485,7 +599,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     public async Task<World> UpsertWorldAsync(VrcxContext db, Vrc.World api, DateTimeOffset now, CancellationToken ct)
     {
-        var world = await db.Worlds.FindAsync([api.Id], ct);
+        var world = await FindAsync(db, db.Worlds, api.Id, ct);
         if (world is null)
         {
             world = new World { Id = api.Id, Name = api.Name, FirstSeenAt = now };
@@ -527,7 +641,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     public async Task<World> EnsureWorldAsync(VrcxContext db, string worldId, string? name, DateTimeOffset now, CancellationToken ct)
     {
-        var world = await db.Worlds.FindAsync([worldId], ct);
+        var world = await FindAsync(db, db.Worlds, worldId, ct);
         if (world is not null)
         {
             if (world.IsStub && !string.IsNullOrEmpty(name) && world.Name != name) world.Name = name;
@@ -540,7 +654,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     public async Task<Avatar> UpsertAvatarAsync(VrcxContext db, Vrc.Avatar api, DateTimeOffset now, CancellationToken ct)
     {
-        var avatar = await db.Avatars.FindAsync([api.Id], ct);
+        var avatar = await FindAsync(db, db.Avatars, api.Id, ct);
         if (avatar is null)
         {
             avatar = new Avatar { Id = api.Id, Name = api.Name, FirstSeenAt = now };
@@ -605,7 +719,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     public async Task<Avatar> EnsureAvatarAsync(VrcxContext db, string avatarId, string? name, DateTimeOffset now, CancellationToken ct)
     {
-        var avatar = await db.Avatars.FindAsync([avatarId], ct);
+        var avatar = await FindAsync(db, db.Avatars, avatarId, ct);
         if (avatar is not null) return avatar;
         avatar = new Avatar { Id = avatarId, Name = string.IsNullOrEmpty(name) ? avatarId : name, IsStub = true, FirstSeenAt = now };
         db.Avatars.Add(avatar);
@@ -616,7 +730,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     public async Task<Instance> EnsureInstanceAsync(VrcxContext db, VrchatLocation location, DateTimeOffset now, CancellationToken ct)
     {
         if (!location.IsRealInstance) throw new ArgumentException($"'{location.Tag}' is not an instance location", nameof(location));
-        var instance = await db.Instances.FindAsync([location.InstanceLocation], ct);
+        var instance = await FindAsync(db, db.Instances, location.InstanceLocation, ct);
         if (instance is not null) return instance;
 
         await EnsureWorldAsync(db, location.WorldId, null, now, ct);
@@ -746,7 +860,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     public async Task<Group> EnsureGroupAsync(VrcxContext db, string groupId, string? name, DateTimeOffset now, CancellationToken ct)
     {
-        var group = await db.Groups.FindAsync([groupId], ct);
+        var group = await FindAsync(db, db.Groups, groupId, ct);
         if (group is not null)
         {
             if (group.IsStub && !string.IsNullOrEmpty(name) && group.Name != name) group.Name = name;
@@ -779,7 +893,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     private static async Task<GroupRole> EnsureGroupRoleAsync(VrcxContext db, string groupId, string roleId, CancellationToken ct)
     {
-        var role = await db.GroupRoles.FindAsync([roleId], ct);
+        var role = await FindAsync(db, db.GroupRoles, roleId, ct);
         if (role is not null) return role;
         role = new GroupRole { Id = roleId, GroupId = groupId, Name = roleId, IsStub = true };
         db.GroupRoles.Add(role);
@@ -803,8 +917,10 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     {
         await EnsureGroupAsync(db, groupId, null, now, ct);
         await EnsureUserAsync(db, userId, null, now, ct);
-        var member = await db.GroupMembers.Include(m => m.Roles).FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId, ct)
-            ?? db.GroupMembers.Local.FirstOrDefault(m => m.GroupId == groupId && m.UserId == userId);
+        var member = db.Preloaded.Contains<GroupMember>(MembershipKey(groupId, userId))
+            ? Tracked(db, db.GroupMembers, [groupId, userId])
+            : await db.GroupMembers.Include(m => m.Roles).FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId, ct)
+                ?? db.GroupMembers.Local.FirstOrDefault(m => m.GroupId == groupId && m.UserId == userId);
         if (member is null)
         {
             member = new GroupMember { GroupId = groupId, UserId = userId, FirstSeenAt = now, FetchedAt = now };
@@ -879,6 +995,9 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     public async Task SyncUserGroupsAsync(VrcxContext db, string userId, IReadOnlyList<LimitedUserGroup> groups, DateTimeOffset now, CancellationToken ct, IReadOnlySet<string>? stillMember = null)
     {
         var listed = new HashSet<string>(StringComparer.Ordinal);
+        await PreloadGroupsAsync(db, groups.Select(g => g.GroupId), ct);
+        await PreloadUsersAsync(db, groups.Select(g => g.OwnerId).Append(userId), ct);
+        await PreloadMembershipsAsync(db, userId, groups.Select(g => g.GroupId), ct);
         foreach (var g in groups)
         {
             listed.Add(g.GroupId);
@@ -914,7 +1033,15 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     // ---- friends ----------------------------------------------------------
 
-    public sealed record FriendSyncResult(IReadOnlyList<string> Added, IReadOnlyList<string> Removed);
+    // Confirmed: the open friendships the list (or stillFriends) confirmed. Their last_confirmed_at is
+    // the caller's to set, in one statement after saving, rather than one UPDATE per friend in the save.
+    public sealed record FriendSyncResult(IReadOnlyList<string> Added, IReadOnlyList<string> Removed, IReadOnlyList<long> Confirmed);
+
+    /// <summary>Sets last_confirmed_at on the friendships a <see cref="SyncFriendsAsync"/> confirmed, in one statement.</summary>
+    public static Task ConfirmFriendshipsAsync(VrcxContext db, FriendSyncResult result, DateTimeOffset now, CancellationToken ct) =>
+        result.Confirmed.Count == 0
+            ? Task.CompletedTask
+            : db.Friendships.Where(f => result.Confirmed.Contains(f.Id)).ExecuteUpdateAsync(s => s.SetProperty(f => f.LastConfirmedAt, now), ct);
 
     /// <summary>
     /// Diffs a complete friend list against the account's open friendships:
@@ -934,8 +1061,11 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
         var known = await presenceCache.GetManyAsync(friends.Select(f => f.Id).ToArray(), ct);
         foreach (var friend in friends) db.Presence.Remember(friend.Id, known.GetValueOrDefault(friend.Id) ?? UserPresence.Unknown);
+        await PreloadUsersAsync(db, friends.Select(f => f.Id), ct);
+        await PreloadLocationsAsync(db, friends.Select(f => f.Location), ct);
 
         var added = new List<string>();
+        var confirmed = new List<long>();
         foreach (var friend in friends)
         {
             var user = await UpsertFriendAsync(db, friend, now, ct);
@@ -944,7 +1074,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
             if (open.Remove(friend.Id, out var friendship))
             {
-                friendship.LastConfirmedAt = now;
+                confirmed.Add(friendship.Id);
                 continue;
             }
             db.Friendships.Add(new Friendship
@@ -963,7 +1093,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
         {
             if (stillFriends.Contains(friendId))
             {
-                friendship.LastConfirmedAt = now;
+                confirmed.Add(friendship.Id);
                 continue;
             }
             friendship.EndedAt = now;
@@ -972,7 +1102,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
         if (added.Count > 0 || removed.Count > 0)
             logger.LogInformation("Friend sync for {Owner}: +{Added} -{Removed}", ownerId, added.Count, removed.Count);
-        return new FriendSyncResult(added, removed);
+        return new FriendSyncResult(added, removed, confirmed);
     }
 
     /// <summary>friend-add from the pipeline: opens a friendship if none is open. Returns it, or null when one was already open.</summary>
@@ -1002,7 +1132,9 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     public async Task<Notification> UpsertNotificationAsync(VrcxContext db, string ownerId, Vrc.Notification api, DateTimeOffset now, CancellationToken ct)
     {
-        var row = await db.Notifications.FindAsync([ownerId, api.Id], ct);
+        var row = db.Preloaded.Contains<Notification>(NotificationKey(ownerId, api.Id))
+            ? Tracked(db, db.Notifications, [ownerId, api.Id])
+            : await db.Notifications.FindAsync([ownerId, api.Id], ct);
         if (row is null)
         {
             row = new Notification { Id = api.Id, OwnerUserId = ownerId, Type = api.Type, Version = 1, CreatedAt = api.CreatedAt ?? now };
@@ -1026,7 +1158,9 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
 
     public async Task<Notification> UpsertNotificationAsync(VrcxContext db, string ownerId, NotificationV2 api, DateTimeOffset now, CancellationToken ct)
     {
-        var row = await db.Notifications.FindAsync([ownerId, api.Id], ct);
+        var row = db.Preloaded.Contains<Notification>(NotificationKey(ownerId, api.Id))
+            ? Tracked(db, db.Notifications, [ownerId, api.Id])
+            : await db.Notifications.FindAsync([ownerId, api.Id], ct);
         if (row is null)
         {
             row = new Notification { Id = api.Id, OwnerUserId = ownerId, Type = api.Type, Version = 2, CreatedAt = api.CreatedAt ?? now };
@@ -1091,6 +1225,14 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
         }
     }
 
+    private static async Task PreloadFavoriteTargetsAsync(VrcxContext db, IEnumerable<(FavoriteType? Type, string Id)> targets, CancellationToken ct)
+    {
+        var list = targets.ToList();
+        await PreloadUsersAsync(db, list.Where(t => t.Type == FavoriteType.Friend).Select(t => t.Id), ct);
+        await PreloadWorldsAsync(db, list.Where(t => t.Type == FavoriteType.World).Select(t => t.Id), ct);
+        await PreloadAvatarsAsync(db, list.Where(t => t.Type == FavoriteType.Avatar).Select(t => t.Id), ct);
+    }
+
     /// <summary>Stores one favorite VRChat just accepted, without waiting for the next full sync.</summary>
     public async Task UpsertFavoriteAsync(VrcxContext db, string ownerId, Vrc.Favorite favorite, DateTimeOffset now, CancellationToken ct)
     {
@@ -1126,6 +1268,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
         db.FavoriteGroups.RemoveRange(existingGroups.Values);
 
         var existing = await db.Favorites.Where(f => f.OwnerUserId == ownerId).ToDictionaryAsync(f => f.Id, ct);
+        await PreloadFavoriteTargetsAsync(db, favorites.Select(f => (VrcxEnums.TryParseFavoriteType(f.Type), f.FavoriteId)), ct);
         foreach (var f in favorites)
         {
             if (VrcxEnums.TryParseFavoriteType(f.Type) is not { } type)
@@ -1150,6 +1293,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     public async Task SyncPlayerModerationsAsync(VrcxContext db, string ownerId, IReadOnlyList<Vrc.PlayerModeration> moderations, DateTimeOffset now, CancellationToken ct)
     {
         var existing = await db.PlayerModerations.Where(m => m.OwnerUserId == ownerId).ToDictionaryAsync(m => m.Id, ct);
+        await PreloadUsersAsync(db, moderations.Select(m => m.TargetUserId), ct);
         foreach (var m in moderations)
         {
             await EnsureUserAsync(db, m.TargetUserId, m.TargetDisplayName, now, ct);
@@ -1194,6 +1338,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     public async Task SyncUserNotesAsync(VrcxContext db, string ownerId, IReadOnlyList<Vrc.UserNote> notes, DateTimeOffset now, CancellationToken ct, bool complete = true)
     {
         var existing = await db.UserNotes.Where(n => n.OwnerUserId == ownerId).ToDictionaryAsync(n => n.Id, ct);
+        await PreloadUsersAsync(db, notes.Select(n => n.TargetUserId), ct);
         foreach (var n in notes)
         {
             await EnsureUserAsync(db, n.TargetUserId, null, now, ct);

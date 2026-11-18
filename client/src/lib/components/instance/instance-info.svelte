@@ -38,7 +38,7 @@
 		const key = `${account}|${location}`;
 		const hit = cache.get(key);
 		if (!force && hit && Date.now() - hit.at < 60_000) return hit.promise;
-		const promise = api.get<Live>(accountPath(account, '/instances/live'), { location }).catch(() => null);
+		const promise = api.get<Live>(accountPath(account, '/instances/live'), force ? { location, refresh: true } : { location }).catch(() => null);
 		cache.set(key, { at: Date.now(), promise });
 		return promise;
 	}

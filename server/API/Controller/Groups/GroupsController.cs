@@ -37,7 +37,7 @@ public sealed class GroupsController : VrcxControllerBase
     }
 
     /// <summary>
-    /// A group with its roles and current members. With refresh=true, GET groups/{id}?includeRoles=true is fetched from VRChat first.
+    /// A group with its roles and current members. With refresh=true, GET groups/{id}?includeRoles=true is fetched from VRChat first, unless it was less than 30 seconds ago.
     /// </summary>
     /// <response code="200">The group</response>
     /// <response code="404">Never seen, or VRChat has no such group</response>
@@ -47,7 +47,7 @@ public sealed class GroupsController : VrcxControllerBase
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetGroup([FromRoute] string groupId, [FromQuery] bool refresh, [FromQuery] string? account, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetGroup([FromRoute] string groupId, [FromQuery] bool refresh, [FromQuery] string? account, [FromServices] VRCX.API.Services.VrchatReadCache cache, CancellationToken cancellationToken)
     {
         if (refresh)
         {
@@ -55,7 +55,8 @@ public sealed class GroupsController : VrcxControllerBase
             if (via is null) return Problem(AccountError.NoAccounts);
             try
             {
-                await _sync.RefreshGroupAsync(via, groupId, cancellationToken);
+                await cache.ThrottleAsync(VRCX.API.Services.VrchatReadCache.Key(via, "refresh-group", groupId), VRCX.API.Services.VrchatReadCache.RefreshMinAge,
+                    () => _sync.RefreshGroupAsync(via, groupId, cancellationToken));
             }
             catch (VrchatApiException ex)
             {

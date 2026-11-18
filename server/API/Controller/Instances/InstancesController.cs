@@ -38,7 +38,7 @@ public sealed class InstancesController : VrcxControllerBase
 
     /// <summary>
     /// An instance by its location tag ("wrld_…:12345~region(eu)"), with everyone we believe is there now.
-    /// With refresh=true, GET instances/{location} is fetched from VRChat first.
+    /// With refresh=true, GET instances/{location} is fetched from VRChat first, unless it was less than 30 seconds ago.
     /// </summary>
     /// <response code="200">The instance</response>
     /// <response code="400">The tag is not an instance location</response>
@@ -50,7 +50,7 @@ public sealed class InstancesController : VrcxControllerBase
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetInstance([FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, [FromRoute] string location, [FromQuery] bool refresh, [FromQuery] string? account, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetInstance([FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, [FromRoute] string location, [FromQuery] bool refresh, [FromQuery] string? account, [FromServices] VRCX.API.Services.VrchatReadCache cache, CancellationToken cancellationToken)
     {
         var parsed = VrchatLocation.Parse(location);
         if (!parsed.IsRealInstance) return Problem(InstanceError.NotAnInstance);
@@ -61,7 +61,8 @@ public sealed class InstancesController : VrcxControllerBase
             if (via is null) return Problem(AccountError.NoAccounts);
             try
             {
-                await _sync.RefreshInstanceAsync(via, parsed.InstanceLocation, cancellationToken);
+                await cache.ThrottleAsync(VRCX.API.Services.VrchatReadCache.Key(via, "refresh-instance", parsed.InstanceLocation), VRCX.API.Services.VrchatReadCache.RefreshMinAge,
+                    () => _sync.RefreshInstanceAsync(via, parsed.InstanceLocation, cancellationToken));
             }
             catch (VrchatApiException ex)
             {

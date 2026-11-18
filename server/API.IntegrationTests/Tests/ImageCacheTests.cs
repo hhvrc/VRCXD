@@ -120,4 +120,62 @@ public sealed class ImageCacheTests
         var script = await client.GetAsync($"/1/images?url={Uri.EscapeDataString("https://files.vrchat.cloud/script.svg")}");
         await Assert.That(script.StatusCode).IsEqualTo(HttpStatusCode.Redirect);
     }
+
+    // A broken image used to be fetched again on every view of every card showing it.
+    [Test]
+    public async Task An_image_that_could_not_be_had_is_not_fetched_again_for_a_while()
+    {
+        var fetcher = new CountingFetcher();
+        await using var host = await WithFetcherAsync(fetcher);
+        var cache = host.Services.GetRequiredService<ImageCache>();
+        const string missing = "https://files.vrchat.cloud/missing-for-now.png";
+
+        await Assert.That(await cache.GetAsync(missing, CancellationToken.None)).IsNull();
+        await Assert.That(await cache.GetAsync(missing, CancellationToken.None)).IsNull();
+        await Assert.That(fetcher.Calls).IsEqualTo(1);
+
+        host.Time.Advance(ImageCache.FailureBackoff + TimeSpan.FromSeconds(1));
+        await Assert.That(await cache.GetAsync(missing, CancellationToken.None)).IsNull();
+        await Assert.That(fetcher.Calls).IsEqualTo(2);
+    }
+
+    private sealed class BlockingFetcher : IImageFetcher
+    {
+        public readonly TaskCompletionSource Release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _running;
+        public int Started;
+        public int MostAtOnce;
+
+        public async Task<DownloadedImage?> FetchAsync(Uri url, CancellationToken ct)
+        {
+            Interlocked.Increment(ref Started);
+            var now = Interlocked.Increment(ref _running);
+            lock (this) MostAtOnce = Math.Max(MostAtOnce, now);
+            await Release.Task;
+            Interlocked.Decrement(ref _running);
+            return new DownloadedImage(new MemoryStream(CountingFetcher.Png));
+        }
+    }
+
+    // A page of cards used to start every download at once, outside the VRChat API's rate limit.
+    [Test]
+    public async Task Downloads_run_a_few_at_a_time_and_one_image_is_downloaded_once()
+    {
+        var fetcher = new BlockingFetcher();
+        await using var host = await VRCX.Testing.VrcxScenario.StartAsync(new() { ConfigureServices = s => s.Replace(ServiceDescriptor.Singleton<IImageFetcher>(fetcher)) });
+        var cache = host.Services.GetRequiredService<ImageCache>();
+        var urls = Enumerable.Range(0, 10).Select(i => $"https://files.vrchat.cloud/card{i}.png").ToList();
+
+        var loads = urls.Concat(urls).Select(u => cache.GetAsync(u, CancellationToken.None)).ToList();
+        for (var i = 0; i < 100 && Volatile.Read(ref fetcher.Started) < ImageCache.MaxConcurrentDownloads; i++) await Task.Delay(20);
+        await Task.Delay(200);
+        await Assert.That(Volatile.Read(ref fetcher.Started)).IsEqualTo(ImageCache.MaxConcurrentDownloads);
+
+        fetcher.Release.SetResult();
+        var images = await Task.WhenAll(loads);
+
+        await Assert.That(images.All(i => i is not null)).IsTrue();
+        await Assert.That(fetcher.Started).IsEqualTo(urls.Count);
+        await Assert.That(fetcher.MostAtOnce).IsEqualTo(ImageCache.MaxConcurrentDownloads);
+    }
 }

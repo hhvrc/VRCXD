@@ -53,13 +53,22 @@ public sealed partial class AccountsController
         var memos = await _db.UserMemos.AsNoTracking().Where(m => ids.Contains(m.UserId)).ToDictionaryAsync(m => m.UserId, m => m.Memo, cancellationToken);
 
         // Only the game log says they were in the same instance as the account. Identical rows are
-        // counted once: the same join has been stored twice in places.
-        var visits = await _db.InstanceVisits.AsNoTracking()
+        // counted once: the same join has been stored twice in places. Summed by Postgres: a friend
+        // list of a few hundred has tens of thousands of visits behind it, and only three numbers
+        // per friend leave the database.
+        var together = await _db.InstanceVisits.AsNoTracking()
             .Where(v => v.Source == VisitSource.GameLog && ids.Contains(v.UserId))
             .Select(v => new { v.UserId, v.InstanceLocation, v.JoinedAt, v.LeftAt })
             .Distinct()
-            .ToListAsync(cancellationToken);
-        var visitsByUser = visits.ToLookup(v => v.UserId);
+            .GroupBy(v => v.UserId)
+            .Select(g => new
+            {
+                g.Key,
+                Joins = g.Count(),
+                Ms = g.Where(v => v.LeftAt != null).Sum(v => (v.LeftAt!.Value - v.JoinedAt).TotalMilliseconds),
+                LastSeen = g.Max(v => v.LeftAt ?? v.JoinedAt),
+            })
+            .ToDictionaryAsync(g => g.Key, cancellationToken);
 
         var mutualCounts = await _db.MutualFriendLinks.AsNoTracking().Where(l => l.OwnerUserId == accountId)
             .GroupBy(l => l.FriendUserId).Select(g => new { g.Key, Count = g.Count() })
@@ -75,7 +84,7 @@ public sealed partial class AccountsController
             Friends = friends.Select(f =>
             {
                 var user = f.User;
-                var seen = visitsByUser[user.Id].ToList();
+                var seen = together.GetValueOrDefault(user.Id);
                 return new FriendDetailResponse
                 {
                     FriendNumber = f.FriendNumber,
@@ -91,9 +100,9 @@ public sealed partial class AccountsController
                     BioLinks = user.BioLinks,
                     Note = noteByUser.GetValueOrDefault(user.Id),
                     Memo = memos.GetValueOrDefault(user.Id),
-                    JoinCount = seen.Count,
-                    TimeTogetherMs = (long)seen.Where(v => v.LeftAt != null).Sum(v => (v.LeftAt!.Value - v.JoinedAt).TotalMilliseconds),
-                    LastSeen = seen.Count > 0 ? seen.Max(v => v.LeftAt ?? v.JoinedAt) : null,
+                    JoinCount = seen?.Joins ?? 0,
+                    TimeTogetherMs = (long)(seen?.Ms ?? 0),
+                    LastSeen = seen?.LastSeen,
                     MutualCount = mutualCounts.GetValueOrDefault(user.Id),
                     MutualOptedOut = optedOut.Contains(user.Id),
                     LastActivity = user.LastActivity,
@@ -119,17 +128,28 @@ public sealed partial class AccountsController
     public Task<IActionResult> LoadFriend([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
         RunAsync(accountId, async _ => await _sync.RefreshUserAsync(accountId, userId, cancellationToken));
 
-    /// <summary>The account's friend log: friendships starting and ending, friend requests it sent through VRCX, and friends' name and trust changes while they were friends. Newest first, without the rows the account removed.</summary>
+    /// <summary>
+    /// The account's friend log: friendships starting and ending, friend requests it sent through
+    /// VRCX, and friends' name and trust changes while they were friends. Newest first, without the
+    /// rows the account removed. Whole by default; with limit, a page of the entries older than
+    /// before: at least limit of them (fewer only at the end), and every entry at the oldest time
+    /// in the page, so the next page is the one before that time and no entry is cut in two pages.
+    /// </summary>
+    /// <param name="accountId">usr_…</param>
+    /// <param name="limit">Entries per page (at least this many, ties at the end included)</param>
+    /// <param name="before">Only entries older than this: the last entry's createdAt of the previous page</param>
+    /// <param name="friends">The friend queries</param>
+    /// <param name="cancellationToken"></param>
     /// <response code="200">The log</response>
     /// <response code="404">No such account</response>
     [HttpGet("{accountId}/friend-log")]
     [ProducesResponseType<FriendLogEntryResponse[]>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> FriendLog([FromRoute] string accountId, [FromServices] FriendQueries friends, CancellationToken cancellationToken)
+    public async Task<IActionResult> FriendLog([FromRoute] string accountId, [FromQuery] int? limit, [FromQuery] DateTimeOffset? before, [FromServices] FriendQueries friends, CancellationToken cancellationToken)
     {
         if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-        return Ok(await friends.FriendLogAsync(accountId, cancellationToken));
+        return Ok(await friends.FriendLogAsync(accountId, cancellationToken, limit, before));
     }
 
     /// <summary>Remove a row from the account's friend log view. The history behind it stays in the database.</summary>

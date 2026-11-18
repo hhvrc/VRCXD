@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
+using VRCX.API.Services;
 using VRCX.Common.Services.Queries;
 using VRCX.Vrchat.Models;
 
@@ -50,8 +51,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> GetUserPublicProfile([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
-        ReadLiveAsync(accountId, client => client.GetPublicProfileAsync(userId, cancellationToken));
+    public Task<IActionResult> GetUserPublicProfile([FromRoute] string accountId, [FromRoute] string userId, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
+        ReadLiveAsync(accountId, client => cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "public-profile", userId), VrchatReadCache.DialogTtl,
+            () => client.GetPublicProfileAsync(userId, cancellationToken)));
 
     /// <summary>How many friends and groups this account shares with a user, live from VRChat.</summary>
     /// <response code="200">The counts</response>
@@ -61,8 +63,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> GetUserMutualCounts([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
-        ReadLiveAsync(accountId, client => client.GetMutualCountsAsync(userId, cancellationToken));
+    public Task<IActionResult> GetUserMutualCounts([FromRoute] string accountId, [FromRoute] string userId, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
+        ReadLiveAsync(accountId, client => cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "mutual-counts", userId), VrchatReadCache.DialogTtl,
+            () => client.GetMutualCountsAsync(userId, cancellationToken)));
 
     /// <summary>The groups a user is in, as far as this account may see, live from VRChat.</summary>
     /// <response code="200">The groups</response>
@@ -103,8 +106,9 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> ListUserGroups([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
-        ReadLiveAsync(accountId, client => client.GetUserGroupsWithRepresentationAsync(userId, cancellationToken));
+    public Task<IActionResult> ListUserGroups([FromRoute] string accountId, [FromRoute] string userId, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
+        ReadLiveAsync(accountId, client => cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "user-groups", userId), VrchatReadCache.DialogTtl,
+            () => client.GetUserGroupsWithRepresentationAsync(userId, cancellationToken)));
 
     /// <summary>The worlds a user made, live from VRChat: public ones, or all of them for the account itself.</summary>
     /// <response code="200">The worlds</response>

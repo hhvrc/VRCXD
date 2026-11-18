@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -24,7 +25,8 @@ internal sealed record ScenarioHostSettings(
     int? KestrelPort,
     Action<IServiceCollection>? ConfigureServices,
     SyncTracker Syncs,
-    bool EnableMcp);
+    bool EnableMcp,
+    SqlCommandCounter Sql);
 
 /// <summary>
 /// The real API (its Program) on a TestServer, or on Kestrel for the browser tests. VRChat is the
@@ -109,6 +111,7 @@ internal sealed class ScenarioHost(ScenarioHostSettings settings) : WebApplicati
             services.Replace(ServiceDescriptor.Singleton<VRCX.Common.Services.Images.IImageFetcher>(settings.Vrchat.Images));
             services.Replace(ServiceDescriptor.Singleton<TimeProvider>(settings.Time));
             services.Replace(ServiceDescriptor.Singleton(settings.Time));
+            services.ConfigureDbContext<VRCX.Common.VrcxDb.VrcxContext>((_, options) => options.AddInterceptors(settings.Sql));
             services.AddSingleton<AccountSyncService>();
             services.Replace(ServiceDescriptor.Singleton<IAccountSyncService>(sp => new TrackedAccountSyncService(sp.GetRequiredService<AccountSyncService>(), settings.Syncs)));
 

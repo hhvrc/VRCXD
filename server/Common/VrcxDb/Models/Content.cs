@@ -32,6 +32,10 @@ public sealed class World
     public bool IsStub { get; set; }
     public DateTimeOffset FirstSeenAt { get; set; }
     public DateTimeOffset? FetchedAt { get; set; }
+    /// <summary>When the stub refresh last tried to fill this stub in (StubRefreshService).</summary>
+    public DateTimeOffset? StubAttemptedAt { get; set; }
+    /// <summary>Not before this is a stub that VRChat would not serve tried again; it backs off with each failure.</summary>
+    public DateTimeOffset? StubRetryAt { get; set; }
 
     public ICollection<Instance> Instances { get; set; } = [];
 }

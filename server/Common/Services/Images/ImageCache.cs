@@ -21,14 +21,29 @@ public interface IImageFetcher
 /// VRChat's images on disk, named by their content so identical images share one file. Postgres
 /// only knows which URL is which file. Nothing here is the only copy: a lost file is fetched again.
 /// </summary>
-public sealed class ImageCache(IDbContextFactory<VrcxContext> dbFactory, IImageFetcher fetcher, ImageOptions options, ILogger<ImageCache> logger)
+public sealed class ImageCache(IDbContextFactory<VrcxContext> dbFactory, IImageFetcher fetcher, ImageOptions options, ILogger<ImageCache> logger, TimeProvider? time = null)
 {
     public const long MaxBytes = 32 * 1024 * 1024;
+
+    /// <summary>
+    /// Downloads at a time. Images come from VRChat's file hosts, which are outside the API's rate
+    /// limit but are still VRChat's: a page of cards opening at once must not become a burst there.
+    /// </summary>
+    public const int MaxConcurrentDownloads = 3;
+
+    /// <summary>How long an image that could not be had is not asked for again; the browser loads it from VRChat meanwhile.</summary>
+    public static readonly TimeSpan FailureBackoff = TimeSpan.FromMinutes(10);
 
     // Files are served by path, which has to be absolute whatever the configured directory looks like.
     private readonly string _dir = Path.GetFullPath(options.Dir);
 
+    private readonly TimeProvider _time = time ?? TimeProvider.System;
+
     private readonly ConcurrentDictionary<string, Lazy<Task<CachedImageFile?>>> _inFlight = new();
+
+    private readonly SemaphoreSlim _downloads = new(MaxConcurrentDownloads, MaxConcurrentDownloads);
+
+    private readonly ConcurrentDictionary<string, DateTimeOffset> _failedUntil = new();
 
     /// <summary>Only VRChat's own https hosts: this fetches on request, so it must not reach anything else.</summary>
     public static bool IsAllowed(Uri url) =>
@@ -65,8 +80,15 @@ public sealed class ImageCache(IDbContextFactory<VrcxContext> dbFactory, IImageF
             }
         }
 
+        // A missing or broken image is shown from VRChat for a while instead of being fetched on every view.
+        if (_failedUntil.TryGetValue(url, out var until))
+        {
+            if (_time.GetUtcNow() < until) return null;
+            _failedUntil.TryRemove(KeyValuePair.Create(url, until));
+        }
+
         // Several cards showing one image at once make one download, which outlives any one request.
-        var download = _inFlight.GetOrAdd(url, _ => new Lazy<Task<CachedImageFile?>>(() => DownloadAsync(url, uri)));
+        var download = _inFlight.GetOrAdd(url, _ => new Lazy<Task<CachedImageFile?>>(() => DownloadLimitedAsync(url, uri)));
         try
         {
             return await download.Value.WaitAsync(ct);
@@ -75,6 +97,29 @@ public sealed class ImageCache(IDbContextFactory<VrcxContext> dbFactory, IImageF
         {
             if (download.IsValueCreated && download.Value.IsCompleted) _inFlight.TryRemove(url, out _);
         }
+    }
+
+    private async Task<CachedImageFile?> DownloadLimitedAsync(string url, Uri uri)
+    {
+        await _downloads.WaitAsync();
+        CachedImageFile? file;
+        try
+        {
+            file = await DownloadAsync(url, uri);
+        }
+        finally
+        {
+            _downloads.Release();
+        }
+        if (file is null)
+        {
+            _failedUntil[url] = _time.GetUtcNow() + FailureBackoff;
+            // A page of broken images must not grow this for ever.
+            if (_failedUntil.Count > 10_000)
+                foreach (var (key, expires) in _failedUntil)
+                    if (expires <= _time.GetUtcNow()) _failedUntil.TryRemove(key, out _);
+        }
+        return file;
     }
 
     private async Task<CachedImageFile?> DownloadAsync(string url, Uri uri)

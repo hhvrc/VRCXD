@@ -37,7 +37,7 @@ public sealed partial class WorldsController : VrcxControllerBase
     }
 
     /// <summary>
-    /// A world as last seen. With refresh=true, GET worlds/{id} is fetched from VRChat first.
+    /// A world as last seen. With refresh=true, GET worlds/{id} is fetched from VRChat first, unless it was less than 30 seconds ago.
     /// </summary>
     /// <response code="200">The world</response>
     /// <response code="404">Never seen, or VRChat has no such world</response>
@@ -47,7 +47,7 @@ public sealed partial class WorldsController : VrcxControllerBase
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetWorld([FromRoute] string worldId, [FromQuery] bool refresh, [FromQuery] string? account, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetWorld([FromRoute] string worldId, [FromQuery] bool refresh, [FromQuery] string? account, [FromServices] VRCX.API.Services.VrchatReadCache cache, CancellationToken cancellationToken)
     {
         if (refresh)
         {
@@ -55,7 +55,8 @@ public sealed partial class WorldsController : VrcxControllerBase
             if (via is null) return Problem(AccountError.NoAccounts);
             try
             {
-                await _sync.RefreshWorldAsync(via, worldId, cancellationToken);
+                await cache.ThrottleAsync(VRCX.API.Services.VrchatReadCache.Key(via, "refresh-world", worldId), VRCX.API.Services.VrchatReadCache.RefreshMinAge,
+                    () => _sync.RefreshWorldAsync(via, worldId, cancellationToken));
             }
             catch (VrchatApiException ex)
             {

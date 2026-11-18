@@ -138,7 +138,7 @@ public sealed class ContentActionsTests
 
         await Assert.That((await app.GetJsonAsync(app.AccountPath("me"))).GetProperty("accountStanding").GetString()).IsEqualTo("good");
         me.Set("accountStanding", "");
-        var row = await app.GetJsonAsync(app.AccountPath("me"));
+        var row = await app.GetJsonAsync(app.AccountPath("me?refresh=true"));
         await Assert.That(row.TryGetProperty("accountStanding", out var standing) && standing.ValueKind != JsonValueKind.Null).IsFalse();
     }
 

@@ -13,7 +13,7 @@ public interface IPipelineIngestor
 }
 
 /// <inheritdoc />
-public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, VrchatStore store, ILiveEventBus bus, PresenceDebouncer debouncer, ILogger<PipelineIngestor> logger, TimeProvider? time = null, VRCX.Common.Services.Live.DesktopClients? desktops = null, VRCX.Common.Services.Live.InstanceQueues? queues = null) : IPipelineIngestor
+public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, VrchatStore store, ILiveEventBus bus, PresenceDebouncer debouncer, ILogger<PipelineIngestor> logger, TimeProvider? time = null, VRCX.Common.Services.Live.DesktopClients? desktops = null, VRCX.Common.Services.Live.InstanceQueues? queues = null, Sessions.CurrentUserCache? currentUsers = null) : IPipelineIngestor
 {
     private readonly TimeProvider _time = time ?? TimeProvider.System;
 
@@ -32,11 +32,12 @@ public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, V
             case CurrentUserEvent self:
                 if (self.Type == "user-update" && self.Payload.User is { } me)
                 {
-                    var meRow = await store.UpsertCurrentUserAsync(db, me, now, ct);
+                    var meRow = await store.UpsertCurrentUserAsync(db, me, now, ct, whole: false);
                     if (await db.Accounts.FindAsync([accountId], ct) is { } accountRow) await store.RecordAvatarWearAsync(db, accountRow, me.CurrentAvatar, now, ct);
                 }
                 else if (self.Type == "user-location")
                 {
+                    currentUsers?.ApplyLocation(accountId, self.Payload.Location, self.Payload.TravelingToLocation);
                     var user = await store.EnsureUserAsync(db, accountId, null, now, ct);
                     var presence = await store.ApplyPresenceAsync(db, user, PresenceKind.Location, self.Payload.Location, self.Payload.TravelingToLocation, null, now, ct);
                     if (presence is not null) published.Add(LiveEvents.Presence(user, presence));

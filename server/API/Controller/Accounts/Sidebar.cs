@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
+using VRCX.API.Services;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
@@ -91,25 +92,46 @@ public sealed class GroupInstanceResponse
 // Groups tab of open instances in the account's groups.
 public sealed partial class AccountsController
 {
-    /// <summary>The account's own profile as VRChat has it now, with its status history.</summary>
+    /// <summary>
+    /// The account's own profile as VRChat has it, with its status history. It is the auth/user last
+    /// read (by the friend sync, a login or an edit) and changed by the pipeline since, while that
+    /// is under a minute old; older, or with refresh=true, it is read from VRChat first.
+    /// </summary>
+    /// <param name="accountId">usr_…</param>
+    /// <param name="refresh">Read auth/user from VRChat whatever the age of the stored copy</param>
+    /// <param name="store">Where it is stored</param>
+    /// <param name="presence">Where the account is</param>
+    /// <param name="automation">Where the account's game is</param>
+    /// <param name="currentUsers">The stored copy</param>
+    /// <param name="cancellationToken"></param>
     /// <response code="200">The profile</response>
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/me")]
     [ProducesResponseType<MeResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> GetMe([FromRoute] string accountId, [FromServices] VrchatStore store, [FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, [FromServices] VRCX.Common.Services.Automation.AccountAutomation automation, CancellationToken cancellationToken) =>
-        FetchAsync(accountId, async client =>
+    public async Task<IActionResult> GetMe([FromRoute] string accountId, [FromQuery] bool refresh, [FromServices] VrchatStore store, [FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, [FromServices] VRCX.Common.Services.Automation.AccountAutomation automation, [FromServices] VRCX.Common.Services.Sessions.CurrentUserCache currentUsers, CancellationToken cancellationToken)
+    {
+        // The original's runUpdateCurrentUserLocationFlow: while the game runs, its log says where the
+        // account is, ahead of what VRChat reports.
+        async Task<string?> CurrentLocationAsync()
+        {
+            var game = await automation.GameLocationAsync(accountId, cancellationToken);
+            var own = await presence.GetManyAsync([accountId], cancellationToken);
+            return game ?? (own.TryGetValue(accountId, out var mine) ? mine.CurrentInstanceLocation : null);
+        }
+
+        if (!refresh && _sessions.Get(accountId) is not null && currentUsers.Get(accountId) is { } stored)
+            return Ok(MeResponse.From(stored, await CurrentLocationAsync()));
+
+        return await FetchAsync(accountId, async client =>
         {
             var me = await client.GetCurrentUserAsync(cancellationToken);
             await store.UpsertCurrentUserAsync(_db, me, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
-            // The original's runUpdateCurrentUserLocationFlow: while the game runs, its log says where the
-            // account is, ahead of what VRChat reports.
-            var game = await automation.GameLocationAsync(accountId, cancellationToken);
-            var own = await presence.GetManyAsync([accountId], cancellationToken);
-            return MeResponse.From(me, game ?? (own.TryGetValue(accountId, out var mine) ? mine.CurrentInstanceLocation : null));
+            return MeResponse.From(me, await CurrentLocationAsync());
         });
+    }
 
     /// <summary>Change the account's status, status text or pronouns on VRChat.</summary>
     /// <response code="200">The profile after the change</response>
@@ -191,10 +213,11 @@ public sealed partial class AccountsController
     [ProducesResponseType<IReadOnlyList<GroupInstanceResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> ListGroupInstances([FromRoute] string accountId, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
+    public Task<IActionResult> ListGroupInstances([FromRoute] string accountId, [FromServices] VrchatStore store, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
         {
-            var instances = await client.GetUserGroupInstancesAsync(accountId, cancellationToken);
+            var instances = await cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "group-instances", ""), VrchatReadCache.DialogTtl,
+                () => client.GetUserGroupInstancesAsync(accountId, cancellationToken));
             var groupIds = instances.Select(i => i.OwnerIdString).OfType<string>().Distinct().ToList();
             var groups = await _db.Groups.AsNoTracking().Where(g => groupIds.Contains(g.Id)).ToDictionaryAsync(g => g.Id, cancellationToken);
             // Groups this server has never seen are read once and kept, as the original does.

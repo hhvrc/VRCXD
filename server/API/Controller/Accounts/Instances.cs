@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.Vrchat;
 using VRCX.API.Models.Response;
+using VRCX.API.Services;
 
 namespace VRCX.API.Controller.Accounts;
 
@@ -170,7 +171,15 @@ public sealed partial class AccountsController
     /// <summary>
     /// An instance as VRChat sends it now, for the original's InstanceActionBar: player and platform counts,
     /// languages, queue, disabled content, hype train; with the owning group's permissions for Close and Rename.
+    /// The answer is kept for a minute (the bar is opened again and again on one instance); refresh=true, the
+    /// bar's refresh button, reads it again (upstream issue 1394: Refresh must show the current count).
     /// </summary>
+    /// <param name="accountId">usr_…</param>
+    /// <param name="location">The instance</param>
+    /// <param name="refresh">Read it from VRChat whatever the age of the kept answer</param>
+    /// <param name="automation">Whether the account's game is in it</param>
+    /// <param name="cache">The kept answers</param>
+    /// <param name="cancellationToken"></param>
     /// <response code="200">The instance</response>
     /// <response code="409">No live session</response>
     [HttpGet("{accountId}/instances/live")]
@@ -178,14 +187,18 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> GetLiveInstance([FromRoute] string accountId, [FromQuery] string location, [FromServices] VRCX.Common.Services.Automation.AccountAutomation automation, CancellationToken cancellationToken) =>
+    public Task<IActionResult> GetLiveInstance([FromRoute] string accountId, [FromQuery] string location, [FromQuery] bool refresh, [FromServices] VRCX.Common.Services.Automation.AccountAutomation automation, [FromServices] VrchatReadCache cache, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
         {
-            var instance = await client.GetInstanceJsonAsync(location, cancellationToken);
-            var owner = instance.TryGetProperty("ownerId", out var o) && o.ValueKind == JsonValueKind.String ? o.GetString() : null;
-            IReadOnlyList<string>? permissions = null;
-            if (owner?.StartsWith("grp_", StringComparison.Ordinal) == true)
-                permissions = (await client.GetGroupPermissionsAsync(accountId, cancellationToken)).TryGetValue(owner, out var held) ? held : [];
+            var (instance, permissions) = await cache.GetOrFetchAsync(VrchatReadCache.Key(accountId, "instance-live", location), VrchatReadCache.LiveInstanceTtl, async () =>
+            {
+                var json = await client.GetInstanceJsonAsync(location, cancellationToken);
+                var owner = json.TryGetProperty("ownerId", out var o) && o.ValueKind == JsonValueKind.String ? o.GetString() : null;
+                IReadOnlyList<string>? held = null;
+                if (owner?.StartsWith("grp_", StringComparison.Ordinal) == true)
+                    held = (await client.GetGroupPermissionsAsync(accountId, cancellationToken)).TryGetValue(owner, out var list) ? list : [];
+                return (json, held);
+            }, fresh: refresh);
             var here = await automation.GameLocationAsync(accountId, cancellationToken);
             var weekAgo = DateTimeOffset.UtcNow.AddDays(-7);
             var lastJoined = await _db.InstanceVisits.AsNoTracking()
