@@ -557,16 +557,20 @@ public sealed class VrchatApiClient : IDisposable
     public Task<GroupAuditLogPage> GetGroupAuditLogsAsync(string groupId, int n, int offset, string? eventTypes, CancellationToken ct = default) =>
         GetRequiredAsync<GroupAuditLogPage>($"groups/{Escape(groupId)}/auditLogs" + QueryString([new("n", n.ToString(System.Globalization.CultureInfo.InvariantCulture)), new("offset", offset.ToString(System.Globalization.CultureInfo.InvariantCulture)), new("eventTypes", string.IsNullOrEmpty(eventTypes) ? null : eventTypes)]), ct);
 
-    /// <summary>GET worlds - a user's public worlds, or all of them for the account itself.</summary>
+    /// <summary>
+    /// GET worlds - a user's public worlds, or all of them for the account itself. The parameters are
+    /// the original's (the user dialog's Worlds tab, UserDialogWorldsTab.vue): pages of 50 by userId,
+    /// with user=me only for the account itself. The original leaves user=friends out.
+    /// </summary>
     public async Task<IReadOnlyList<World>> GetWorldsByAuthorAsync(string userId, bool isSelf, CancellationToken ct = default)
     {
-        var scope = isSelf ? "user=me&releaseStatus=all" : $"user=friends&userId={Escape(userId)}&releaseStatus=public";
+        var scope = isSelf ? $"userId={Escape(userId)}&releaseStatus=all&user=me" : $"userId={Escape(userId)}&releaseStatus=public";
         var worlds = new List<World>();
-        for (var offset = 0; ; offset += 100)
+        for (var offset = 0; ; offset += 50)
         {
-            var page = await GetRequiredAsync<List<World>>($"worlds?{scope}&sort=updated&order=descending&n=100&offset={offset}", ct);
+            var page = await GetRequiredAsync<List<World>>($"worlds?n=50&offset={offset}&sort=updated&order=descending&{scope}", ct);
             worlds.AddRange(page);
-            if (page.Count < 100) return worlds;
+            if (page.Count < 50) return worlds;
         }
     }
 

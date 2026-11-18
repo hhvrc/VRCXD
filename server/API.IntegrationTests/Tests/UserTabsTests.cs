@@ -31,8 +31,8 @@ public sealed class UserTabsTests
         Factory.Vrchat
             .Json($"users/{Other}/mutuals/friends?n=100&offset=0", """[{"id":"usr_tabs_mutual","displayName":"Mutual"}]""")
             .Json($"users/{Other}/groups", """[{"groupId":"grp_tabs","name":"Group","memberCount":3}]""")
-            .Json($"worlds?user=friends&userId={Other}&releaseStatus=public&sort=updated&order=descending&n=100&offset=0", """[{"id":"wrld_tabs","name":"World","authorId":"usr_tabs_other"}]""")
-            .Json($"worlds?user=me&releaseStatus=all&sort=updated&order=descending&n=100&offset=0", """[{"id":"wrld_mine","name":"Mine","authorId":"usr_tabs_account"}]""");
+            .Json($"worlds?n=50&offset=0&sort=updated&order=descending&userId={Other}&releaseStatus=public", """[{"id":"wrld_tabs","name":"World","authorId":"usr_tabs_other"}]""")
+            .Json($"worlds?n=50&offset=0&sort=updated&order=descending&userId={Account}&releaseStatus=all&user=me", """[{"id":"wrld_mine","name":"Mine","authorId":"usr_tabs_account"}]""");
         using var client = await LoginAsync();
         var path = $"/1/accounts/{Account}/users";
 
@@ -42,8 +42,11 @@ public sealed class UserTabsTests
         await Assert.That(groups[0].GetProperty("memberCount").GetInt32()).IsEqualTo(3);
         var worlds = await client.GetFromJsonAsync<JsonElement>($"{path}/{Other}/worlds");
         await Assert.That(worlds[0].GetProperty("id").GetString()).IsEqualTo("wrld_tabs");
+        // The original's request for someone else's worlds: by userId, public ones, and no "user".
+        await Assert.That(Factory.Vrchat.AssertCalled("GET", "worlds").Query).IsEqualTo($"?n=50&offset=0&sort=updated&order=descending&userId={Other}&releaseStatus=public");
         var own = await client.GetFromJsonAsync<JsonElement>($"{path}/{Account}/worlds");
         await Assert.That(own[0].GetProperty("id").GetString()).IsEqualTo("wrld_mine");
+        await Assert.That(Factory.Vrchat.AssertCalled("GET", "worlds").Query).IsEqualTo($"?n=50&offset=0&sort=updated&order=descending&userId={Account}&releaseStatus=all&user=me");
     }
 
     [Test]

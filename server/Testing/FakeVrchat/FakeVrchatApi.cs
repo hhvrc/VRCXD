@@ -555,7 +555,8 @@ public sealed class FakeVrchatApi : HttpMessageHandler, IVrchatClientFactory
                 return Page(_notificationsV2, r, 100);
             case ["avatars"] when r.QueryValue("user") == "me":
                 return Page(_avatars.Values.Where(a => (string?)a.Json["authorId"] == Me?.Id).Select(a => (JsonNode)a.Json), r, 50);
-            case ["worlds"] when r.QueryValue("user") is "me" or "friends":
+            // The worlds of one author, as the original's Worlds tab asks: by userId, with user=me for the account's own.
+            case ["worlds"] when r.QueryValue("user") == "me" || (r.QueryValue("user") is null && r.QueryValue("userId") is not null):
                 {
                     var author = r.QueryValue("user") == "me" ? Me?.Id : r.QueryValue("userId");
                     return Page(_worlds.Values.Where(w => (string?)w.Json["authorId"] == author).Select(w => (JsonNode)w.Json), r, 100);
