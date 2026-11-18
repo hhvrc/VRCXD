@@ -10,7 +10,7 @@ using VRCX.API.Models.Response;
 using VRCX.API.Services;
 using VRCX.Common.Services;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Instances;
 
 public sealed record CreateInstanceBody(
     string WorldId,
@@ -50,7 +50,7 @@ public sealed record InstanceCalendarLinkBody(string Location, string? CalendarE
 public sealed record InstanceAnnouncementBody(string Location, string Message, string? ImageUrl);
 
 // The original's New Instance, Launch and Invite dialogs: everything they ask VRChat for.
-public sealed partial class AccountsController
+public sealed partial class AccountInstancesController
 {
     private static readonly string[] InstanceCreatePermissions = ["group-instance-public-create", "group-instance-plus-create", "group-instance-open-create"];
 
@@ -201,10 +201,7 @@ public sealed partial class AccountsController
                 return (json, held);
             }, fresh: refresh);
             var here = await automation.GameLocationAsync(accountId, cancellationToken);
-            var weekAgo = DateTimeOffset.UtcNow.AddDays(-7);
-            var lastJoined = await _db.InstanceVisits.AsNoTracking()
-                .Where(v => v.UserId == accountId && v.Source == VisitSource.GameLog && v.InstanceLocation == location && v.JoinedAt > weekAgo)
-                .MaxAsync(v => (DateTimeOffset?)v.JoinedAt, cancellationToken);
+            var lastJoined = await instanceQueries.LastJoinedAsync(accountId, location, cancellationToken);
             return new LiveInstanceResponse { Instance = instance, GroupPermissions = permissions, InThisInstance = here is not null && here == location, LastJoinedAt = lastJoined };
         });
 
@@ -243,7 +240,7 @@ public sealed partial class AccountsController
     {
         var imageUrl = body.ImageUrl;
         if (string.IsNullOrEmpty(imageUrl) && VRCX.Vrchat.VrchatLocation.Parse(body.Location).GroupId is { } groupId)
-            imageUrl = await _db.Groups.AsNoTracking().Where(g => g.Id == groupId).Select(g => g.BannerUrl).FirstOrDefaultAsync(cancellationToken);
+            imageUrl = await instanceQueries.GroupBannerAsync(groupId, cancellationToken);
         var imageId = VrchatApiClient.ExtractFileId(imageUrl);
         var imageVersion = imageId is null ? null : System.Text.RegularExpressions.Regex.Match(imageUrl!, @"/file_[0-9A-Za-z-]+/([0-9]+)") is { Success: true } m ? m.Groups[1].Value : null;
         return await RunAsync(accountId, client => client.AnnounceInInstanceAsync(body.Location, "Instance Announcement", body.Message.Trim(), imageId, imageVersion, cancellationToken));

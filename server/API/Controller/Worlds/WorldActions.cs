@@ -6,23 +6,16 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
+using VRCX.Common.Features.Worlds;
 using VRCX.Vrchat;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Worlds;
 
 public sealed record SaveWorldBody(string? Name, string? Description, int? Capacity, int? RecommendedCapacity, string? PreviewYoutubeId,
     IReadOnlyList<string>? Tags = null, IReadOnlyList<string>? DisabledPropAbilities = null, IReadOnlyList<string>? UrlList = null);
 
-public sealed class ContentImageForm
-{
-    /// <summary>The picture, already cropped and fitted to VRChat's limits by the client (the original's ResizeImageToFitLimits).</summary>
-    [Required] public required IFormFile Image { get; set; }
-    /// <summary>The image URL the avatar or world has now: its file gets the new version.</summary>
-    [Required] public required string ImageUrl { get; set; }
-}
-
 // The world pop-up: what only VRChat knows right now, and the actions its menu offers.
-public sealed partial class AccountsController
+public sealed partial class AccountWorldsController
 {
     /// <summary>A world as VRChat has it now, with its momentary counts and open instances.</summary>
     /// <response code="200">The world, or nothing if VRChat has no such world</response>
@@ -42,16 +35,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetWorldStats([FromRoute] string accountId, [FromRoute] string worldId, CancellationToken cancellationToken)
     {
-        var visits = await _db.InstanceVisits.AsNoTracking()
-            .Where(v => v.UserId == accountId && v.Instance.WorldId == worldId)
-            .Select(v => new { v.JoinedAt, v.LeftAt })
-            .ToListAsync(cancellationToken);
-        return Ok(new WorldStatsResponse
-        {
-            VisitCount = visits.Count,
-            LastVisit = visits.Count == 0 ? null : visits.Max(v => v.JoinedAt),
-            TimeSpentMs = visits.Where(v => v.LeftAt is not null).Sum(v => (long)(v.LeftAt!.Value - v.JoinedAt).TotalMilliseconds)
-        });
+        return Ok(await worlds.StatsAsync(accountId, worldId, cancellationToken));
     }
 
     /// <summary>Whether this account has saved data in a world, live from VRChat.</summary>
@@ -180,13 +164,6 @@ public sealed partial class AccountsController
                 : JsonSerializer.SerializeToElement(Array.Empty<object>());
         });
 
-    private static async Task<byte[]> ReadAllAsync(IFormFile file, CancellationToken cancellationToken)
-    {
-        using var buffer = new MemoryStream();
-        await file.CopyToAsync(buffer, cancellationToken);
-        return buffer.ToArray();
-    }
-
     /// <summary>Publish a world this account made to Community Labs.</summary>
     /// <response code="204">Published</response>
     /// <response code="409">No live session</response>
@@ -259,7 +236,6 @@ public sealed partial class AccountsController
         RunAsync(accountId, async client =>
         {
             await client.UpdateCurrentUserAsync(accountId, new Dictionary<string, string> { ["homeLocation"] = worldId }, cancellationToken);
-            await _db.Accounts.Where(a => a.UserId == accountId)
-                .ExecuteUpdateAsync(set => set.SetProperty(a => a.HomeLocation, worldId), cancellationToken);
+            await worlds.HomeChangedAsync(accountId, worldId, cancellationToken);
         });
 }

@@ -72,6 +72,9 @@ public sealed class ArchitectureTests
     [Arguments(typeof(VRCX.API.Controller.QuickSearch.QuickSearchController))]
     [Arguments(typeof(VRCX.API.Controller.Avatars.AvatarHistoryController))]
     [Arguments(typeof(VRCX.API.Controller.Groups.AccountGroupsController))]
+    [Arguments(typeof(VRCX.API.Controller.Worlds.AccountWorldsController))]
+    [Arguments(typeof(VRCX.API.Controller.Avatars.AccountAvatarsController))]
+    [Arguments(typeof(VRCX.API.Controller.Instances.AccountInstancesController))]
     public async Task A_moved_feature_takes_none_of_them(Type controller)
     {
         await Assert.That(Violations().Where(v => v.StartsWith(controller.Name + ":", StringComparison.Ordinal)).ToList()).IsEmpty();

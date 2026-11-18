@@ -9,7 +9,7 @@ using VRCX.Common.Errors;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Avatars;
 
 public sealed record SaveAvatarBody(string? Name, string? Description, string? ReleaseStatus,
     string? PrimaryStyle = null, string? SecondaryStyle = null, IReadOnlyList<string>? Tags = null);
@@ -23,7 +23,7 @@ public sealed class AvatarGalleryUploadForm
 }
 
 // The avatar pop-up: what only VRChat knows right now, and the actions its menu offers.
-public sealed partial class AccountsController
+public sealed partial class AccountAvatarsController
 {
     /// <summary>An avatar as VRChat has it now, and this account's own standing with it.</summary>
     /// <response code="200">The details. The avatar is missing when VRChat won't show it.</response>
@@ -37,14 +37,9 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetAvatarDetails([FromRoute] string accountId, [FromRoute] string avatarId, CancellationToken cancellationToken)
     {
-        var account = await _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == accountId, cancellationToken);
-        if (account is null) return Problem(AccountError.AccountNotFound);
-        var usage = await _db.AvatarUsages.AsNoTracking()
-            .Where(u => u.OwnerUserId == accountId && u.AvatarId == avatarId)
-            .Select(u => u.TimeSpent)
-            .FirstOrDefaultAsync(cancellationToken);
-        var isCurrent = account.CurrentAvatarId == avatarId;
-        if (isCurrent && account.CurrentAvatarSince is { } since) usage += DateTimeOffset.UtcNow - since;
+        var standing = await ownAvatars.StandingAsync(accountId, avatarId, cancellationToken);
+        if (standing is null) return Problem(AccountError.AccountNotFound);
+        var (isCurrent, usage) = (standing.IsCurrent, standing.TimeSpent);
 
         return await ReadLiveAsync(accountId, async client =>
         {
@@ -211,8 +206,7 @@ public sealed partial class AccountsController
         RunAsync(accountId, async client =>
         {
             await client.DeleteAvatarAsync(avatarId, cancellationToken);
-            await _db.Avatars.Where(a => a.Id == avatarId)
-                .ExecuteUpdateAsync(set => set.SetProperty(a => a.ReleaseStatus, "hidden"), cancellationToken);
+            await ownAvatars.MarkDeletedAsync(avatarId, cancellationToken);
         });
 
     /// <summary>Delete an avatar's impostor.</summary>

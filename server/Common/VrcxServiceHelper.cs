@@ -274,6 +274,9 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.Users.UserQueries>();
         services.AddScoped<VRCX.Common.Features.Content.ContentQueries>();
         services.AddScoped<VRCX.Common.Features.Groups.GroupQueries>();
+        services.AddScoped<VRCX.Common.Features.Worlds.AccountWorlds>();
+        services.AddScoped<VRCX.Common.Features.Avatars.OwnAvatars>();
+        services.AddScoped<VRCX.Common.Features.Instances.InstanceQueries>();
         services.AddSingleton<VrchatReadCache>();
         services.AddSingleton<VRCX.Common.Features.Content.ContentRefresh>();
         services.AddScoped<VRCX.Common.Features.Users.UserSearch>();

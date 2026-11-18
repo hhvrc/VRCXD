@@ -35,4 +35,13 @@ public abstract class AccountForwardController(AccountSessionRunner runner) : Vr
         if (result.Problem is { } problem) return Problem(problem);
         return result.Value is null ? NoContent() : Ok(result.Value);
     }
+
+    /// <summary>An uploaded file's bytes, for the uploads VRChat takes as one request.</summary>
+    [NonAction]
+    protected static async Task<byte[]> ReadAllAsync(IFormFile file, CancellationToken cancellationToken)
+    {
+        using var buffer = new MemoryStream();
+        await file.CopyToAsync(buffer, cancellationToken);
+        return buffer.ToArray();
+    }
 }

@@ -24,13 +24,6 @@ public sealed class UserFavoriteWorldsResponse
     public required IReadOnlyList<VRCX.Vrchat.Models.World> Worlds { get; init; }
 }
 
-public sealed class WorldStatsResponse
-{
-    public required int VisitCount { get; init; }
-    public DateTimeOffset? LastVisit { get; init; }
-    public required long TimeSpentMs { get; init; }
-}
-
 /// <summary>The image an avatar or world now has, after Change Image.</summary>
 public sealed class ContentImageResponse
 {
@@ -65,13 +58,6 @@ public sealed class GroupDetailsResponse
     public System.Text.Json.JsonElement? Instances { get; init; }
     public required int JoinCount { get; init; }
     public DateTimeOffset? LastVisit { get; init; }
-}
-
-public sealed class AvatarLookupResponse
-{
-    public string? AvatarId { get; init; }
-    public string? OwnerId { get; init; }
-    public string? AvatarName { get; init; }
 }
 
 public sealed class InstanceOptionGroup
