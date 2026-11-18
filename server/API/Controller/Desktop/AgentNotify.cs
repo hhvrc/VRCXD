@@ -49,7 +49,7 @@ public sealed partial class AccountDesktopController
             Xsoverlay = body.Xsoverlay,
             OvrtoolkitHud = body.OvrtoolkitHud,
             OvrtoolkitWrist = body.OvrtoolkitWrist,
-            Timeout = body.Timeout,
+            Timeout = Unsigned.Of(body.Timeout),
             Opacity = body.Opacity,
             SteamvrOverlay = body.SteamvrOverlay,
             Position = body.Position ?? "topCenter",

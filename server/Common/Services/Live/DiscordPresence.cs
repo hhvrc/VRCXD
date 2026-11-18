@@ -185,16 +185,16 @@ public sealed class DiscordPresenceService(
             LargeImageText = "Powered by VRCX",
             SmallImageKey = status.Image,
             SmallImageText = status.Name,
-            StartTime = start,
-            EndTime = end,
+            StartTime = Unsigned.Of(start),
+            EndTime = Unsigned.Of(end),
             PartyId = partyId,
-            PartySize = partySize,
-            PartyMax = partyMax,
+            PartySize = Unsigned.Of(partySize),
+            PartyMax = Unsigned.Of(partyMax),
             ButtonText = buttonText,
             ButtonUrl = buttonUrl,
             AppId = appId,
-            ActivityType = activityType,
-            StatusDisplayType = statusDisplay,
+            ActivityType = Unsigned.Of(activityType),
+            StatusDisplayType = Unsigned.Of(statusDisplay),
         };
     }
 

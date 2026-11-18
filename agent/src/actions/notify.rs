@@ -40,7 +40,7 @@ pub fn base64(data: &[u8]) -> String {
 }
 
 /// XSNotification's message: taller for longer text, the VRCX icon when there is no image.
-pub fn xsoverlay_message(title: &str, content: &str, timeout: i32, opacity: f64, image: &[u8]) -> serde_json::Value {
+pub fn xsoverlay_message(title: &str, content: &str, timeout: u32, opacity: f64, image: &[u8]) -> serde_json::Value {
     let length = content.chars().count();
     let height = if length > 300 {
         250.0
@@ -208,7 +208,7 @@ pub async fn show(n: ShowNotification) -> Answer {
             n.title.clone(),
             n.body.clone(),
             n.image.clone(),
-            Duration::from_secs(n.timeout.max(1) as u64),
+            Duration::from_secs(u64::from(n.timeout.max(1))),
             style,
         );
     }

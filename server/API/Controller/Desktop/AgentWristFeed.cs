@@ -46,8 +46,8 @@ public sealed partial class AccountDesktopController
         var feed = new WristFeed
         {
             Background = body.Background, HideDevices = body.HideDevices, Status = body.Status ?? "",
-            LocationSinceMs = body.LocationSinceMs, OnlineSinceMs = body.OnlineSinceMs, PcUptime = body.PcUptime, CpuUsage = body.CpuUsage,
-            Minimal = body.Minimal, OnlineFriends = body.OnlineFriends,
+            LocationSinceMs = Unsigned.Of(body.LocationSinceMs), OnlineSinceMs = Unsigned.Of(body.OnlineSinceMs), PcUptime = body.PcUptime, CpuUsage = body.CpuUsage,
+            Minimal = body.Minimal, OnlineFriends = Unsigned.Of(body.OnlineFriends),
             TimerLabel = body.TimerLabel ?? "", PlayersLabel = body.PlayersLabel ?? "", CpuLabel = body.CpuLabel ?? "", OnlineLabel = body.OnlineLabel ?? "", Hour12 = body.Hour12,
         };
         // The original's maxEntries.

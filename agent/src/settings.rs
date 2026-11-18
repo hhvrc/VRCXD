@@ -19,7 +19,7 @@ pub struct Settings {
     pub open_vr_always: bool,
     pub wrist_overlay: bool,
     pub overlay_menu_button: bool,
-    pub overlay_hand: i32,
+    pub overlay_hand: u32,
 }
 
 fn path() -> std::path::PathBuf {

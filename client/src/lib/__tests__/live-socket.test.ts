@@ -74,6 +74,14 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
+describe('live socket hello', () => {
+	test('the server uptime in the hello is when the server started, not when the page loaded', () => {
+		vi.setSystemTime(new Date('2026-11-18T12:00:00Z'));
+		latest().receive({ message: { case: 'hello', value: { serverVersion: '1.0', uptimeMs: 3_600_000n } } });
+		expect(live.live.serverStartedAt).toBe(Date.parse('2026-11-18T11:00:00Z'));
+	});
+});
+
 describe('live socket cookie', () => {
 	test('a socket refused before it opened waits for the cookie to be set again, then connects', async () => {
 		latest().drop();

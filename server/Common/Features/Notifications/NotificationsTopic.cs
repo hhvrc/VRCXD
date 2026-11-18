@@ -81,7 +81,7 @@ public sealed class NotificationsTopic(IDbContextFactory<VrcxContext> dbFactory,
         var entry = new NotificationEntry
         {
             Id = n.Id,
-            Version = n.Version,
+            Version = Unsigned.Of(n.Version),
             Type = n.Type,
             SenderUserId = n.SenderUserId ?? "",
             SenderDisplayName = n.SenderDisplayName ?? "",

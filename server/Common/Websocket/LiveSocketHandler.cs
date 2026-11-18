@@ -34,6 +34,9 @@ public sealed class LiveSocketHandler(
     ILogger<LiveSocketHandler> logger)
 {
     private const int MaxFrameBytes = 4 * 1024 * 1024;
+    // The process's own start: the server's runtime, which a page that opened later cannot know.
+    private static TimeSpan Uptime() => DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime;
+
     private static readonly string ServerVersion = typeof(LiveSocketHandler).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "dev";
 
     public async Task HandleAsync(HttpContext context)
@@ -54,7 +57,7 @@ public sealed class LiveSocketHandler(
 
         await SendAsync(socket, new ServerMessage
         {
-            Hello = new ServerHello { ProtocolVersion = (uint)ProtocolVersion._1, ServerVersion = ServerVersion, AccountIds = { sessions.ActiveAccountIds }, Topics = { topicHub.Names } },
+            Hello = new ServerHello { ProtocolVersion = (uint)ProtocolVersion._1, ServerVersion = ServerVersion, AccountIds = { sessions.ActiveAccountIds }, Topics = { topicHub.Names }, UptimeMs = Unsigned.Of((long)Uptime().TotalMilliseconds) },
         }, ct);
 
         using var subscription = bus.Subscribe();
@@ -195,7 +198,7 @@ public sealed class LiveSocketHandler(
                         try { batch = await gameLog.HandleBatchAsync(session, message.GameLog.Entries, ct); }
                         finally { ingestLock.Release(); }
                         if (session.GameRunning == false && session.CurrentInstanceLocation is not null) ScheduleQuietClose();
-                        reply = new ServerMessage { GameLogAck = new GameLogAck { Accepted = batch.Accepted } };
+                        reply = new ServerMessage { GameLogAck = new GameLogAck { Accepted = Unsigned.Of(batch.Accepted) } };
                         if (desktopConnection is not null)
                         {
                             mediaSaver.Queue(session.ClientId, session.AccountId, message.GameLog.Entries);

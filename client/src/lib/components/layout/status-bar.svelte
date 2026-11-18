@@ -1,7 +1,3 @@
-<script lang="ts" module>
-	const appStartAt = Date.now();
-</script>
-
 <script lang="ts">
 	import { debounce } from '#lib/helpers/debounce.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -408,11 +404,11 @@
 							{#snippet child({ props })}
 								<div {...props} class={SEGMENT}>
 									<span class="text-3xs text-foreground">{m.status_bar_app_uptime_short()}</span>
-									<span class="text-3xs text-foreground">{formatAppUptime((now - appStartAt) / 1000)}</span>
+									<span class="text-3xs text-foreground">{live.serverStartedAt ? formatAppUptime((now - live.serverStartedAt) / 1000) : '-'}</span>
 								</div>
 							{/snippet}
 						</Tooltip.Trigger>
-						<Tooltip.Content side="top">{m.status_bar_app_uptime()}</Tooltip.Content>
+						<Tooltip.Content side="top">{m.status_bar_server_uptime()}</Tooltip.Content>
 					</Tooltip.Root>
 				{/if}
 			</div>

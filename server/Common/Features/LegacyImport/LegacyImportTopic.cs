@@ -67,10 +67,10 @@ public sealed class LegacyImportTopic : ILiveTopic
         {
             UploadId = status.UploadId ?? "",
             State = System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(status.State.ToString()),
-            Size = status.Size,
-            Received = status.Received,
-            Step = status.Progress?.Step ?? 0,
-            Steps = status.Progress?.Steps ?? 0,
+            Size = Unsigned.Of(status.Size),
+            Received = Unsigned.Of(status.Received),
+            Step = Unsigned.Of(status.Progress?.Step ?? 0),
+            Steps = Unsigned.Of(status.Progress?.Steps ?? 0),
             StepName = status.Progress?.Name ?? "",
             Error = status.Error ?? "",
         };
@@ -81,9 +81,9 @@ public sealed class LegacyImportTopic : ILiveTopic
             wire.Notes.AddRange(report.Notes);
             foreach (var table in report.Tables)
             {
-                var row = new LegacyImportTable { Source = table.Source, Target = table.Target, Read = table.Read, Candidates = table.Candidates, Updated = table.Updated };
-                if (table.Inserted is { } inserted) row.Inserted = inserted;
-                row.Skipped.Add(table.Skipped);
+                var row = new LegacyImportTable { Source = table.Source, Target = table.Target, Read = Unsigned.Of(table.Read), Candidates = Unsigned.Of(table.Candidates), Updated = Unsigned.Of(table.Updated) };
+                if (table.Inserted is { } inserted) row.Inserted = Unsigned.Of(inserted);
+                foreach (var (reason, count) in table.Skipped) row.Skipped[reason] = Unsigned.Of(count);
                 wire.Tables.Add(row);
             }
             message.Report = wire;

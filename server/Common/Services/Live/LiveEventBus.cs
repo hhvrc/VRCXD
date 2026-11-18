@@ -85,7 +85,7 @@ public static class LiveEvents
     {
         Friendship = new FriendshipChanged
         {
-            OwnerUserId = ownerId, FriendUserId = friendId, DisplayName = displayName, IsFriend = isFriend, FriendNumber = friendNumber,
+            OwnerUserId = ownerId, FriendUserId = friendId, DisplayName = displayName, IsFriend = isFriend, FriendNumber = Unsigned.Of(friendNumber),
         },
     };
 
@@ -93,7 +93,7 @@ public static class LiveEvents
     {
         Notification = new NotificationReceived
         {
-            OwnerUserId = n.OwnerUserId, NotificationId = n.Id, Version = n.Version, Type = n.Type,
+            OwnerUserId = n.OwnerUserId, NotificationId = n.Id, Version = Unsigned.Of(n.Version), Type = n.Type,
             SenderUserId = n.SenderUserId ?? "", SenderDisplayName = senderDisplayName ?? n.SenderUsername ?? "",
             Title = n.Title ?? "", Message = n.Message,
         },
@@ -134,7 +134,7 @@ public static class LiveEvents
     {
         InstanceQueue = new InstanceQueueChanged
         {
-            AccountId = accountId, Location = queued.Location, Position = queued.Position, QueueSize = queued.QueueSize,
+            AccountId = accountId, Location = queued.Location, Position = Unsigned.Of(queued.Position), QueueSize = Unsigned.Of(queued.QueueSize),
             WorldName = queued.WorldName, GroupName = queued.GroupName, Left = left, RemovedByMove = removedByMove,
         },
     };

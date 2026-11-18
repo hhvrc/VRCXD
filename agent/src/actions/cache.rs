@@ -23,14 +23,14 @@ pub fn asset_id(id: &str, variant: &str) -> String {
 }
 
 /// GetAssetVersion.
-pub fn asset_version(version: i32, variant_version: i32) -> String {
+pub fn asset_version(version: u32, variant_version: u32) -> String {
     let hex: String =
         variant_version.to_le_bytes().iter().chain(version.to_le_bytes().iter()).map(|b| format!("{b:02x}")).collect();
     format!("{hex:0>32}")
 }
 
 /// ReverseHexToDecimal: (version, variant version) from a version folder's name; (0, 0) when it is not one.
-pub fn version_of(folder: &str) -> (i32, i32) {
+pub fn version_of(folder: &str) -> (u32, u32) {
     if folder.len() != 32 || !folder.is_ascii() {
         return (0, 0);
     }
@@ -42,13 +42,13 @@ pub fn version_of(folder: &str) -> (i32, i32) {
         Some(out)
     };
     match (bytes(&folder[24..32]), bytes(&folder[0..8])) {
-        (Some(v), Some(vv)) => (i32::from_le_bytes(v), i32::from_le_bytes(vv)),
+        (Some(v), Some(vv)) => (u32::from_le_bytes(v), u32::from_le_bytes(vv)),
         _ => (0, 0),
     }
 }
 
 /// GetVRChatCacheFullLocation: the folder of that version, the highest variant version when VRChat kept several.
-pub fn full_location(cache: &Path, id: &str, version: i32, variant: &str, variant_version: i32) -> PathBuf {
+pub fn full_location(cache: &Path, id: &str, version: u32, variant: &str, variant_version: u32) -> PathBuf {
     let top = cache.join(asset_id(id, variant));
     let wanted = asset_version(version, variant_version);
     // Any variant version of this version: the folder names end the same.

@@ -25,6 +25,23 @@ public sealed class LiveSocketTests
         await Assert.That(ex).IsNotNull();
     }
 
+    // The status bar's uptime is the server's: a page opened an hour after the server started
+    // shows an hour, not the time since the page loaded.
+    [Test]
+    public async Task The_hello_says_how_long_the_server_process_has_run()
+    {
+        var started = System.Diagnostics.Process.GetCurrentProcess().StartTime;
+        using var first = await ConnectAsync();
+        var before = (await ReceiveAsync(first)).Hello.UptimeMs;
+        await Task.Delay(50);
+        using var second = await ConnectAsync();
+        var after = (await ReceiveAsync(second)).Hello.UptimeMs;
+
+        await Assert.That(before).IsGreaterThan(0ul);
+        await Assert.That(after - before).IsGreaterThanOrEqualTo(50ul);
+        await Assert.That(after).IsLessThanOrEqualTo((ulong)(DateTime.Now - started).TotalMilliseconds);
+    }
+
     [Test]
     public async Task Game_log_batch_becomes_visits_and_a_live_event()
     {

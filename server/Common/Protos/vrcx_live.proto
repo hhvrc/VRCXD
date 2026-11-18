@@ -101,7 +101,7 @@ message IpcExternal {
 }
 
 message IpcMsgPing {
-    int32 version = 1;
+    uint32 version = 1;
 }
 
 // What became of a ClientAction that carried a request_id.
@@ -370,7 +370,7 @@ message NotificationsDelta {
 message NotificationEntry {
     string id = 1;
     // 1 for VRChat's first notification feed, 2 for its second.
-    int32 version = 2;
+    uint32 version = 2;
     // VRChat's type: friendRequest, invite, requestInvite, boop, group.announcement, ...
     string type = 3;
     string sender_user_id = 4;
@@ -408,7 +408,7 @@ message FriendsDelta {
 // Strings are empty and timestamps unset when unknown.
 message FriendEntry {
     string user_id = 1;
-    int32 friend_number = 2;
+    uint32 friend_number = 2;
     google.protobuf.Timestamp friends_since = 3;
     string display_name = 4;
     string trust_level = 5;
@@ -433,7 +433,7 @@ message FriendEntry {
     string nickname = 19;
     // Reported offline or active but inside the original's 170 s grace period, so still listed online.
     bool pending_offline = 20;
-    int32 name_hue = 21;
+    uint32 name_hue = 21;
     string icon_frame = 22;
     string profile_effect = 23;
 }
@@ -448,11 +448,11 @@ message LegacyImportUpdate {
     string upload_id = 1;
     // none, uploading, uploaded, checking, checked, importing, imported, failed.
     string state = 2;
-    int64 size = 3;
-    int64 received = 4;
+    uint64 size = 3;
+    uint64 received = 4;
     // The step of the check or import that is running or ran last; step 0 before the first.
-    int32 step = 5;
-    int32 steps = 6;
+    uint32 step = 5;
+    uint32 steps = 6;
     string step_name = 7;
     // The last check's or import's report; unset until one finished.
     LegacyImportReport report = 8;
@@ -472,13 +472,13 @@ message LegacyImportReport {
 message LegacyImportTable {
     string source = 1;
     string target = 2;
-    int64 read = 3;
-    int64 candidates = 4;
+    uint64 read = 3;
+    uint64 candidates = 4;
     // Unset in a dry run, which does not look at the database.
-    optional int64 inserted = 5;
-    int64 updated = 6;
+    optional uint64 inserted = 5;
+    uint64 updated = 6;
     // Rows left out, by why.
-    map<string, int64> skipped = 7;
+    map<string, uint64> skipped = 7;
 }
 
 // Answer to a ClientHello with a client_id: how far this client's log was ingested, so it
@@ -497,12 +497,15 @@ message ServerHello {
     repeated string account_ids = 2;
     // The topics this server streams (Subscribe.topic). Empty from a server older than topics.
     repeated string topics = 4;
+    // How long the server process has been running, as the original's status bar shows its own
+    // uptime. A duration, not a start time, so the page's clock need not agree with the server's.
+    uint64 uptime_ms = 5;
 }
 
 message Pong {}
 
 message GameLogAck {
-    int32 accepted = 1;
+    uint32 accepted = 1;
 }
 
 // A local action the server asks the PC that runs VRChat to perform - decided server-side,
@@ -667,9 +670,9 @@ message SetLocalModeration {
 // {"size": n, "location": "..."}; sweep_cache answers the removed folders as a JSON list.
 message CacheEntry {
     string id = 1;
-    int32 version = 2;
+    uint32 version = 2;
     string variant = 3;
-    int32 variant_version = 4;
+    uint32 variant_version = 4;
 }
 
 // DeleteScreenshotMetadata (one picture inside the screenshots folder) or, with all and confirm,
@@ -716,7 +719,7 @@ message ShowNotification {
     bool ovrtoolkit_hud = 6;
     bool ovrtoolkit_wrist = 7;
     // Seconds, for XSOverlay and OVR Toolkit.
-    int32 timeout = 8;
+    uint32 timeout = 8;
     double opacity = 9;
     // The image's bytes; empty shows VRCX's icon on the overlays and none on the toast.
     bytes image = 10;
@@ -739,20 +742,20 @@ message DiscordPresence {
     string small_image_key = 6;
     string small_image_text = 7;
     // Unix milliseconds; 0 leaves them out.
-    int64 start_time = 8;
-    int64 end_time = 9;
+    uint64 start_time = 8;
+    uint64 end_time = 9;
     string party_id = 10;
-    int32 party_size = 11;
-    int32 party_max = 12;
+    uint32 party_size = 11;
+    uint32 party_max = 12;
     string button_text = 13;
     string button_url = 14;
     string app_id = 15;
     // The world's page, linked from the details line; empty for none.
     string details_url = 16;
     // Discord's activity type: 0 playing, 2 listening, 3 watching, 5 competing.
-    int32 activity_type = 17;
+    uint32 activity_type = 17;
     // Which line Discord shows as the status: 0 the app's name, 1 state, 2 details.
-    int32 status_display_type = 18;
+    uint32 status_display_type = 18;
 }
 
 // Opens an .ics with the PC's calendar app (OpenCalendarFile).
@@ -779,7 +782,7 @@ message AgentSettings {
     // The wrist overlay shows while this controller button is held: menu, else grip (A/X on Oculus).
     bool overlay_menu_button = 10;
     // 0 either hand, 1 left, 2 right.
-    int32 overlay_hand = 11;
+    uint32 overlay_hand = 11;
 }
 
 // What plays in the game's instance (the original's nowPlayingUpdate): the wrist overlay's now
@@ -805,7 +808,7 @@ message NowPlayingPie {
 message HudFeed {
     repeated HudEntry added = 1;
     // How long an event line stays (photonOverlayMessageTimeout).
-    int32 message_timeout_ms = 2;
+    uint32 message_timeout_ms = 2;
     bool timeouts_set = 3;
     repeated HudTimeout timeouts = 4;
 }
@@ -827,7 +830,7 @@ message HudEntry {
 message HudTimeout {
     string display_name = 1;
     // Seconds since the player was last heard from.
-    int32 seconds = 2;
+    uint32 seconds = 2;
 }
 
 // The wrist overlay's feed (the original's wristFeedUpdate): the newest rows first, already passed
@@ -842,14 +845,14 @@ message WristFeed {
     string status = 4;
     // When the game joined this instance and when it started (0 when unknown or hidden by
     // hideUptimeFromFeed), for the bottom bar's timers; Unix milliseconds.
-    int64 location_since_ms = 5;
-    int64 online_since_ms = 6;
+    uint64 location_since_ms = 5;
+    uint64 online_since_ms = 6;
     // pcUptimeOnFeed and vrOverlayCpuUsage: the agent adds its own PC's uptime and CPU load.
     bool pc_uptime = 7;
     bool cpu_usage = 8;
     // minimalFeed: the bottom bar without its labels.
     bool minimal = 9;
-    int32 online_friends = 10;
+    uint32 online_friends = 10;
     // The bottom bar's labels in the page's language: Timer, Players, CPU, Online.
     string timer_label = 11;
     string players_label = 12;
@@ -993,8 +996,8 @@ message CreditsChanged {
 message InstanceQueueChanged {
     string account_id = 1;
     string location = 2;
-    int32 position = 3;
-    int32 queue_size = 4;
+    uint32 position = 3;
+    uint32 queue_size = 4;
     string world_name = 5;
     string group_name = 6;
     // Out of the queue; removed_by_move when it was dropped because the account went to another instance.
@@ -1059,13 +1062,13 @@ message FriendshipChanged {
     string display_name = 3;
     // true = friendship opened, false = ended.
     bool is_friend = 4;
-    int32 friend_number = 5;
+    uint32 friend_number = 5;
 }
 
 message NotificationReceived {
     string owner_user_id = 1;
     string notification_id = 2;
-    int32 version = 3;
+    uint32 version = 3;
     string type = 4;
     string sender_user_id = 5;
     string sender_display_name = 6;

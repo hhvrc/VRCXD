@@ -69,7 +69,7 @@ public sealed class FakeDesktop : LiveSocket
         // Actions for a batch are sent right behind its ack; a ping flushes them.
         await PingAsync();
         var actions = Received.Skip(before).Where(IsAction).Select(m => m.Action).ToList();
-        return new LogBatchResult(ack.GameLogAck.Accepted, actions);
+        return new LogBatchResult((int)ack.GameLogAck.Accepted, actions);
     }
 
     /// <summary>Tells the server VRChat started or stopped on this PC.</summary>
@@ -193,7 +193,7 @@ public static class Ipc
     }
 
     public static IpcPacket Ping() => new() { Ping = new LogNoData() };
-    public static IpcPacket MsgPing(int version) => new() { MsgPing = new IpcMsgPing { Version = version } };
+    public static IpcPacket MsgPing(uint version) => new() { MsgPing = new IpcMsgPing { Version = version } };
 }
 
 public static class GameLogExtensions

@@ -138,7 +138,7 @@ pub fn update_pie(pie: NowPlayingPie) {
 /// count) and updateHudTimeout.
 pub fn update_hud(feed: HudFeed) {
     let Ok(mut q) = QUEUE.lock() else { return };
-    let until = Instant::now() + Duration::from_millis(feed.message_timeout_ms.max(0) as u64);
+    let until = Instant::now() + Duration::from_millis(u64::from(feed.message_timeout_ms));
     // Oldest first, so the newest ends on top.
     for entry in feed.added.into_iter().rev() {
         let mut combo = 1;

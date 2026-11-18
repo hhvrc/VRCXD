@@ -27,6 +27,11 @@ export type LiveState = {
 	connected: boolean;
 	error: string;
 	serverVersion: string;
+	/**
+	 * When the server process started, on this page's clock (ms), or 0 before the first hello: the
+	 * status bar's uptime is the server's, not the page's.
+	 */
+	serverStartedAt: number;
 	/** Latest presence per user id, from PresenceChanged events. */
 	presence: Map<string, PresenceChanged>;
 	/** Open visits per instance location, from InstanceVisitChanged events. */
@@ -43,6 +48,7 @@ export const live = $state<LiveState>({
 	connected: false,
 	error: '',
 	serverVersion: '',
+	serverStartedAt: 0,
 	presence: new Map(),
 	present: new Map(),
 	events: [],
@@ -200,6 +206,8 @@ function connect() {
 			case 'hello': {
 				const hello = decoded.message.value;
 				live.serverVersion = hello.serverVersion;
+				// Sent as a duration, so the server's clock need not agree with this one.
+				live.serverStartedAt = Date.now() - Number(hello.uptimeMs);
 				helloSeen = socket === ws;
 				for (const listener of helloListeners) listener(hello);
 				break;

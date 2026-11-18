@@ -50,7 +50,7 @@ pub fn parse_packet(json: &[u8]) -> Option<Incoming> {
         },
         "Ping" => Packet::Ping(LogNoData {}),
         "MsgPing" => Packet::MsgPing(IpcMsgPing {
-            version: v.get("version").and_then(Value::as_i64).and_then(|n| i32::try_from(n).ok()).unwrap_or_default(),
+            version: v.get("version").and_then(Value::as_u64).and_then(|n| u32::try_from(n).ok()).unwrap_or_default(),
         }),
         "LaunchCommand" => return Some(Incoming::LaunchCommand(string(&v, "command"))),
         // OnOperationRequest only ever reached the original's debug log.

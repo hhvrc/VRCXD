@@ -2817,6 +2817,7 @@
 	"status_bar_zoom_tooltip": "Click to adjust zoom level",
 	"status_bar_app_uptime": "Application uptime",
 	"status_bar_app_uptime_short": "Uptime",
+	"status_bar_server_uptime": "Server uptime: how long the VRCXD server has been running",
 	"status_bar_clocks": "Clocks",
 	"status_bar_clock": "Clock",
 	"status_bar_clocks_label": "Clocks",

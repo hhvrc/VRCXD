@@ -10,7 +10,7 @@ public sealed class IpcSession
     /// <summary>A Ping came: a Photon logger runs (the original's photonLoggingEnabled, never turned off again).</summary>
     public bool PhotonLogger { get; set; }
     /// <summary>The external notifier's version from its MsgPing (the original's externalNotifierVersion).</summary>
-    public int ExternalNotifierVersion { get; set; }
+    public uint ExternalNotifierVersion { get; set; }
 }
 
 /// <summary>

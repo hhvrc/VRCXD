@@ -213,7 +213,7 @@ public sealed class FriendsTopic(IDbContextFactory<VrcxContext> dbFactory, IPres
         var entry = new FriendEntry
         {
             UserId = f.UserId,
-            FriendNumber = f.FriendNumber,
+            FriendNumber = Unsigned.Of(f.FriendNumber),
             FriendsSince = Timestamp.FromDateTimeOffset(f.FriendsSince),
             DisplayName = f.DisplayName,
             TrustLevel = f.TrustLevel,
@@ -227,7 +227,7 @@ public sealed class FriendsTopic(IDbContextFactory<VrcxContext> dbFactory, IPres
             Platform = f.Platform ?? "",
             Nickname = f.Nickname ?? "",
             PendingOffline = f.PendingOffline,
-            NameHue = f.NameHue,
+            NameHue = Unsigned.Of(f.NameHue),
             IconFrame = f.IconFrame ?? "",
             ProfileEffect = f.ProfileEffect ?? "",
         };

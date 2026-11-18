@@ -181,7 +181,7 @@ public sealed class PhotonService(
             colours = await db.CustomUserTags.AsNoTracking().Where(t => t.OwnerUserId == accountId && ids.Contains(t.UserId)).ToDictionaryAsync(t => t.UserId, t => t.Colour, ct);
         }
 
-        var feed = new HudFeed { MessageTimeoutMs = settings.PhotonOverlayMessageTimeout, TimeoutsSet = sendTimeouts };
+        var feed = new HudFeed { MessageTimeoutMs = Unsigned.Of(settings.PhotonOverlayMessageTimeout), TimeoutsSet = sendTimeouts };
         foreach (var e in events)
         {
             bool friend = friends.Contains(e.UserId), favorite = favorites.Contains(e.UserId);
@@ -190,7 +190,7 @@ public sealed class PhotonService(
         if (sendTimeouts)
             feed.Timeouts.AddRange(timeouts!
                 .Where(t => PhotonHud.Passes(settings.TimeoutHudOverlayFilter, t.UserId, friends.Contains(t.UserId), favorites.Contains(t.UserId)))
-                .Select(t => new HudTimeout { DisplayName = t.DisplayName, Seconds = t.Time }));
+                .Select(t => new HudTimeout { DisplayName = t.DisplayName, Seconds = Unsigned.Of(t.Time) }));
         if (feed.Added.Count == 0 && !sendTimeouts) return;
         await desktops.PostAsync(clientId, new ClientAction { UpdateHud = feed }, ct);
     }

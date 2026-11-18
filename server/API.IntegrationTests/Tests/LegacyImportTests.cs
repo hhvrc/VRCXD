@@ -441,7 +441,7 @@ public sealed class LegacyImportTests
         await RunAsync(app, $"/1/legacy-import/{uploadId}/dry-run");
         var done = await live.DeltaAsync(1, d => d.LegacyImport.State == "checked");
         var steps = live.Deltas(1).Where(d => d.LegacyImport.State == "checking" && d.LegacyImport.Step > 0).Select(d => d.LegacyImport.Step).ToList();
-        await Assert.That(steps).IsEquivalentTo(Enumerable.Range(1, done.LegacyImport.Steps), TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(steps).IsEquivalentTo(Enumerable.Range(1, (int)done.LegacyImport.Steps).Select(s => (uint)s), TUnit.Assertions.Enums.CollectionOrdering.Matching);
         await Assert.That(done.LegacyImport.StepName).IsEqualTo("settings");
 
         // The delta's report is REST's.
@@ -450,7 +450,7 @@ public sealed class LegacyImportTests
         await Assert.That(report.DryRun).IsTrue();
         await Assert.That(report.Tables.Select(t => (t.Source, t.Target, t.Candidates, t.HasInserted)))
             .IsEquivalentTo(rest.GetProperty("report").GetProperty("tables").EnumerateArray()
-                .Select(t => (t.GetProperty("source").GetString()!, t.GetProperty("target").GetString()!, t.GetProperty("candidates").GetInt64(), t.TryGetProperty("inserted", out _))),
+                .Select(t => (t.GetProperty("source").GetString()!, t.GetProperty("target").GetString()!, t.GetProperty("candidates").GetUInt64(), t.TryGetProperty("inserted", out _))),
                 TUnit.Assertions.Enums.CollectionOrdering.Matching);
         await Assert.That(done.LegacyImport.FinishedAt.ToDateTimeOffset()).IsEqualTo(rest.GetProperty("finishedAt").GetDateTimeOffset());
 
@@ -477,7 +477,7 @@ public sealed class LegacyImportTests
         await RunAsync(app, $"/1/legacy-import/{uploadId}/import");
         var imported = (await watching.DeltaAsync(7, d => d.LegacyImport.State == "imported")).LegacyImport;
         await Assert.That(imported.Report.DryRun).IsFalse();
-        await Assert.That(imported.Report.Tables.Sum(t => t.Inserted)).IsGreaterThan(0);
+        await Assert.That(imported.Report.Tables.Sum(t => (long)t.Inserted)).IsGreaterThan(0);
         await leaving.AssertNoDeltaAsync(1, TimeSpan.FromMilliseconds(200));
 
         // A page that comes back (a reconnect is a new connection) is sent the status as it is now.

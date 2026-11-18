@@ -120,7 +120,7 @@ public sealed class AgentSettingsPushTests
         body["overlayHand"] = 2;
         await VrcxScenario.EnsureSuccessAsync(await app.Api.PutAsJsonAsync(app.AccountPath("settings"), body), "save settings");
         var pushed = await pc.NextAgentSettingsAsync();
-        await Assert.That((pushed.OpenVr, pushed.OpenVrAlways, pushed.WristOverlay, pushed.OverlayMenuButton, pushed.OverlayHand)).IsEqualTo((true, true, true, true, 2));
+        await Assert.That((pushed.OpenVr, pushed.OpenVrAlways, pushed.WristOverlay, pushed.OverlayMenuButton, pushed.OverlayHand)).IsEqualTo((true, true, true, true, 2u));
 
         await pc.HmdAfkAsync(true);
         var status = await app.GetJsonAsync(app.AccountPath("desktop"));
@@ -569,7 +569,7 @@ public sealed class AgentWristFeedTests
         await Assert.That((action.UpdateWristFeed.Rows[0].Name, action.UpdateWristFeed.Rows[0].Favorite)).IsEqualTo(("Bee0", true));
         await Assert.That((action.UpdateWristFeed.Background, action.UpdateWristFeed.Status)).IsEqualTo((true, "12 (3)"));
         await Assert.That((action.UpdateWristFeed.LocationSinceMs, action.UpdateWristFeed.CpuUsage, action.UpdateWristFeed.Minimal, action.UpdateWristFeed.OnlineFriends, action.UpdateWristFeed.CpuLabel))
-            .IsEqualTo((1_000L, true, false, 7, "CPU:"));
+            .IsEqualTo((1_000UL, true, false, 7u, "CPU:"));
         await pc.CompleteAsync(action);
         await Assert.That((await sent).StatusCode).IsEqualTo(HttpStatusCode.NoContent);
     }
@@ -594,7 +594,7 @@ public sealed class DiscordPresenceTests
         await Assert.That(p.LargeImageKey).IsEqualTo("https://img/thumb.png");
         await Assert.That(p.SmallImageKey).IsEqualTo("active");
         await Assert.That(p.DetailsUrl).IsEqualTo("https://vrchat.com/home/world/wrld_4cf554b4-430c-4f8f-b53e-1f294eed230b");
-        await Assert.That((p.PartySize, p.PartyMax)).IsEqualTo((3, 40));
+        await Assert.That((p.PartySize, p.PartyMax)).IsEqualTo((3u, 40u));
         await Assert.That(p.StartTime).IsEqualTo(1_700_000_000_000);
         await Assert.That(p.ButtonUrl).IsEqualTo("");
         await Assert.That(p.AppId).IsEqualTo(DiscordPresenceService.VrchatAppId);
@@ -602,13 +602,13 @@ public sealed class DiscordPresenceTests
         // Busy hides the instance.
         var busy = DiscordPresenceService.Build(Input(Here, "busy"), on, DateTimeOffset.UtcNow);
         await Assert.That(busy.Details).IsEqualTo("Private World");
-        await Assert.That((busy.State, busy.PartyMax, busy.StartTime, busy.LargeImageKey)).IsEqualTo(("", 0, 0L, "vrchat"));
+        await Assert.That((busy.State, busy.PartyMax, busy.StartTime, busy.LargeImageKey)).IsEqualTo(("", 0u, 0UL, "vrchat"));
 
         // A public instance gets the Join button when asked, and a video in a dance world its app.
         const string pypy = "wrld_f20326da-f1ac-45fc-a062-609723b097b1:1";
         var dance = DiscordPresenceService.Build(Input(pypy, video: "Song"), on with { DiscordJoinButton = true }, DateTimeOffset.UtcNow);
         await Assert.That(dance.ButtonUrl).IsEqualTo("https://vrchat.com/home/launch?worldId=wrld_f20326da-f1ac-45fc-a062-609723b097b1&instanceId=1");
-        await Assert.That((dance.Details, dance.AppId, dance.LargeImageKey, dance.ActivityType)).IsEqualTo(("Song", "784094509008551956", "pypy", 2));
+        await Assert.That((dance.Details, dance.AppId, dance.LargeImageKey, dance.ActivityType)).IsEqualTo(("Song", "784094509008551956", "pypy", 2u));
         await Assert.That(dance.EndTime - dance.StartTime).IsEqualTo(200_000);
 
         await Assert.That(DiscordPresenceService.Build(Input(Here), new AccountSettings(), DateTimeOffset.UtcNow).Active).IsFalse();

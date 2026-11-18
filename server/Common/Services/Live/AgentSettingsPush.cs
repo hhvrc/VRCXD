@@ -25,7 +25,7 @@ public sealed class AgentSettingsPush(IDbContextFactory<VrcxContext> dbFactory, 
             OpenVrAlways = s.OpenVrAlways,
             WristOverlay = s.OverlayWrist,
             OverlayMenuButton = s.OverlayButton,
-            OverlayHand = s.OverlayHand,
+            OverlayHand = Unsigned.Of(s.OverlayHand),
         },
     };
 

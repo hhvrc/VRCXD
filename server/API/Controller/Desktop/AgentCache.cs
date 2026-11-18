@@ -64,5 +64,5 @@ public sealed partial class AccountDesktopController
     public Task<IActionResult> AgentCropPrints([FromRoute] string accountId, [FromBody] ConfirmBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
         AgentActionAsync(accountId, Capability.SaveMedia, new ClientAction { CropPrints = new CropPrints { Confirm = body.Confirm } }, cancellationToken, TimeSpan.FromMinutes(10));
 
-    private static CacheEntry Entry(CacheEntryBody body) => new() { Id = body.Id, Version = body.Version, Variant = body.Variant ?? "", VariantVersion = body.VariantVersion };
+    private static CacheEntry Entry(CacheEntryBody body) => new() { Id = body.Id, Version = Unsigned.Of(body.Version), Variant = body.Variant ?? "", VariantVersion = Unsigned.Of(body.VariantVersion) };
 }

@@ -168,7 +168,9 @@ fn caption(device: &Device) -> String {
 
 /// The bottom bar's timers: in this instance, online for, the PC's uptime, joined by " | ".
 fn timers(feed: &WristFeed, live: &Live) -> String {
-    let since = |at: i64| (at > 0).then(|| super::system::time_to_text(live.now_ms - at));
+    // Unix milliseconds, 0 for none; a time past i64 is not a real one and reads as just now.
+    let since =
+        |at: u64| (at > 0).then(|| super::system::time_to_text(live.now_ms - i64::try_from(at).unwrap_or(live.now_ms)));
     let parts: Vec<String> = [
         since(feed.location_since_ms),
         since(feed.online_since_ms),
