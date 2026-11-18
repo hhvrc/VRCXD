@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenShock.Internal.Common.Problems;
 using VRCX.Common.Services.Ingestion;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Users;
 
 public sealed class InvitePhotoForm
 {
@@ -30,7 +30,7 @@ public sealed class InviteResponsePhotoForm
 
 // VRC+ invites, invite requests and invite answers with a picture attached: the original's
 // sendInvitePhoto, sendRequestInvitePhoto and sendInviteResponsePhoto.
-public sealed partial class AccountsController
+public sealed partial class AccountUsersController
 {
     /// <summary>Invite a user to an instance with a picture.</summary>
     /// <response code="204">Sent</response>
@@ -86,7 +86,6 @@ public sealed partial class AccountsController
             await using (var image = form.Image.OpenReadStream())
                 await client.SendPhotoAsync($"invite/{Uri.EscapeDataString(notificationId)}/response/photo", new Dictionary<string, object> { ["responseSlot"] = form.ResponseSlot, ["rsvp"] = true }, image, cancellationToken);
             await client.HideNotificationAsync(notificationId, cancellationToken);
-            await store.MarkNotificationAsync(_db, accountId, notificationId, seen: null, hidden: true, cancellationToken);
-            await _db.SaveChangesAsync(cancellationToken);
+            await notificationActions.MarkHiddenAsync(accountId, notificationId, cancellationToken);
         });
 }

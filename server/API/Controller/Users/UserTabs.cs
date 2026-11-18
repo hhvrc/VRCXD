@@ -10,11 +10,11 @@ using VRCX.Common.Services;
 using VRCX.Common.Features.Friends;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Users;
 
 public sealed record UserLookupResponse(string? UserId);
 
-public sealed partial class AccountsController
+public sealed partial class AccountUsersController
 {
     /// <summary>The friends this account shares with a user, live from VRChat.</summary>
     /// <response code="200">The friends</response>
@@ -39,7 +39,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetTimeTogether([FromRoute] string accountId, [FromRoute] string userId, [FromServices] FriendQueries friends, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
         return Ok(await friends.TimeTogetherAsync(accountId, userId, cancellationToken));
     }
 
@@ -82,24 +82,20 @@ public sealed partial class AccountsController
     public async Task<IActionResult> LookupUser([FromRoute] string accountId, [FromQuery] string displayName, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(displayName) || displayName.StartsWith("ID:", StringComparison.Ordinal)) return Ok(new UserLookupResponse(null));
-        var friend = await _db.Friendships.AsNoTracking()
-            .Where(f => f.OwnerUserId == accountId && f.EndedAt == null && f.Friend.DisplayName == displayName)
-            .Select(f => f.FriendUserId).FirstOrDefaultAsync(cancellationToken);
-        if (friend is not null) return Ok(new UserLookupResponse(friend));
-        var known = await _db.Users.AsNoTracking()
-            .Where(u => u.DisplayName == displayName && !u.IsStub)
-            .OrderByDescending(u => u.UpdatedAt).Select(u => u.Id).FirstOrDefaultAsync(cancellationToken);
-        if (known is not null) return Ok(new UserLookupResponse(known));
-        if (_sessions.Get(accountId) is not { } client) return Ok(new UserLookupResponse(null));
-        try
+        if (await userQueries.IdByNameAsync(accountId, displayName, cancellationToken) is { } known) return Ok(new UserLookupResponse(known));
+        // Nobody stored by that name: VRChat's exact-name search, when there is a session to ask with.
+        var found = await Runner.ReadAsync(accountId, async client =>
         {
-            var found = await client.SearchUsersAsync(displayName, 10, 0, cancellationToken, fuzzy: false);
-            return Ok(new UserLookupResponse(found.FirstOrDefault(u => u.DisplayName == displayName)?.Id));
-        }
-        catch (VRCX.Vrchat.VrchatApiException ex) when (ex is not VRCX.Vrchat.VrchatUnauthorizedException)
-        {
-            return Ok(new UserLookupResponse(null));
-        }
+            try
+            {
+                return (await client.SearchUsersAsync(displayName, 10, 0, cancellationToken, fuzzy: false)).FirstOrDefault(u => u.DisplayName == displayName)?.Id;
+            }
+            catch (VRCX.Vrchat.VrchatApiException ex) when (ex is not VRCX.Vrchat.VrchatUnauthorizedException)
+            {
+                return null;
+            }
+        }, cancellationToken);
+        return Ok(new UserLookupResponse(found.Problem is null ? found.Value : null));
     }
 
     [HttpGet("{accountId}/users/{userId}/groups")]
@@ -142,8 +138,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListUserAvatars([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken)
     {
-        var avatars = await _db.Avatars.AsNoTracking().Where(a => a.AuthorId == userId).OrderBy(a => a.Name).ToListAsync(cancellationToken);
-        return Ok(avatars.Select(AvatarResponse.From));
+        return Ok((await content.AvatarsByAuthorAsync(userId, cancellationToken)).Select(AvatarResponse.From));
     }
 
     /// <summary>The avatars this account bought, from VRChat, stored as they come: the Avatars tab's Purchased group.</summary>
@@ -154,14 +149,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> ListLicensedAvatars([FromRoute] string accountId, [FromServices] Common.Services.Ingestion.VrchatStore store, CancellationToken cancellationToken) =>
+    public Task<IActionResult> ListLicensedAvatars([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
-        {
-            var now = DateTimeOffset.UtcNow;
-            var stored = new List<AvatarResponse>();
-            foreach (var api in await client.GetLicensedAvatarsAsync(cancellationToken))
-                stored.Add(AvatarResponse.From(await store.UpsertAvatarAsync(_db, api, now, cancellationToken)));
-            await _db.SaveChangesAsync(cancellationToken);
-            return stored;
-        });
+            (await ownAvatars.StoreAsync(await client.GetLicensedAvatarsAsync(cancellationToken), cancellationToken)).Select(AvatarResponse.From).ToList());
 }

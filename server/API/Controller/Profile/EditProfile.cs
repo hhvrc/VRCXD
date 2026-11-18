@@ -8,7 +8,7 @@ using VRCX.Common.Services.Ingestion;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Profile;
 
 /// <summary>What the Edit Profile dialog opens with: the account, its self profile and VRChat's options.</summary>
 public sealed class EditProfileResponse
@@ -94,7 +94,7 @@ public sealed class AddLanguageBody
 
 // The original's EditProfileDialog: the self profile it opens with, its save, profile themes and
 // spoken languages. Everything is live VRChat data.
-public sealed partial class AccountsController
+public sealed partial class AccountProfileController
 {
     /// <summary>The account's own profile as the Edit Profile dialog needs it.</summary>
     /// <response code="200">The profile</response>
@@ -104,12 +104,11 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> GetEditProfile([FromRoute] string accountId, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
+    public Task<IActionResult> GetEditProfile([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
         {
             var me = await client.GetCurrentUserAsync(cancellationToken);
-            await store.UpsertCurrentUserAsync(_db, me, cancellationToken);
-            await _db.SaveChangesAsync(cancellationToken);
+            await profileStore.StoreAsync(me, cancellationToken);
             var profile = await client.GetSelfProfileAsync(accountId, cancellationToken);
             var config = await client.GetConfigAsync(cancellationToken);
             return new EditProfileResponse
@@ -190,12 +189,11 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> AddLanguage([FromRoute] string accountId, [FromBody] AddLanguageBody body, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
+    public Task<IActionResult> AddLanguage([FromRoute] string accountId, [FromBody] AddLanguageBody body, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
         {
             var me = await client.AddUserTagsAsync(accountId, [$"language_{body.Language}"], cancellationToken);
-            await store.UpsertCurrentUserAsync(_db, me, cancellationToken);
-            await _db.SaveChangesAsync(cancellationToken);
+            await profileStore.StoreAsync(me, cancellationToken);
             return LanguagesOf(me);
         });
 
@@ -207,12 +205,11 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> RemoveLanguage([FromRoute] string accountId, [FromRoute] string language, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
+    public Task<IActionResult> RemoveLanguage([FromRoute] string accountId, [FromRoute] string language, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, async client =>
         {
             var me = await client.RemoveUserTagsAsync(accountId, [$"language_{language}"], cancellationToken);
-            await store.UpsertCurrentUserAsync(_db, me, cancellationToken);
-            await _db.SaveChangesAsync(cancellationToken);
+            await profileStore.StoreAsync(me, cancellationToken);
             return LanguagesOf(me);
         });
 }

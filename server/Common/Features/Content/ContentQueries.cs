@@ -200,4 +200,8 @@ public sealed class ContentQueries(VrcxContext db, IPresenceCache presence)
             FirstSeenAt = instance.FirstSeenAt, FetchedAt = instance.FetchedAt, Present = present,
         };
     }
+
+    /// <summary>The avatars by a user that this server has seen, by name. VRChat only lists an account's own.</summary>
+    public Task<List<Avatar>> AvatarsByAuthorAsync(string userId, CancellationToken cancellationToken) =>
+        db.Avatars.AsNoTracking().Where(a => a.AuthorId == userId).OrderBy(a => a.Name).ToListAsync(cancellationToken);
 }

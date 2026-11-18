@@ -275,6 +275,7 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.Content.ContentQueries>();
         services.AddScoped<VRCX.Common.Features.Groups.GroupQueries>();
         services.AddScoped<VRCX.Common.Features.Search.SearchStore>();
+        services.AddScoped<VRCX.Common.Features.Profile.ProfileStore>();
         services.AddScoped<VRCX.Common.Features.Users.UserNotes>();
         services.AddScoped<VRCX.Common.Features.Gallery.PrintFavorites>();
         services.AddScoped<VRCX.Common.Features.Desktop.AccountDesktop>();

@@ -222,4 +222,14 @@ public sealed class OwnAvatars(
         }
         return new AvatarLookupResponse { AvatarId = avatarId, OwnerId = info?.OwnerId, AvatarName = info?.AvatarName };
     }
+
+    /// <summary>Stores avatars VRChat just listed (the ones the account bought), and answers them as stored.</summary>
+    public async Task<List<Avatar>> StoreAsync(IEnumerable<VRCX.Vrchat.Models.Avatar> listed, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var stored = new List<Avatar>();
+        foreach (var api in listed) stored.Add(await store.UpsertAvatarAsync(db, api, now, cancellationToken));
+        await db.SaveChangesAsync(cancellationToken);
+        return stored;
+    }
 }

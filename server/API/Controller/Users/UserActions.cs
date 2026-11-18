@@ -8,7 +8,7 @@ using VRCX.Common.Services.Ingestion;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Users;
 
 public sealed record BoopBody(string? EmojiId);
 
@@ -18,7 +18,7 @@ public sealed record SendInviteBody(string Location, string WorldName, int? Mess
 public sealed record RequestInviteBody(int? RequestSlot = null);
 
 // The rest of the user pop-up's action menu, done on VRChat with the account's own session.
-public sealed partial class AccountsController
+public sealed partial class AccountUsersController
 {
     /// <summary>Hide or showcase one of the account's own badges, the original's updateBadge, and keep the stored profile in step.</summary>
     /// <response code="200">The badge as VRChat now has it</response>
@@ -35,11 +35,7 @@ public sealed partial class AccountsController
             // Hiding a badge takes it out of the showcase, and showcasing it shows it, as the original does.
             var showcased = body.Showcased && !body.Hidden;
             var badge = await client.UpdateBadgeAsync(accountId, badgeId, body.Hidden, showcased, cancellationToken);
-            if (await _db.Users.FindAsync([accountId], cancellationToken) is { } me)
-            {
-                me.Badges = me.Badges.Select(b => b.BadgeId == badgeId ? b with { Hidden = badge.Hidden, Showcased = badge.Showcased, UpdatedAt = badge.UpdatedAt ?? b.UpdatedAt } : b).ToList();
-                await _db.SaveChangesAsync(cancellationToken);
-            }
+            await profileStore.BadgeChangedAsync(accountId, badgeId, badge, cancellationToken);
             return badge;
         });
 
@@ -55,10 +51,7 @@ public sealed partial class AccountsController
         ReadLiveAsync(accountId, async client =>
         {
             var status = await client.GetFriendStatusAsync(userId, cancellationToken);
-            var note = await _db.UserNotes.AsNoTracking()
-                .Where(n => n.OwnerUserId == accountId && n.TargetUserId == userId)
-                .Select(n => n.Note)
-                .FirstOrDefaultAsync(cancellationToken);
+            var note = await notes.NoteAsync(accountId, userId, cancellationToken);
             return new UserRelationshipResponse
             {
                 IsFriend = status?.IsFriend ?? false,
@@ -101,26 +94,8 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> SendBoop([FromRoute] string accountId, [FromRoute] string userId, [FromBody] BoopBody body, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
-        RunAsync(accountId, async client =>
-        {
-            // As the original's SendBoopDialog: booping back hides the boops this user sent that are
-            // still open, before sending.
-            var now = DateTimeOffset.UtcNow;
-            var link = $"user:{userId}";
-            var open = await _db.Notifications
-                .Where(n => n.OwnerUserId == accountId && n.Type == "boop" && n.Link == link && !n.Hidden && (n.ExpiresAt == null || n.ExpiresAt > now))
-                .Select(n => n.Id)
-                .ToListAsync(cancellationToken);
-            foreach (var id in open)
-            {
-                try { await client.HideNotificationV2Async(id, cancellationToken); }
-                catch (VrchatApiException ex) when (ex is not VrchatUnauthorizedException) { }
-                await store.MarkNotificationAsync(_db, accountId, id, seen: null, hidden: true, cancellationToken);
-            }
-            if (open.Count > 0) await _db.SaveChangesAsync(cancellationToken);
-            await client.SendBoopAsync(userId, string.IsNullOrEmpty(body.EmojiId) ? null : body.EmojiId, cancellationToken);
-        });
+    public async Task<IActionResult> SendBoop([FromRoute] string accountId, [FromRoute] string userId, [FromBody] BoopBody body, CancellationToken cancellationToken) =>
+        Done(await notificationActions.SendBoopAsync(accountId, userId, body.EmojiId, cancellationToken));
 
     /// <summary>Accept a user's friend request. Without a stored notification this sends a request back, as the original does.</summary>
     /// <response code="204">Accepted</response>
@@ -131,19 +106,8 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> AcceptFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
-        RunAsync(accountId, async client =>
-        {
-            var request = await FindFriendRequestAsync(accountId, userId, cancellationToken);
-            if (request is null)
-            {
-                await client.SendFriendRequestAsync(userId, cancellationToken);
-                return;
-            }
-            await client.AcceptFriendRequestNotificationAsync(request.Id, cancellationToken);
-            request.Hidden = true;
-            await _db.SaveChangesAsync(cancellationToken);
-        });
+    public async Task<IActionResult> AcceptFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
+        Done(await notificationActions.AcceptFriendRequestFromAsync(accountId, userId, cancellationToken));
 
     /// <summary>Decline a user's friend request by hiding its notification.</summary>
     /// <response code="204">Declined</response>
@@ -154,23 +118,6 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> DeclineFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
-        RunAsync(accountId, async client =>
-        {
-            var request = await FindFriendRequestAsync(accountId, userId, cancellationToken);
-            if (request is null)
-            {
-                await client.CancelFriendRequestAsync(userId, cancellationToken);
-                return;
-            }
-            await client.HideNotificationAsync(request.Id, cancellationToken);
-            request.Hidden = true;
-            await _db.SaveChangesAsync(cancellationToken);
-        });
-
-    private Task<global::VRCX.Common.VrcxDb.Notification?> FindFriendRequestAsync(string accountId, string userId, CancellationToken cancellationToken) =>
-        _db.Notifications
-            .Where(n => n.OwnerUserId == accountId && n.SenderUserId == userId && n.Type == "friendRequest" && !n.Hidden)
-            .OrderByDescending(n => n.CreatedAt)
-            .FirstOrDefaultAsync(cancellationToken);
+    public async Task<IActionResult> DeclineFriendRequest([FromRoute] string accountId, [FromRoute] string userId, CancellationToken cancellationToken) =>
+        Done(await notificationActions.DeclineFriendRequestFromAsync(accountId, userId, cancellationToken));
 }

@@ -40,4 +40,11 @@ public sealed class UserNotes(VrcxContext db)
         }
         await db.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>The account's note on a user as last stored, or null when there is none.</summary>
+    public Task<string?> NoteAsync(string accountId, string userId, CancellationToken cancellationToken) =>
+        db.UserNotes.AsNoTracking()
+            .Where(n => n.OwnerUserId == accountId && n.TargetUserId == userId)
+            .Select(n => (string?)n.Note)
+            .FirstOrDefaultAsync(cancellationToken);
 }

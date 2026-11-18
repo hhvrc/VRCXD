@@ -141,4 +141,19 @@ public sealed class UserQueries(VrcxContext db)
         : null;
 
     private static string EscapeLike(string s) => s.Replace("\\", "\\\\", StringComparison.Ordinal).Replace("%", "\\%", StringComparison.Ordinal).Replace("_", "\\_", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The id of the stored user with exactly this display name: a friend of the account first, else
+    /// the most recently updated user stored in full. Null when the server knows nobody by that name.
+    /// </summary>
+    public async Task<string?> IdByNameAsync(string accountId, string displayName, CancellationToken cancellationToken)
+    {
+        var friend = await db.Friendships.AsNoTracking()
+            .Where(f => f.OwnerUserId == accountId && f.EndedAt == null && f.Friend.DisplayName == displayName)
+            .Select(f => f.FriendUserId).FirstOrDefaultAsync(cancellationToken);
+        if (friend is not null) return friend;
+        return await db.Users.AsNoTracking()
+            .Where(u => u.DisplayName == displayName && !u.IsStub)
+            .OrderByDescending(u => u.UpdatedAt).Select(u => u.Id).FirstOrDefaultAsync(cancellationToken);
+    }
 }

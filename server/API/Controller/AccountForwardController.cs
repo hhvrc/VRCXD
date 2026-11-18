@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using OpenShock.Internal.Common.Problems;
 using VRCX.Common;
 using VRCX.Common.Features.Accounts;
 using VRCX.Common.Features.Desktop;
@@ -17,6 +18,10 @@ public abstract class AccountForwardController(AccountSessionRunner runner) : Vr
 {
     /// <summary>For the endpoint that needs more than one call's result turned into a response.</summary>
     protected AccountSessionRunner Runner => runner;
+
+    /// <summary>What a feature's action answered: 204 when it worked, else its problem.</summary>
+    [NonAction]
+    protected IActionResult Done(OpenShockProblem? problem) => problem is null ? NoContent() : Problem(problem);
 
     /// <summary>What the agent on the account's PC answered: 204 for nothing, 200 with its JSON, else its problem.</summary>
     [NonAction]

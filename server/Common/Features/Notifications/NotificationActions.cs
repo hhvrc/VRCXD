@@ -187,4 +187,70 @@ public sealed class NotificationActions(VrcxContext db, AccountSessionRunner run
     /// <summary>Takes a notification off the page. The row stays in the database.</summary>
     public async Task<OpenShockProblem?> RemoveFromLogAsync(string accountId, string notificationId, CancellationToken ct) =>
         await writer.RemoveFromLogAsync(db, accountId, notificationId, ct) ? null : AccountError.NotificationNotFound;
+
+    /// <summary>A notification was answered on VRChat by something other than this class: the row is hidden here.</summary>
+    public async Task MarkHiddenAsync(string accountId, string notificationId, CancellationToken ct)
+    {
+        await store.MarkNotificationAsync(db, accountId, notificationId, seen: null, hidden: true, ct);
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// Boops a user. As the original's SendBoopDialog: booping back hides the boops this user sent
+    /// that are still open, before sending.
+    /// </summary>
+    public Task<OpenShockProblem?> SendBoopAsync(string accountId, string userId, string? emojiId, CancellationToken ct) =>
+        runner.RunAsync(accountId, async client =>
+        {
+            var now = DateTimeOffset.UtcNow;
+            var link = $"user:{userId}";
+            var open = await db.Notifications
+                .Where(n => n.OwnerUserId == accountId && n.Type == "boop" && n.Link == link && !n.Hidden && (n.ExpiresAt == null || n.ExpiresAt > now))
+                .Select(n => n.Id)
+                .ToListAsync(ct);
+            foreach (var id in open)
+            {
+                try { await client.HideNotificationV2Async(id, ct); }
+                catch (VrchatApiException ex) when (ex is not VrchatUnauthorizedException) { }
+                await store.MarkNotificationAsync(db, accountId, id, seen: null, hidden: true, ct);
+            }
+            if (open.Count > 0) await db.SaveChangesAsync(ct);
+            await client.SendBoopAsync(userId, string.IsNullOrEmpty(emojiId) ? null : emojiId, ct);
+        }, ct);
+
+    /// <summary>Accepts a user's friend request. Without a stored notification this sends a request back, as the original does.</summary>
+    public Task<OpenShockProblem?> AcceptFriendRequestFromAsync(string accountId, string userId, CancellationToken ct) =>
+        runner.RunAsync(accountId, async client =>
+        {
+            var request = await FindFriendRequestAsync(accountId, userId, ct);
+            if (request is null)
+            {
+                await client.SendFriendRequestAsync(userId, ct);
+                return;
+            }
+            await client.AcceptFriendRequestNotificationAsync(request.Id, ct);
+            request.Hidden = true;
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    /// <summary>Declines a user's friend request by hiding its notification. Without one, a request this account sent is withdrawn.</summary>
+    public Task<OpenShockProblem?> DeclineFriendRequestFromAsync(string accountId, string userId, CancellationToken ct) =>
+        runner.RunAsync(accountId, async client =>
+        {
+            var request = await FindFriendRequestAsync(accountId, userId, ct);
+            if (request is null)
+            {
+                await client.CancelFriendRequestAsync(userId, ct);
+                return;
+            }
+            await client.HideNotificationAsync(request.Id, ct);
+            request.Hidden = true;
+            await db.SaveChangesAsync(ct);
+        }, ct);
+
+    private Task<Notification?> FindFriendRequestAsync(string accountId, string userId, CancellationToken ct) =>
+        db.Notifications
+            .Where(n => n.OwnerUserId == accountId && n.SenderUserId == userId && n.Type == "friendRequest" && !n.Hidden)
+            .OrderByDescending(n => n.CreatedAt)
+            .FirstOrDefaultAsync(ct);
 }
