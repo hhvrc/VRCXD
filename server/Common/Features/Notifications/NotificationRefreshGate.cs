@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace VRCX.API.Services;
+namespace VRCX.Common.Features.Notifications;
 
 /// <summary>
 /// Upstream's refreshNotifications guard (8397c5f8), per account: a refresh asked for while one

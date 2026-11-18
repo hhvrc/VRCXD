@@ -20,10 +20,6 @@ public sealed record RequestInviteBody(int? RequestSlot = null);
 // The rest of the user pop-up's action menu, done on VRChat with the account's own session.
 public sealed partial class AccountsController
 {
-    private const string ModerationTypes = "^(block|mute|muteChat|interactOff)$";
-    // VRChat also reports the opposite kinds, such as an explicit unmute, and any of them can be removed.
-    private const string AllModerationTypes = "^(block|unblock|mute|unmute|interactOn|interactOff|muteChat|unmuteChat)$";
-
     /// <summary>Hide or showcase one of the account's own badges, the original's updateBadge, and keep the stored profile in step.</summary>
     /// <response code="200">The badge as VRChat now has it</response>
     /// <response code="409">No live session</response>
@@ -70,83 +66,6 @@ public sealed partial class AccountsController
                 OutgoingRequest = status?.OutgoingRequest ?? false,
                 Note = note ?? ""
             };
-        });
-
-    /// <summary>Block, mute, disable the chatbox of, or disable avatar interaction with a user.</summary>
-    /// <response code="204">Applied</response>
-    /// <response code="409">No live session</response>
-    /// <response code="502">VRChat refused</response>
-    [HttpPost("{accountId}/moderations/{userId}/{type:regex(" + ModerationTypes + ")}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
-    [MapToApiVersion("1")]
-    public Task<IActionResult> SendModeration([FromRoute] string accountId, [FromRoute] string userId, [FromRoute] string type, CancellationToken cancellationToken) =>
-        RunAsync(accountId, async client =>
-        {
-            var sent = await client.SendPlayerModerationAsync(userId, type, cancellationToken);
-            var row = await _db.PlayerModerations.FirstOrDefaultAsync(m => m.Id == sent.Id, cancellationToken);
-            if (row is null)
-            {
-                // A user the server has never stored can't be a row yet; the next sync adds them both.
-                if (!await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken)) return;
-                row = new global::VRCX.Common.VrcxDb.PlayerModeration { Id = sent.Id, OwnerUserId = accountId, TargetUserId = userId, Type = type };
-                _db.PlayerModerations.Add(row);
-            }
-            row.CreatedAt = sent.Created;
-            row.FetchedAt = DateTimeOffset.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
-        });
-
-    /// <summary>Undo a block, mute, disabled chatbox or disabled avatar interaction.</summary>
-    /// <response code="204">Removed</response>
-    /// <response code="409">No live session</response>
-    /// <response code="502">VRChat refused</response>
-    [HttpDelete("{accountId}/moderations/{userId}/{type:regex(" + AllModerationTypes + ")}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
-    [MapToApiVersion("1")]
-    public Task<IActionResult> DeleteModeration([FromRoute] string accountId, [FromRoute] string userId, [FromRoute] string type, CancellationToken cancellationToken) =>
-        RunAsync(accountId, async client =>
-        {
-            await client.DeletePlayerModerationAsync(userId, type, cancellationToken);
-            await _db.PlayerModerations
-                .Where(m => m.OwnerUserId == accountId && m.TargetUserId == userId && m.Type == type)
-                .ExecuteDeleteAsync(cancellationToken);
-        });
-
-    /// <summary>Remove every moderation of one kind from the account.</summary>
-    /// <response code="204">Removed</response>
-    /// <response code="409">No live session</response>
-    /// <response code="502">VRChat refused</response>
-    [HttpDelete("{accountId}/moderations/{type:regex(" + AllModerationTypes + ")}")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
-    [MapToApiVersion("1")]
-    public Task<IActionResult> ClearModerations([FromRoute] string accountId, [FromRoute] string type, CancellationToken cancellationToken) =>
-        RunAsync(accountId, async client =>
-        {
-            await client.DeletePlayerModerationsOfTypeAsync(type, cancellationToken);
-            await _db.PlayerModerations.Where(m => m.OwnerUserId == accountId && m.Type == type).ExecuteDeleteAsync(cancellationToken);
-        });
-
-    /// <summary>Fetch the account's moderations from VRChat now instead of waiting for the next sync.</summary>
-    /// <response code="204">Refreshed</response>
-    /// <response code="409">No live session</response>
-    /// <response code="502">VRChat refused</response>
-    [HttpPost("{accountId}/moderations/refresh")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
-    [MapToApiVersion("1")]
-    public Task<IActionResult> RefreshModerations([FromRoute] string accountId, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
-        RunAsync(accountId, async client =>
-        {
-            var moderations = await client.GetPlayerModerationsAsync(cancellationToken);
-            await store.SyncPlayerModerationsAsync(_db, accountId, moderations, DateTimeOffset.UtcNow, cancellationToken);
-            await _db.SaveChangesAsync(cancellationToken);
         });
 
     /// <summary>Ask a user for an invite.</summary>

@@ -253,6 +253,12 @@ public static class VrcxServiceHelper
         // Read models over what is stored, per request on the request's context: the endpoints and
         // the MCP tools share them, so neither carries query logic of its own.
         services.AddScoped<VRCX.Common.Features.Accounts.AccountQueries>();
+        services.AddSingleton<VRCX.Common.Features.Accounts.AccountSessionRunner>();
+        services.AddSingleton<VRCX.Common.Features.Notifications.NotificationRefreshGate>();
+        services.AddScoped<VRCX.Common.Features.Notifications.NotificationQueries>();
+        services.AddScoped<VRCX.Common.Features.Notifications.NotificationActions>();
+        services.AddScoped<VRCX.Common.Features.Moderation.ModerationQueries>();
+        services.AddScoped<VRCX.Common.Features.Moderation.ModerationActions>();
         services.AddScoped<VRCX.Common.Features.Locations.LocationQueries>();
         services.AddScoped<FriendQueries>();
         services.AddScoped<FriendActions>();
@@ -260,7 +266,8 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.GameLog.GameLogActions>();
         services.AddScoped<VRCX.Common.Features.GameLog.PreviousInstanceQueries>();
         services.AddScoped<VRCX.Common.Services.Queries.UserQueries>();
-        services.AddScoped<VRCX.Common.Services.Queries.AccountListQueries>();
+        services.AddScoped<VRCX.Common.Features.Favorites.FavoriteQueries>();
+        services.AddScoped<VRCX.Common.Features.Favorites.FavoriteActions>();
         services.AddScoped<VRCX.Common.Features.Memos.MemoStore>();
 
         return services;

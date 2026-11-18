@@ -100,46 +100,6 @@ public sealed class AvatarLookupResponse
     public string? AvatarName { get; init; }
 }
 
-public sealed class FavoriteSlotResponse
-{
-    public required string Type { get; init; }
-    public required string Name { get; init; }
-    public required string DisplayName { get; init; }
-    public required int Capacity { get; init; }
-    public required int Count { get; init; }
-    public string Visibility { get; init; } = "private";
-}
-
-public sealed class LocalFavoriteGroupResponse
-{
-    public required string Name { get; init; }
-    public required int Count { get; init; }
-    public required bool Contains { get; init; }
-}
-
-public sealed class FavoritePickerResponse
-{
-    public required IReadOnlyList<FavoriteSlotResponse> Groups { get; init; }
-    public FavoriteSlotResponse? Current { get; init; }
-    public required IReadOnlyList<LocalFavoriteGroupResponse> Local { get; init; }
-    public required bool IsSupporter { get; init; }
-}
-
-public sealed class LocalFavoriteResponse
-{
-    public required string GroupName { get; init; }
-    public required string TargetId { get; init; }
-    public required string TargetName { get; init; }
-    public string? ThumbnailImageUrl { get; init; }
-    /// <summary>For the favorites search, which matches author names and author tags (upstream issue 735).</summary>
-    public string? AuthorName { get; init; }
-    /// <summary>For the export's Author ID column (upstream issue 984).</summary>
-    public string? AuthorId { get; init; }
-    /// <summary>So local cards can mark private ones and hide Select Avatar on them, as the original.</summary>
-    public string? ReleaseStatus { get; init; }
-    public IReadOnlyList<string>? Tags { get; init; }
-}
-
 public sealed class InstanceOptionGroup
 {
     public required string Id { get; init; }

@@ -2,7 +2,9 @@ using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using VRCX.Common.Features.Locations;
-using VRCX.Common.Services.Queries;
+using VRCX.Common.Features.Moderation;
+using VRCX.Common.Features.Notifications;
+using VRCX.Common.Features.Favorites;
 using VRCX.Common.VrcxDb;
 
 namespace VRCX.API.Mcp;
@@ -16,7 +18,7 @@ public sealed record McpFavorites(McpAccount Account, string Type, IReadOnlyList
 public sealed record McpModeration(string Type, string TargetUserId, string TargetDisplayName, DateTimeOffset? CreatedAt);
 
 [McpServerToolType]
-public sealed class ListTools(McpAccountResolver accounts, AccountListQueries lists, LocationQueries locations)
+public sealed class ListTools(McpAccountResolver accounts, NotificationQueries notifications, ModerationQueries moderations, FavoriteQueries lists, LocationQueries locations)
 {
     [McpServerTool(Name = "get_notifications", Title = "Notifications", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false, UseStructuredContent = true)]
     [Description("""
@@ -34,7 +36,7 @@ public sealed class ListTools(McpAccountResolver accounts, AccountListQueries li
         CancellationToken cancellationToken = default)
     {
         var who = await accounts.ResolveAsync(account, cancellationToken);
-        var query = lists.Notifications(who.Id, includeHidden);
+        var query = notifications.Notifications(who.Id, includeHidden);
         if (!string.IsNullOrWhiteSpace(type)) query = query.Where(n => n.Type == type.Trim());
         var page = await McpPaging.PageAsync(who, query, offset, limit, cancellationToken);
         return new McpPage<McpNotification>(who,
@@ -83,7 +85,7 @@ public sealed class ListTools(McpAccountResolver accounts, AccountListQueries li
         CancellationToken cancellationToken = default)
     {
         var who = await accounts.ResolveAsync(account, cancellationToken);
-        var rows = (await lists.ModerationsAsync(who.Id, cancellationToken))
+        var rows = (await moderations.ModerationsAsync(who.Id, cancellationToken))
             .Where(m => string.IsNullOrWhiteSpace(type) || string.Equals(m.Type, type.Trim(), StringComparison.OrdinalIgnoreCase))
             .Select(m => new McpModeration(m.Type, m.TargetUserId, m.TargetDisplayName, m.CreatedAt))
             .ToList();
