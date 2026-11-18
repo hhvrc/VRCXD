@@ -11,13 +11,14 @@
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
-	import { api, ApiError } from '#lib/api/client.js';
+	import { ApiError } from '#lib/api/client.js';
+	import { FRIEND_LOG_PATH, hideFriendLogEntry } from '#lib/people/friends-api.js';
 	import { userHref } from '#lib/api/links.js';
 	import type { FriendLogEntry } from '#lib/api/types.js';
 	import { watchLive } from '#lib/api/live.svelte.js';
 	import { LogTable } from '#lib/activity/log-table.svelte.js';
 	import { tableSettings } from '#lib/settings/table-settings.svelte.js';
-	import { vrchatAuth, ownPath } from '#lib/api/vrchat-auth.svelte.js';
+	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 
 	// The original's Friend Log over GET /1/accounts/{id}/friend-log. Deleting a row hides it from
 	// this view on the server; the history behind it stays in the database.
@@ -32,7 +33,7 @@
 	const table = new LogTable<FriendLogEntry>(
 		TYPES,
 		'VRCX_friendLogTableFilters',
-		'/friend-log',
+		FRIEND_LOG_PATH,
 		(row, term) => !(tableSettings.hideUnfriends && row.type === 'Unfriend') && (!term || row.displayName.toLowerCase().includes(term))
 	);
 
@@ -40,7 +41,7 @@
 		table.rows = table.rows.filter((r) => r.key !== row.key);
 		table.confirming = undefined;
 		try {
-			await api.delete(ownPath(`/friend-log/${encodeURIComponent(row.key)}`));
+			await hideFriendLogEntry(row.key);
 		} catch (err) {
 			table.error = ApiError.from(err).message;
 			table.load();

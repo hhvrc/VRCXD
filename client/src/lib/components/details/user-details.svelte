@@ -70,6 +70,7 @@
 	import * as DropdownMenu from '#lib/components/ui/dropdown-menu/index.js';
 	import { Spinner } from '#lib/components/ui/spinner/index.js';
 	import { accountPath, api, ApiError } from '#lib/api/client.js';
+	import { acceptFriendRequest, cancelFriendRequest, declineFriendRequest, sendFriendRequest, unfriend } from '#lib/people/friends-api.js';
 	import { imageSrc, groupHref, vrchatUrl } from '#lib/api/links.js';
 	import { formatDateFilter, replaceBioSymbols, statusClass } from '#lib/helpers/format.js';
 	import type { Friend, Instance, Memo, PlayerModeration, User, UserBadge, UserHistory } from '#lib/api/types.js';
@@ -416,12 +417,11 @@
 	}
 
 	async function friendAction(action: 'send' | 'cancel' | 'unfriend' | 'accept' | 'decline') {
-		const base = `${userPath}/friend-requests/${encodedId}`;
-		if (action === 'send') await api.post(base);
-		else if (action === 'cancel') await api.delete(base);
-		else if (action === 'accept') await api.post(`${base}/accept`);
-		else if (action === 'decline') await api.post(`${base}/decline`);
-		else await api.delete(`${userPath}/friends/${encodedId}`);
+		if (action === 'send') await sendFriendRequest(userId);
+		else if (action === 'cancel') await cancelFriendRequest(userId);
+		else if (action === 'accept') await acceptFriendRequest(userId);
+		else if (action === 'decline') await declineFriendRequest(userId);
+		else await unfriend(userId);
 		await load(userId, true);
 	}
 

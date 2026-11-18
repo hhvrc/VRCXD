@@ -39,15 +39,10 @@ function friendsRequests(source: string): string[] {
 }
 
 /**
- * Today's violations, as "file: path segment". Remove a line when its requests move into the
- * feature's module. Never add one to make a change pass.
+ * Violations that predate the rule, as "file: path segment". There are none left: the friends
+ * requests live in lib/people/friends-api.ts. Never add a line to make a change pass.
  */
-const notYetMoved = [
-	'lib/components/details/user-details.svelte: friend-requests',
-	'lib/components/details/user-details.svelte: friends',
-	'routes/friend-list/+page.svelte: friends',
-	'routes/friend-log/+page.svelte: friend-log'
-];
+const notYetMoved: string[] = [];
 
 function violations(): string[] {
 	const found = new Set<string>();

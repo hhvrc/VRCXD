@@ -19,7 +19,8 @@
 	import { Progress } from '#lib/components/ui/progress/index.js';
 	import { Switch } from '#lib/components/ui/switch/index.js';
 	import * as Tooltip from '#lib/components/ui/tooltip/index.js';
-	import { accountPath, api, ApiError } from '#lib/api/client.js';
+	import { ApiError } from '#lib/api/client.js';
+	import { loadFriendDetails, loadFriendProfile, unfriend as unfriendOnVrchat } from '#lib/people/friends-api.js';
 	import { imageSrc } from '#lib/api/links.js';
 	import type { FriendDetail, FriendDetails } from '#lib/api/types.js';
 	import removeConfusables, { removeWhitespace } from '#lib/people/confusables.js';
@@ -28,7 +29,7 @@
 	import { tableSettings } from '#lib/settings/table-settings.svelte.js';
 	import { userDialog } from '#lib/people/user-dialog.svelte.js';
 	import { hueToHex, languageClass, languagesOf, sortStatus, trustInfo } from '#lib/people/user-display.js';
-	import { vrchatAuth, ownPath } from '#lib/api/vrchat-auth.svelte.js';
+	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 	import { appearance } from '#lib/settings/appearance.svelte.js';
 
 	// The original's Friend List over GET /1/accounts/{id}/friends/details. Mutuals load on the
@@ -97,7 +98,7 @@
 		if (!account) return;
 		loading = true;
 		try {
-			const data = await api.get<FriendDetails>(accountPath(account, '/friends/details'));
+			const data = await loadFriendDetails<FriendDetails>(account);
 			friends = data.friends;
 			mutualOptOut = data.mutualOptOut;
 			error = '';
@@ -109,7 +110,7 @@
 	}
 
 	async function unfriend(id: string) {
-		await api.delete(ownPath(`/friends/${encodeURIComponent(id)}`));
+		await unfriendOnVrchat(id);
 		friends = friends.filter((f) => f.userId !== id);
 	}
 
@@ -172,7 +173,7 @@
 			if (loadCancelled) break;
 			loadCurrent += 1;
 			try {
-				await api.post(ownPath(`/friends/${encodeURIComponent(friend.userId)}/load`));
+				await loadFriendProfile(friend.userId);
 			} catch (err) {
 				console.error(err);
 			}
