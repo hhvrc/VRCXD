@@ -18,41 +18,32 @@
 		uploadInParts,
 		type LegacyImportStatus
 	} from '#lib/settings/legacy-import.js';
+	import { legacyImportTopic } from '#lib/live/topics/legacy-import.svelte.js';
 
 	// Importing an original VRCX database, which the original has no counterpart for: it is that
-	// database. The work is the server's (POST /1/legacy-import and on); this page uploads the file,
-	// then shows the server's status, polling while a check or an import runs.
+	// database. The work is the server's (POST /1/legacy-import and on); this page uploads the file
+	// and shows the server's status from the "legacy_import" topic, which follows the upload, each
+	// step of a check or an import, and its end, also when another tab started it.
 
-	const POLL_MS = 1000;
+	let status = $state<LegacyImportStatus | undefined>();
+	// In the browser only: the page is prerendered, and the topic opens the live socket.
+	onMount(() => {
+		const topic = legacyImportTopic();
+		const stopListening = topic.listen((value) => (status = value));
+		return () => {
+			stopListening();
+			topic.release();
+		};
+	});
 
-	let status = $state<LegacyImportStatus>({ state: 'none', size: 0, received: 0 });
 	let file = $state<File | undefined>();
 	let uploading = $state<{ received: number; size: number; abort: AbortController } | undefined>();
 	let error = $state('');
 	let busy = $state(false);
 
-	const running = $derived(isRunning(status.state));
-	const rows = $derived(status.report ? reportRows(status.report) : []);
+	const running = $derived(!!status && isRunning(status.state));
+	const rows = $derived(status?.report ? reportRows(status.report) : []);
 	const percent = (received: number, size: number) => (size > 0 ? Math.floor((received / size) * 100) : 0);
-
-	async function refresh() {
-		try {
-			status = await legacyImportApi.status();
-		} catch (err) {
-			error = ApiError.from(err).message;
-		}
-	}
-
-	onMount(() => {
-		void refresh();
-	});
-
-	// While the server is at it, ask how far it is; a page opened in the middle of a run picks it up too.
-	$effect(() => {
-		if (!running) return;
-		const timer = setInterval(refresh, POLL_MS);
-		return () => clearInterval(timer);
-	});
 
 	async function upload() {
 		if (!file) return;
@@ -60,13 +51,12 @@
 		const abort = new AbortController();
 		uploading = { received: 0, size: file.size, abort };
 		try {
-			status = await uploadInParts(file, legacyImportApi, {
+			await uploadInParts(file, legacyImportApi, {
 				signal: abort.signal,
 				onProgress: (received, size) => uploading && (uploading = { ...uploading, received, size })
 			});
 		} catch (err) {
 			if (!abort.signal.aborted) error = ApiError.from(err).message;
-			await refresh();
 		} finally {
 			uploading = undefined;
 		}
@@ -81,7 +71,6 @@
 			error = ApiError.from(err).message;
 		} finally {
 			busy = false;
-			await refresh();
 		}
 	}
 
@@ -93,7 +82,9 @@
 
 <SettingsGroup title={m.view_settings_advanced_legacy_import_header()}>
 	{#snippet description()}{m.view_settings_advanced_legacy_import_description()}{/snippet}
-	{#if uploading}
+	{#if !status}
+		<p class="text-sm text-muted-foreground">{m.view_settings_advanced_legacy_import_waiting()}</p>
+	{:else if uploading}
 		<div class="flex flex-col gap-2 py-1">
 			<span class="text-sm">
 				{m.view_settings_advanced_legacy_import_uploading({ received: formatBytes(uploading.received), size: formatBytes(uploading.size), percent: percent(uploading.received, uploading.size) })}
@@ -116,8 +107,8 @@
 		{#if canRun(status)}
 			<SettingsItem label={m.view_settings_advanced_legacy_import_uploaded({ size: formatBytes(status.size) })}>
 				<div class="flex gap-2">
-					<Button size="sm" variant="outline" disabled={busy} onclick={() => act(() => legacyImportApi.dryRun(status.uploadId!))}>{m.view_settings_advanced_legacy_import_check()}</Button>
-					<Button size="sm" disabled={busy || status.state !== 'checked'} onclick={() => act(() => legacyImportApi.import(status.uploadId!))}>{m.view_settings_advanced_legacy_import_import()}</Button>
+					<Button size="sm" variant="outline" disabled={busy} onclick={() => act(() => legacyImportApi.dryRun(status!.uploadId!))}>{m.view_settings_advanced_legacy_import_check()}</Button>
+					<Button size="sm" disabled={busy || status.state !== 'checked'} onclick={() => act(() => legacyImportApi.import(status!.uploadId!))}>{m.view_settings_advanced_legacy_import_import()}</Button>
 					<Button size="sm" variant="ghost" disabled={busy} onclick={() => act(() => legacyImportApi.discard())}>{m.view_settings_advanced_legacy_import_discard()}</Button>
 				</div>
 			</SettingsItem>
@@ -142,7 +133,7 @@
 				{#if status.report.dryRun}
 					{m.view_settings_advanced_legacy_import_checked({ count: reportTotal(status.report).toLocaleString() })}
 				{:else}
-					{m.view_settings_advanced_legacy_import_imported({ count: reportTotal(status.report).toLocaleString(), elapsed: formatElapsed(status.report.elapsed) })}
+					{m.view_settings_advanced_legacy_import_imported({ count: reportTotal(status.report).toLocaleString(), elapsed: formatElapsed(status.report.elapsedSeconds) })}
 				{/if}
 			</p>
 			{#if status.state === 'imported'}

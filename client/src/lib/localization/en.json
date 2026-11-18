@@ -987,6 +987,7 @@
 	"view_settings_advanced_legacy_import_checking": "Checking, step {step} of {steps}: {name}",
 	"view_settings_advanced_legacy_import_importing": "Importing, step {step} of {steps}: {name}",
 	"view_settings_advanced_legacy_import_starting": "Starting…",
+	"view_settings_advanced_legacy_import_waiting": "Waiting for the live connection to the server…",
 	"view_settings_advanced_legacy_import_checked": "The file holds {count} rows to import. Nothing has been written yet.",
 	"view_settings_advanced_legacy_import_imported": "Imported {count} rows in {elapsed}. The file has been deleted from the server.",
 	"view_settings_advanced_legacy_import_reload": "Reload to see it",

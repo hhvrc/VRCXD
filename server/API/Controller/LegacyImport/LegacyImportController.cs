@@ -64,7 +64,7 @@ public sealed class LegacyImportController(LegacyImportRuns runs) : VrcxControll
     public async Task<IActionResult> Append([FromRoute] string uploadId, [FromQuery] long offset, CancellationToken cancellationToken) =>
         Answer(await runs.AppendAsync(uploadId, offset, Request.Body, cancellationToken));
 
-    /// <summary>Reads the uploaded file and reports what would be imported, in the background; poll GET for the report.</summary>
+    /// <summary>Reads the uploaded file and reports what would be imported, in the background; the "legacy_import" topic and GET carry the report.</summary>
     /// <response code="200">The check has started</response>
     /// <response code="404">No such upload</response>
     /// <response code="409">The file is not all there, or a run is already going</response>

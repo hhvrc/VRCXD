@@ -314,6 +314,7 @@ message TopicSnapshot {
     oneof payload {
         FriendsSnapshot friends = 10;
         NotificationsSnapshot notifications = 11;
+        LegacyImportUpdate legacy_import = 12;
     }
 }
 
@@ -324,6 +325,7 @@ message TopicDelta {
     oneof payload {
         FriendsDelta friends = 10;
         NotificationsDelta notifications = 11;
+        LegacyImportUpdate legacy_import = 12;
     }
 }
 
@@ -434,6 +436,49 @@ message FriendEntry {
     int32 name_hue = 21;
     string icon_frame = 22;
     string profile_effect = 23;
+}
+
+// ---- topic "legacy_import": the original VRCX database uploaded on the Settings page, as
+// GET /1/legacy-import reports it. Not an account's: subscribe with no account_id. The snapshot is
+// the status, and so is every delta: the whole status again, after each part received, each step
+// of a check or an import, and its end. ----
+
+message LegacyImportUpdate {
+    // Empty when there is no upload.
+    string upload_id = 1;
+    // none, uploading, uploaded, checking, checked, importing, imported, failed.
+    string state = 2;
+    int64 size = 3;
+    int64 received = 4;
+    // The step of the check or import that is running or ran last; step 0 before the first.
+    int32 step = 5;
+    int32 steps = 6;
+    string step_name = 7;
+    // The last check's or import's report; unset until one finished.
+    LegacyImportReport report = 8;
+    // Why the last run failed; empty otherwise.
+    string error = 9;
+    google.protobuf.Timestamp finished_at = 10;
+}
+
+message LegacyImportReport {
+    bool dry_run = 1;
+    repeated LegacyImportTable tables = 2;
+    repeated string notes = 3;
+    double elapsed_seconds = 4;
+}
+
+// What happened to one table of the file.
+message LegacyImportTable {
+    string source = 1;
+    string target = 2;
+    int64 read = 3;
+    int64 candidates = 4;
+    // Unset in a dry run, which does not look at the database.
+    optional int64 inserted = 5;
+    int64 updated = 6;
+    // Rows left out, by why.
+    map<string, int64> skipped = 7;
 }
 
 // Answer to a ClientHello with a client_id: how far this client's log was ingested, so it

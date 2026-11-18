@@ -36,8 +36,9 @@ public sealed record LegacyImportStatus(
 /// memory, and a part that fails can be sent again from where the file ends.
 ///
 /// One upload at a time, kept in this process: a new upload replaces the last one. The dry run and
-/// the import run in the background, since the import takes about a minute on a large file, and
-/// the page polls <see cref="Status"/>. The file is deleted once it has been imported.
+/// the import run in the background, since the import takes about a minute on a large file. Every
+/// change is announced (<see cref="Changed"/>), which <see cref="LegacyImportTopic"/> streams to
+/// the page. The file is deleted once it has been imported.
 /// </summary>
 public sealed class LegacyImportRuns(
     LegacyImportUploadOptions options,
@@ -69,6 +70,14 @@ public sealed class LegacyImportRuns(
 
     private string FilePath => Path.Combine(Directory, "VRCX.sqlite3");
 
+    /// <summary>
+    /// Raised after every change to <see cref="Status"/>, outside the lock: a part received, a step
+    /// started, a run finished, the upload started or discarded.
+    /// </summary>
+    public event Action? Changed;
+
+    private void Announce() => Changed?.Invoke();
+
     public LegacyImportStatus Status()
     {
         lock (_lock) return new(_uploadId, _state, _size, _received, _progress, _report, _error, _finishedAt);
@@ -91,6 +100,7 @@ public sealed class LegacyImportRuns(
                 _uploadId = null;
                 _state = LegacyImportState.None;
             }
+            Announce();
             if (FreeSpace() is { } free && free < size) return LegacyImportError.NoSpace(free);
             await using (File.Create(FilePath)) { }
             lock (_lock)
@@ -104,6 +114,7 @@ public sealed class LegacyImportRuns(
                 _error = null;
                 _finishedAt = null;
             }
+            Announce();
             return Status();
         }
         finally
@@ -169,6 +180,7 @@ public sealed class LegacyImportRuns(
                 _received = received + written;
                 if (_received == _size) _state = LegacyImportState.Uploaded;
             }
+            Announce();
             return Status();
         }
         finally
@@ -205,6 +217,7 @@ public sealed class LegacyImportRuns(
                 _finishedAt = null;
             }
             DeleteFiles();
+            Announce();
             return null;
         }
         finally
@@ -238,6 +251,7 @@ public sealed class LegacyImportRuns(
             _finishedAt = null;
             _running = Task.Run(() => RunAsync(uploadId, dryRun));
         }
+        Announce();
         return Status();
     }
 
@@ -274,6 +288,7 @@ public sealed class LegacyImportRuns(
             _error = error;
             _finishedAt = time.GetUtcNow();
         }
+        Announce();
     }
 
     private void TryDelete()
@@ -315,6 +330,7 @@ public sealed class LegacyImportRuns(
         {
             lock (runs._lock)
                 if (runs._uploadId == uploadId) runs._progress = value;
+            runs.Announce();
         }
     }
 }

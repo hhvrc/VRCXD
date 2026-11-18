@@ -296,6 +296,8 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.Avatars.AvatarHistory>();
         services.AddScoped<VRCX.Common.Features.Memos.MemoStore>();
         services.AddSingleton<VRCX.Common.Features.LegacyImport.LegacyImportRuns>();
+        services.AddSingleton<VRCX.Common.Features.LegacyImport.LegacyImportTopic>();
+        services.AddSingleton<ILiveTopic>(sp => sp.GetRequiredService<VRCX.Common.Features.LegacyImport.LegacyImportTopic>());
 
         return services;
     }

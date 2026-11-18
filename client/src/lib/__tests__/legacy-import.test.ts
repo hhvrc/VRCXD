@@ -33,7 +33,7 @@ function fakeServer(script: { failPut?: (call: number, offset: number) => 'netwo
 			if (failure === 'lostAnswer') throw new ApiError(0, undefined, "Couldn't reach the server");
 			return status();
 		},
-		async status() {
+		async position() {
 			return status();
 		}
 	};
@@ -91,7 +91,7 @@ describe('the report', () => {
 	];
 
 	test('an import lists what was added and what was there, leaving out empty tables', () => {
-		const report = { dryRun: false, tables, notes: [], elapsed: '00:00:20' };
+		const report = { dryRun: false, tables, notes: [], elapsedSeconds: 20.4 };
 		expect(reportRows(report)).toEqual([
 			{ source: 'gamelog_location', target: 'stored_instance_visits', read: 10, count: 5, already: 3, skipped: 2 },
 			{ source: 'memos', target: 'user_memos', read: 3, count: 0, already: 3, skipped: 0 }
@@ -100,7 +100,7 @@ describe('the report', () => {
 	});
 
 	test('a dry run lists what would be added', () => {
-		const report = { dryRun: true, tables: tables.map(({ inserted: _, ...t }) => t), notes: [], elapsed: '00:00:20' };
+		const report = { dryRun: true, tables: tables.map(({ inserted: _, ...t }) => t), notes: [], elapsedSeconds: 20.4 };
 		expect(reportRows(report).map((row) => [row.count, row.already])).toEqual([
 			[8, undefined],
 			[3, undefined]
@@ -121,10 +121,8 @@ test('a file can be checked or imported once it is all there and not yet importe
 });
 
 test("a run's time reads in seconds", () => {
-	expect(formatElapsed('00:00:20.4321000')).toBe('20 s');
-	expect(formatElapsed('00:01:05')).toBe('65 s');
-	expect(formatElapsed('1.00:00:00')).toBe('86400 s');
-	expect(formatElapsed('soon')).toBe('soon');
+	expect(formatElapsed(20.4)).toBe('20 s');
+	expect(formatElapsed(65)).toBe('65 s');
 });
 
 test('sizes read as the page shows them', () => {

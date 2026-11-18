@@ -8,7 +8,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using VRCX.Common.Features.LegacyImport;
+using VRCX.Common.Live;
 using VRCX.Testing;
+using VRCX.Testing.Live;
 using VRCX.Testing.Desktop;
 
 namespace VRCX.API.IntegrationTests.Tests;
@@ -270,6 +272,86 @@ public sealed class LegacyImportTests
         await Assert.That(discarded.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
         await Assert.That(File.Exists(Path.Combine(UploadDirectory(app), "VRCX.sqlite3"))).IsFalse();
         await Assert.That((await StatusAsync(app)).GetProperty("state").GetString()).IsEqualTo("none");
+    }
+
+    // The Settings page follows an upload, a check and an import on the "legacy_import" topic: the
+    // snapshot is the status GET /1/legacy-import returns, and every change after it is a delta
+    // carrying the whole status again, numbered without gaps.
+    [Test]
+    public async Task The_topic_streams_the_upload_and_the_check_step_by_step_as_rest_reports_them()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        using var fixture = Fixture.Create(Second(app.Time.GetUtcNow().AddDays(-3)));
+        var file = await File.ReadAllBytesAsync(fixture.Path);
+        await using var live = await app.ConnectLiveAsync();
+        var hello = live.Received.First(m => m.MessageCase == ServerMessage.MessageOneofCase.Hello).Hello;
+        await Assert.That(hello.Topics).Contains(LegacyImportTopic.TopicName);
+
+        // Not an account's: subscribed without one.
+        var snapshot = (await live.SubscribeSnapshotAsync(1, LegacyImportTopic.TopicName, null)).LegacyImport;
+        await Assert.That(snapshot.State).IsEqualTo("none");
+        await Assert.That(snapshot.UploadId).IsEqualTo("");
+
+        var uploadId = await UploadAsync(app, file, parts: 2);
+        var uploaded = await live.DeltaAsync(1, d => d.LegacyImport.State == "uploaded");
+        var received = live.Deltas(1).Where(d => d.LegacyImport.State == "uploading").Select(d => d.LegacyImport.Received).ToList();
+        await Assert.That(received.First()).IsEqualTo(0);
+        await Assert.That(received.Last()).IsEqualTo((file.Length + 1) / 2);
+        await Assert.That(uploaded.LegacyImport.UploadId).IsEqualTo(uploadId);
+        await Assert.That(uploaded.LegacyImport.Received).IsEqualTo(file.LongLength);
+
+        await RunAsync(app, $"/1/legacy-import/{uploadId}/dry-run");
+        var done = await live.DeltaAsync(1, d => d.LegacyImport.State == "checked");
+        var steps = live.Deltas(1).Where(d => d.LegacyImport.State == "checking" && d.LegacyImport.Step > 0).Select(d => d.LegacyImport.Step).ToList();
+        await Assert.That(steps).IsEquivalentTo(Enumerable.Range(1, done.LegacyImport.Steps), TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(done.LegacyImport.StepName).IsEqualTo("settings");
+
+        // The delta's report is REST's.
+        var rest = await StatusAsync(app);
+        var report = done.LegacyImport.Report;
+        await Assert.That(report.DryRun).IsTrue();
+        await Assert.That(report.Tables.Select(t => (t.Source, t.Target, t.Candidates, t.HasInserted)))
+            .IsEquivalentTo(rest.GetProperty("report").GetProperty("tables").EnumerateArray()
+                .Select(t => (t.GetProperty("source").GetString()!, t.GetProperty("target").GetString()!, t.GetProperty("candidates").GetInt64(), t.TryGetProperty("inserted", out _))),
+                TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(done.LegacyImport.FinishedAt.ToDateTimeOffset()).IsEqualTo(rest.GetProperty("finishedAt").GetDateTimeOffset());
+
+        var revs = live.Deltas(1).Select(d => d.Rev).ToList();
+        await Assert.That(revs).IsEquivalentTo(Enumerable.Range(2, revs.Count).Select(r => (ulong)r), TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    [Test]
+    public async Task A_page_opened_during_an_import_starts_from_where_it_is_and_one_that_left_hears_nothing()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        app.Vrchat.SetMe(Me, "Me");
+        await app.LoginAsync();
+        using var fixture = Fixture.Create(Second(app.Time.GetUtcNow().AddDays(-3)));
+        var uploadId = await UploadAsync(app, await File.ReadAllBytesAsync(fixture.Path), parts: 1);
+
+        await using var leaving = await app.ConnectLiveAsync();
+        await leaving.SubscribeSnapshotAsync(1, LegacyImportTopic.TopicName, null);
+        await leaving.UnsubscribeAsync(1);
+        await using var watching = await app.ConnectLiveAsync();
+        var before = (await watching.SubscribeSnapshotAsync(7, LegacyImportTopic.TopicName, null)).LegacyImport;
+        await Assert.That(before.State).IsEqualTo("uploaded");
+
+        await RunAsync(app, $"/1/legacy-import/{uploadId}/import");
+        var imported = (await watching.DeltaAsync(7, d => d.LegacyImport.State == "imported")).LegacyImport;
+        await Assert.That(imported.Report.DryRun).IsFalse();
+        await Assert.That(imported.Report.Tables.Sum(t => t.Inserted)).IsGreaterThan(0);
+        await leaving.AssertNoDeltaAsync(1, TimeSpan.FromMilliseconds(200));
+
+        // A page that comes back (a reconnect is a new connection) is sent the status as it is now.
+        await using var back = await app.ConnectLiveAsync();
+        var now = (await back.SubscribeSnapshotAsync(1, LegacyImportTopic.TopicName, null)).LegacyImport;
+        await Assert.That(now.State).IsEqualTo("imported");
+        await Assert.That(now.Step).IsEqualTo(now.Steps);
+        await Assert.That(now.Report.Tables.Count).IsEqualTo(imported.Report.Tables.Count);
+
+        // Discarding is a change too.
+        await VrcxScenario.EnsureSuccessAsync(await app.Api.DeleteAsync("/1/legacy-import"), "discard");
+        await Assert.That((await back.DeltaAsync(1, d => d.LegacyImport.State == "none")).LegacyImport.UploadId).IsEqualTo("");
     }
 
     private static string UploadDirectory(VrcxScenario app) => Path.GetFullPath(app.Services.GetRequiredService<VRCX.Common.Options.LegacyImportUploadOptions>().Dir);

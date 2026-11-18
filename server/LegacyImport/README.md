@@ -17,7 +17,7 @@ The endpoints, under the API token like everything else:
 
 | Request | Does |
 | --- | --- |
-| `GET /1/legacy-import` | The upload, the step running and the last report |
+| `GET /1/legacy-import` | The upload, the step running and the last report. The page follows the same status on the live socket's `legacy_import` topic (`docs/live-topics.md`) |
 | `POST /1/legacy-import` `{"size": n}` | Starts an upload, replacing the last one |
 | `PUT /1/legacy-import/{uploadId}?offset=n` | One part as the raw body, at most 64 MiB, starting where the file ends. A 409 says where that is |
 | `POST /1/legacy-import/{uploadId}/dry-run` | Reads the file in the background and reports what an import would add |

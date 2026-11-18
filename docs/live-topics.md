@@ -61,6 +61,13 @@ page). A removal means the row left the list: it was taken off the page, or it i
 or group notice that was answered. A row shows its sender's name, so the writer also announces a
 user's display name changing, and the rows that user sent are sent again in every account.
 
+The `legacy_import` topic is not an account's: it is subscribed without an `account_id`. Its state
+is the one VRCX database upload the server holds, as `GET /1/legacy-import` reports it
+(`LegacyImportRuns.Status`). The state is small, so its snapshot and every delta carry the whole
+status: after each uploaded part, each step of a check or an import, its end, and a discard.
+`LegacyImportRuns` is its writer and announces every change; `LegacyImportTopic` leaves out a
+delta that would repeat the last one.
+
 `AccountRowsTopic<TRow>` is the base for a topic of this shape: rows per account with a key, one
 shared feed per subscribed account, coalescing, and whole-row upserts and removals. A new topic
 overrides the key, the read (everything, or just some keys) and the two payload builders, and its
