@@ -122,6 +122,43 @@ public sealed class NotificationsTopicTests
     }
 
     [Test]
+    public async Task A_sender_changing_their_name_sends_the_rows_they_sent_with_the_new_name()
+    {
+        var (app, bob, invite) = await StartAsync();
+        await using var __ = app;
+        var carol = app.Vrchat.User("usr_carol", "Carol");
+        var other = app.Vrchat.Notification("invite", carol);
+        await app.Pipeline.NotificationAsync(other);
+        await using var live = await app.ConnectLiveAsync();
+        var snapshot = await live.SubscribeSnapshotAsync(1, "notifications", app.AccountId);
+        await Assert.That(snapshot.Notifications.Notifications.Single(n => n.Id == invite.Id).SenderDisplayName).IsEqualTo("Bob");
+        await Assert.That(snapshot.Notifications.Notifications.Select(n => n.Id)).Contains(other.Id);
+
+        await using (var db = app.CreateDbContext())
+        {
+            var user = await db.Users.FindAsync(bob.Id);
+            user!.DisplayName = "Bobby";
+            await db.SaveChangesAsync();
+        }
+
+        var renamed = await live.DeltaAsync(1);
+        // Bob's row only: Carol's shows nothing new.
+        await Assert.That(renamed.Notifications.Upserts.Select(n => (n.Id, n.SenderDisplayName))).IsEquivalentTo(new[] { (invite.Id, "Bobby") });
+        var rest = (await RestAsync(app)).Single(n => n.GetProperty("id").GetString() == invite.Id);
+        await Assert.That(rest.GetProperty("senderDisplayName").GetString()).IsEqualTo("Bobby");
+
+        // A user who sent nothing changes their name: nothing is sent.
+        await using (var db = app.CreateDbContext())
+        {
+            db.Users.Add(new User { Id = "usr_stranger", DisplayName = "Stranger" });
+            await db.SaveChangesAsync();
+            (await db.Users.FindAsync("usr_stranger"))!.DisplayName = "Stranger2";
+            await db.SaveChangesAsync();
+        }
+        await live.AssertNoDeltaAsync(1, Quiet);
+    }
+
+    [Test]
     public async Task Changes_within_the_window_are_one_delta_and_a_change_nobody_can_see_is_none()
     {
         var (app, bob, invite) = await StartAsync();

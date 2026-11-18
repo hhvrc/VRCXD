@@ -103,12 +103,35 @@ public abstract class AccountRowsTopic<TRow>(ILogger logger) : ILiveTopic where 
             if (feed.Scheduled) return;
             feed.Scheduled = true;
         }
+        Schedule(feed);
+    }
+
+    /// <summary>
+    /// Something the rows show changed (committed) that is not a row's own key, such as the name of
+    /// a user rows refer to: in every account, the rows already sent that match are read again.
+    /// </summary>
+    protected void ChangedWhere(Func<TRow, bool> matches)
+    {
+        List<Feed> feeds;
+        lock (_gate) feeds = [.. _feeds.Values];
+        foreach (var feed in feeds)
+        {
+            lock (feed.Marks)
+            {
+                feed.Matchers.Add(matches);
+                if (feed.Scheduled) continue;
+                feed.Scheduled = true;
+            }
+            Schedule(feed);
+        }
+    }
+
+    private void Schedule(Feed feed) =>
         _ = Task.Run(async () =>
         {
             await Task.Delay(CoalesceWindow);
             await FlushAsync(feed);
         });
-    }
 
     private async Task FlushAsync(Feed feed)
     {
@@ -116,16 +139,23 @@ public abstract class AccountRowsTopic<TRow>(ILogger logger) : ILiveTopic where 
         try
         {
             HashSet<string> dirty;
+            List<Func<TRow, bool>> matchers;
             bool all;
             lock (feed.Marks)
             {
-                (dirty, all) = (feed.Dirty, feed.All);
+                (dirty, matchers, all) = (feed.Dirty, feed.Matchers, feed.All);
                 feed.Dirty = new HashSet<string>(StringComparer.Ordinal);
+                feed.Matchers = [];
                 feed.All = false;
                 feed.Scheduled = false;
             }
             // Not read yet: the subscriber reading it sees these changes already.
             if (feed.Rows is null) return;
+            if (!all && matchers.Count > 0)
+                foreach (var (key, row) in feed.Rows)
+                    if (matchers.Any(m => m(row))) dirty.Add(key);
+            // A change elsewhere that none of this account's rows show.
+            if (!all && dirty.Count == 0) return;
 
             var fresh = (await ReadAsync(feed.AccountId, all ? null : dirty, CancellationToken.None)).ToDictionary(KeyOf, StringComparer.Ordinal);
             List<TRow> upserts = [];
@@ -191,9 +221,11 @@ public abstract class AccountRowsTopic<TRow>(ILogger logger) : ILiveTopic where 
         public int Joining { get; set; }
         /// <summary>Under Gate: reading changes failed and its subscribers were closed.</summary>
         public bool Broken { get; set; }
-        /// <summary>The lock for Dirty, All and Scheduled.</summary>
+        /// <summary>The lock for Dirty, Matchers, All and Scheduled.</summary>
         public Lock Marks { get; } = new();
         public HashSet<string> Dirty { get; set; } = new(StringComparer.Ordinal);
+        /// <summary>Rows that match any of these are read again too.</summary>
+        public List<Func<TRow, bool>> Matchers { get; set; } = [];
         public bool All { get; set; }
         public bool Scheduled { get; set; }
     }

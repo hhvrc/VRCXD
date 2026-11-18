@@ -18,8 +18,8 @@ namespace VRCX.Common.Features.Notifications;
 /// when newer ones push it past the cap, until it changes or the client subscribes again.
 /// </para>
 /// <para>
-/// A row shows its sender's current name. A sender changing their name does not send their rows
-/// again; they carry the new name from the next time they change, or after a new subscription.
+/// A row shows its sender's current name, so a sender changing their name sends their rows again
+/// (<see cref="SendersChanged"/>).
 /// </para>
 /// </summary>
 public sealed class NotificationsTopic(IDbContextFactory<VrcxContext> dbFactory, ILogger<NotificationsTopic> logger)
@@ -33,6 +33,14 @@ public sealed class NotificationsTopic(IDbContextFactory<VrcxContext> dbFactory,
     public override string Name => TopicName;
 
     protected override string KeyOf(NotificationEntry row) => row.Id;
+
+    /// <summary>These users' display names changed (committed): the rows they sent, in any account, show the new name.</summary>
+    public void SendersChanged(IReadOnlyCollection<string> userIds)
+    {
+        if (userIds.Count == 0) return;
+        var senders = userIds.ToHashSet(StringComparer.Ordinal);
+        ChangedWhere(row => senders.Contains(row.SenderUserId));
+    }
 
     protected override async Task<List<NotificationEntry>> ReadAsync(string accountId, IReadOnlyCollection<string>? keys, CancellationToken ct)
     {

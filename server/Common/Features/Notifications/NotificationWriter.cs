@@ -10,7 +10,8 @@ namespace VRCX.Common.Features.Notifications;
 /// without a delta. Notifications are written in many places (the pipeline, the syncs, the
 /// Notifications page's actions, a boop sent back, a group change noticed by a sync); all of them
 /// change tracked rows, which the <see cref="CommitHook"/> sees and announces once they commit. The
-/// two changes made in bulk, which no change tracker sees, are made here.
+/// two changes made in bulk, which no change tracker sees, are made here. The hook also sees a
+/// user's display name change, since a row shows its sender's name.
 /// </summary>
 public sealed class NotificationWriter(NotificationsTopic topic)
 {
@@ -36,7 +37,10 @@ public sealed class NotificationWriter(NotificationsTopic topic)
         return updated > 0;
     }
 
-    private readonly ConditionalWeakTable<DbContext, List<(string AccountId, string Id)>> _pending = new();
+    /// <summary>What one unit of work changed that a notification row shows, read before its save.</summary>
+    private sealed record Pending(List<(string AccountId, string Id)> Notifications, List<string> RenamedUsers);
+
+    private readonly ConditionalWeakTable<DbContext, Pending> _pending = new();
 
     private void Collect(VrcxContext db)
     {
@@ -44,16 +48,21 @@ public sealed class NotificationWriter(NotificationsTopic topic)
         foreach (var entry in db.ChangeTracker.Entries<Notification>())
             if (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
                 changed.Add((entry.Entity.OwnerUserId, entry.Entity.Id));
-        if (changed.Count == 0) _pending.Remove(db);
-        else _pending.AddOrUpdate(db, changed);
+        List<string> renamed = [];
+        foreach (var entry in db.ChangeTracker.Entries<User>())
+            if (entry.State == EntityState.Modified && entry.Property(nameof(User.DisplayName)).IsModified)
+                renamed.Add(entry.Entity.Id);
+        if (changed.Count == 0 && renamed.Count == 0) _pending.Remove(db);
+        else _pending.AddOrUpdate(db, new Pending(changed, renamed));
     }
 
     private void Committed(DbContext? context)
     {
-        if (context is null || !_pending.TryGetValue(context, out var changed)) return;
+        if (context is null || !_pending.TryGetValue(context, out var pending)) return;
         _pending.Remove(context);
-        foreach (var account in changed.GroupBy(c => c.AccountId))
+        foreach (var account in pending.Notifications.GroupBy(c => c.AccountId))
             topic.Changed(account.Key, account.Select(c => c.Id).Distinct().ToList());
+        topic.SendersChanged(pending.RenamedUsers);
     }
 
     /// <summary>
