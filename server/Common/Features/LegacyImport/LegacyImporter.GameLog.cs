@@ -7,14 +7,32 @@ public sealed partial class LegacyImporter
 {
     private static readonly TimeSpan PairTolerance = TimeSpan.FromSeconds(5);
 
-    private sealed record Stay(DateTimeOffset At, DateTimeOffset? End, string? Instance, string Raw, string? WorldName, string? GroupName)
+    private sealed record Stay(DateTimeOffset At, DateTimeOffset? End, string? Instance, string? WorldName, string? GroupName)
     {
         /// <summary>When the PC left: its own end, else the next stay's start, else its start.</summary>
         public DateTimeOffset Until { get; set; }
         public string? Account { get; set; }
     }
 
-    private sealed record JoinLeave(DateTimeOffset At, bool Joined, string? DisplayName, string Raw, string? Instance, string? UserId, long? TimeMs);
+    private sealed record JoinLeave(DateTimeOffset At, bool Joined, string? DisplayName, string? Instance, string? UserId, long? TimeMs);
+
+    /// <summary>
+    /// One copy of each instance, user id and name the join/leave lines repeat. Pairing them needs
+    /// every line at once, and a large log has hundreds of thousands of lines over a few thousand
+    /// instances and players, so sharing the strings is most of what the lines would take.
+    /// </summary>
+    private sealed class StringPool
+    {
+        private readonly Dictionary<string, string> _strings = new(StringComparer.Ordinal);
+
+        public string? Get(string? value)
+        {
+            if (value is null) return null;
+            if (_strings.TryGetValue(value, out var shared)) return shared;
+            _strings[value] = value;
+            return value;
+        }
+    }
 
     private List<Stay> _stays = [];
 
@@ -54,7 +72,7 @@ public sealed partial class LegacyImporter
             var raw = r.String(1) ?? "";
             var location = VRCX.Vrchat.VrchatLocation.Parse(raw);
             var time = r.Long(4);
-            _stays.Add(new Stay(at, time > 0 ? at + TimeSpan.FromMilliseconds(time.Value) : null, location.IsRealInstance ? location.InstanceLocation : null, raw, r.String(3), r.String(5)));
+            _stays.Add(new Stay(at, time > 0 ? at + TimeSpan.FromMilliseconds(time.Value) : null, location.IsRealInstance ? location.InstanceLocation : null, r.String(3), r.String(5)));
         }
         _stays = _stays.OrderBy(s => s.At).ToList();
         for (var i = 0; i < _stays.Count; i++)
@@ -62,6 +80,7 @@ public sealed partial class LegacyImporter
 
         // ---- gamelog_join_leave: who came and went ----
         var joinLeave = new List<JoinLeave>();
+        var pool = new StringPool();
         var joinReport = _report.Table("gamelog_join_leave", "stored_instance_visits (other players, source game_log) + unidentified_visits");
         foreach (var r in _src.Rows("gamelog_join_leave", "created_at", "type", "display_name", "location", "user_id", "time"))
         {
@@ -77,10 +96,9 @@ public sealed partial class LegacyImporter
                 joinReport.Skip($"unknown type {type}");
                 continue;
             }
-            var raw = r.String(3) ?? "";
-            var location = VRCX.Vrchat.VrchatLocation.Parse(raw);
+            var location = VRCX.Vrchat.VrchatLocation.Parse(r.String(3) ?? "");
             var userId = r.String(4) ?? ResolveName(r.String(2));
-            joinLeave.Add(new JoinLeave(at, type == "OnPlayerJoined", r.String(2), raw, location.IsRealInstance ? location.InstanceLocation : null, userId, r.Long(5)));
+            joinLeave.Add(new JoinLeave(at, type == "OnPlayerJoined", pool.Get(r.String(2)), location.IsRealInstance ? pool.Get(location.InstanceLocation) : null, pool.Get(userId), r.Long(5)));
         }
 
         AssignStayAccounts(joinLeave);
@@ -237,7 +255,7 @@ public sealed partial class LegacyImporter
             });
     }
 
-    private IEnumerable<object?[]> Rows(List<object?[]> rows, Action<object?[]> refs)
+    private IEnumerable<object?[]> Rows(IEnumerable<object?[]> rows, Action<object?[]> refs)
     {
         foreach (var row in rows)
         {
@@ -251,7 +269,7 @@ public sealed partial class LegacyImporter
     /// from the same log line (same user, instance and join time) is the same stay: it is kept,
     /// and given the leave time if it never got one.
     /// </summary>
-    private async Task VisitsAsync(TableReport report, string stage, List<object?[]> rows, bool own)
+    private async Task VisitsAsync(TableReport report, string stage, IEnumerable<object?[]> rows, bool own)
     {
         StageColumn[] columns = [Text("user_id"), Text("instance_location"), Time("joined_at"), Time("left_at"), Text("world_name"), Text("group_name"), Text("display_name")];
         await BulkAsync(report, stage, columns, Rows(rows, r =>
@@ -288,21 +306,23 @@ public sealed partial class LegacyImporter
     {
         // gamelog_video_play -> video_plays
         var video = _report.Table("gamelog_video_play", "video_plays");
-        var videoRows = new List<object?[]>();
-        foreach (var r in _src.Rows("gamelog_video_play", "created_at", "video_url", "video_name", "video_id", "location", "display_name", "user_id"))
+        IEnumerable<object?[]> VideoRows()
         {
-            video.Read++;
-            if (r.Time(0) is not { } at || r.String(1) is not { } url)
+            foreach (var r in _src.Rows("gamelog_video_play", "created_at", "video_url", "video_name", "video_id", "location", "display_name", "user_id"))
             {
-                video.Skip("no created_at or video_url");
-                continue;
+                video.Read++;
+                if (r.Time(0) is not { } at || r.String(1) is not { } url)
+                {
+                    video.Skip("no created_at or video_url");
+                    continue;
+                }
+                var name = r.String(5);
+                var userId = r.String(6) ?? ResolveName(name);
+                yield return [at, r.String(4), url, r.String(2), r.String(3), name, userId];
             }
-            var name = r.String(5);
-            var userId = r.String(6) ?? ResolveName(name);
-            videoRows.Add([at, r.String(4), url, r.String(2), r.String(3), name, userId]);
         }
         await BulkAsync(video, "stage_video", [Time("at"), Text("location"), Text("video_url"), Text("video_name"), Text("video_id"), Text("display_name"), Text("user_id")],
-            Rows(videoRows, r =>
+            Rows(VideoRows(), r =>
             {
                 var at = (DateTimeOffset)r[0]!;
                 r[1] = _refs.Instance(r[1] as string, at);
@@ -319,19 +339,21 @@ public sealed partial class LegacyImporter
 
         // gamelog_portal_spawn -> portal_spawns
         var portal = _report.Table("gamelog_portal_spawn", "portal_spawns");
-        var portalRows = new List<object?[]>();
-        foreach (var r in _src.Rows("gamelog_portal_spawn", "created_at", "display_name", "location", "user_id", "instance_id", "world_name"))
+        IEnumerable<object?[]> PortalRows()
         {
-            portal.Read++;
-            if (r.Time(0) is not { } at)
+            foreach (var r in _src.Rows("gamelog_portal_spawn", "created_at", "display_name", "location", "user_id", "instance_id", "world_name"))
             {
-                portal.Skip("no created_at");
-                continue;
+                portal.Read++;
+                if (r.Time(0) is not { } at)
+                {
+                    portal.Skip("no created_at");
+                    continue;
+                }
+                yield return [at, r.String(2), r.String(3) ?? ResolveName(r.String(1)), r.String(1), r.String(4), r.String(5)];
             }
-            portalRows.Add([at, r.String(2), r.String(3) ?? ResolveName(r.String(1)), r.String(1), r.String(4), r.String(5)]);
         }
         await BulkAsync(portal, "stage_portal", [Time("at"), Text("location"), Text("user_id"), Text("display_name"), Text("target"), Text("target_world_name")],
-            Rows(portalRows, r =>
+            Rows(PortalRows(), r =>
             {
                 var at = (DateTimeOffset)r[0]!;
                 r[1] = _refs.Instance(r[1] as string, at);
@@ -352,25 +374,27 @@ public sealed partial class LegacyImporter
 
         // gamelog_resource_load -> resource_loads
         var resource = _report.Table("gamelog_resource_load", "resource_loads");
-        var resourceRows = new List<object?[]>();
-        foreach (var r in _src.Rows("gamelog_resource_load", "created_at", "resource_url", "resource_type", "location"))
+        IEnumerable<object?[]> ResourceRows()
         {
-            resource.Read++;
-            if (r.Time(0) is not { } at || r.String(1) is not { } url)
+            foreach (var r in _src.Rows("gamelog_resource_load", "created_at", "resource_url", "resource_type", "location"))
             {
-                resource.Skip("no created_at or resource_url");
-                continue;
+                resource.Read++;
+                if (r.Time(0) is not { } at || r.String(1) is not { } url)
+                {
+                    resource.Skip("no created_at or resource_url");
+                    continue;
+                }
+                var kind = r.String(2) switch
+                {
+                    "ImageLoad" => "image",
+                    "StringLoad" => "string",
+                    var other => other?.ToLowerInvariant() ?? "string",
+                };
+                yield return [at, r.String(3), url, kind];
             }
-            var kind = r.String(2) switch
-            {
-                "ImageLoad" => "image",
-                "StringLoad" => "string",
-                var other => other?.ToLowerInvariant() ?? "string",
-            };
-            resourceRows.Add([at, r.String(3), url, kind]);
         }
         await BulkAsync(resource, "stage_resource", [Time("at"), Text("location"), Text("url"), Text("kind")],
-            Rows(resourceRows, r => r[1] = _refs.Instance(r[1] as string, (DateTimeOffset)r[0]!)), async pg =>
+            Rows(ResourceRows(), r => r[1] = _refs.Instance(r[1] as string, (DateTimeOffset)r[0]!)), async pg =>
             {
                 resource.Inserted += await pg.ExecuteAsync("""
                     INSERT INTO resource_loads (at, instance_location, url, kind)
@@ -381,36 +405,40 @@ public sealed partial class LegacyImporter
 
         // gamelog_event and gamelog_external -> game_log_events (Kind Event / External)
         var events = _report.Table("gamelog_event", "game_log_events (kind Event)");
-        var eventRows = new List<object?[]>();
-        foreach (var r in _src.Rows("gamelog_event", "created_at", "data"))
+        IEnumerable<object?[]> EventRows()
         {
-            events.Read++;
-            if (r.Time(0) is not { } at || r.Raw(1) is not { } data)
+            foreach (var r in _src.Rows("gamelog_event", "created_at", "data"))
             {
-                events.Skip("no created_at or data");
-                continue;
+                events.Read++;
+                if (r.Time(0) is not { } at || r.Raw(1) is not { } data)
+                {
+                    events.Skip("no created_at or data");
+                    continue;
+                }
+                // The original stored no location with these; the stay the PC was in says where, as this server records it.
+                yield return [at, StayAt(at)?.Instance, "Event", data, null, null];
             }
-            // The original stored no location with these; the stay the PC was in says where, as this server records it.
-            eventRows.Add([at, StayAt(at)?.Instance, "Event", data, null, null]);
         }
-        await GameLogEventsAsync(events, eventRows);
+        await GameLogEventsAsync(events, EventRows());
 
         var external = _report.Table("gamelog_external", "game_log_events (kind External)");
-        var externalRows = new List<object?[]>();
-        foreach (var r in _src.Rows("gamelog_external", "created_at", "message", "display_name", "user_id", "location"))
+        IEnumerable<object?[]> ExternalRows()
         {
-            external.Read++;
-            if (r.Time(0) is not { } at || r.Raw(1) is not { } message)
+            foreach (var r in _src.Rows("gamelog_external", "created_at", "message", "display_name", "user_id", "location"))
             {
-                external.Skip("no created_at or message");
-                continue;
+                external.Read++;
+                if (r.Time(0) is not { } at || r.Raw(1) is not { } message)
+                {
+                    external.Skip("no created_at or message");
+                    continue;
+                }
+                yield return [at, r.String(4), "External", message, r.String(3), r.String(2)];
             }
-            externalRows.Add([at, r.String(4), "External", message, r.String(3), r.String(2)]);
         }
-        await GameLogEventsAsync(external, externalRows);
+        await GameLogEventsAsync(external, ExternalRows());
     }
 
-    private Task GameLogEventsAsync(TableReport report, List<object?[]> rows) =>
+    private Task GameLogEventsAsync(TableReport report, IEnumerable<object?[]> rows) =>
         BulkAsync(report, "stage_events", [Time("at"), Text("location"), Text("kind"), Text("data"), Text("user_id"), Text("display_name")],
             Rows(rows, r =>
             {

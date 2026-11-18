@@ -177,6 +177,9 @@ public sealed partial class LegacyImporter
     /// <summary>
     /// Stages the rows, creates what they reference, then runs <paramref name="apply"/> (the
     /// INSERT ... SELECT and any UPDATE) in one transaction. In a dry run the rows are only counted.
+    /// The steps pass the rows as an iterator over the SQLite reader, so each row is read as COPY
+    /// (or the count) takes it and none is kept: a large file's feeds hold millions of rows, more
+    /// than the server's memory, and the iterator also updates the report's read and skip counts.
     /// </summary>
     private async Task BulkAsync(TableReport report, string stage, StageColumn[] columns, IEnumerable<object?[]> rows, Func<PgTarget, Task> apply)
     {

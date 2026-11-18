@@ -25,39 +25,44 @@ public sealed partial class LegacyImporter
     {
         var gps = _report.Table(account.Table("feed_gps"), "presence_events (kind location)");
         var onlineOffline = _report.Table(account.Table("feed_online_offline"), "presence_events (kind online / offline)");
-        var rows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("feed_gps"), "created_at", "user_id", "display_name", "location", "world_name", "previous_location", "time", "group_name"))
+        long gpsCount = 0, onlineOfflineCount = 0;
+        IEnumerable<object?[]> Source()
         {
-            gps.Read++;
-            if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+            foreach (var r in _src.Rows(account.Table("feed_gps"), "created_at", "user_id", "display_name", "location", "world_name", "previous_location", "time", "group_name"))
             {
-                gps.Skip("no created_at or user_id");
-                continue;
+                gps.Read++;
+                if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+                {
+                    gps.Skip("no created_at or user_id");
+                    continue;
+                }
+                var location = r.Raw(3) ?? "";
+                gpsCount++;
+                yield return [userId, at, "location", location, r.String(5), location, "online", Milliseconds(r.Long(6)), r.String(2), r.String(4), r.String(7)];
             }
-            var location = r.Raw(3) ?? "";
-            rows.Add([userId, at, "location", location, r.String(5), location, "online", Milliseconds(r.Long(6)), r.String(2), r.String(4), r.String(7)]);
-        }
-        var gpsCount = rows.Count;
-        foreach (var r in _src.Rows(account.Table("feed_online_offline"), "created_at", "user_id", "display_name", "type", "location", "world_name", "time", "group_name"))
-        {
-            onlineOffline.Read++;
-            if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+            foreach (var r in _src.Rows(account.Table("feed_online_offline"), "created_at", "user_id", "display_name", "type", "location", "world_name", "time", "group_name"))
             {
-                onlineOffline.Skip("no created_at or user_id");
-                continue;
-            }
-            var location = r.Raw(4) ?? "";
-            switch (r.String(3))
-            {
-                case "Online":
-                    rows.Add([userId, at, "online", location, null, location, "offline", null, r.String(2), r.String(5), r.String(7)]);
-                    break;
-                case "Offline":
-                    rows.Add([userId, at, "offline", "offline", location, null, "online", Milliseconds(r.Long(6)), r.String(2), r.String(5), r.String(7)]);
-                    break;
-                default:
-                    onlineOffline.Skip($"unknown type {r.String(3)}");
-                    break;
+                onlineOffline.Read++;
+                if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+                {
+                    onlineOffline.Skip("no created_at or user_id");
+                    continue;
+                }
+                var location = r.Raw(4) ?? "";
+                switch (r.String(3))
+                {
+                    case "Online":
+                        onlineOfflineCount++;
+                        yield return [userId, at, "online", location, null, location, "offline", null, r.String(2), r.String(5), r.String(7)];
+                        break;
+                    case "Offline":
+                        onlineOfflineCount++;
+                        yield return [userId, at, "offline", "offline", location, null, "online", Milliseconds(r.Long(6)), r.String(2), r.String(5), r.String(7)];
+                        break;
+                    default:
+                        onlineOffline.Skip($"unknown type {r.String(3)}");
+                        break;
+                }
             }
         }
 
@@ -67,7 +72,7 @@ public sealed partial class LegacyImporter
             Interval("duration"), Text("display_name"), Text("world_name"), Text("group_name"),
         ];
         var counts = new TableReport("", "");
-        await BulkAsync(counts, "stage_presence", columns, Rows(rows, r =>
+        await BulkAsync(counts, "stage_presence", columns, Rows(Source(), r =>
         {
             var at = (DateTimeOffset)r[1]!;
             _refs.User((string)r[0]!, r[8] as string, at);
@@ -90,14 +95,15 @@ public sealed partial class LegacyImporter
                 """, _ct, Window());
         });
         // One staging table carried both feeds; the insert count is shared out in proportion.
+        var total = gpsCount + onlineOfflineCount;
         gps.Candidates += gpsCount;
-        onlineOffline.Candidates += rows.Count - gpsCount;
+        onlineOffline.Candidates += onlineOfflineCount;
         if (counts.Inserted is { } inserted)
         {
-            var gpsShare = rows.Count == 0 ? 0 : (long)Math.Round(inserted * (double)gpsCount / rows.Count);
+            var gpsShare = total == 0 ? 0 : (long)Math.Round(inserted * (double)gpsCount / total);
             gps.Inserted = (gps.Inserted ?? 0) + gpsShare;
             onlineOffline.Inserted = (onlineOffline.Inserted ?? 0) + inserted - gpsShare;
-            if (inserted != rows.Count && inserted != 0)
+            if (inserted != total && inserted != 0)
                 _report.Notes.Add($"{account.Table("feed_gps")}/{account.Table("feed_online_offline")}: inserted is one count for both tables ({inserted}), split in proportion");
         }
     }
@@ -106,20 +112,22 @@ public sealed partial class LegacyImporter
     private async Task StatusAsync(LegacyAccount account)
     {
         var report = _report.Table(account.Table("feed_status"), "user_status_changes");
-        var rows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("feed_status"), "created_at", "user_id", "display_name", "status", "status_description", "previous_status", "previous_status_description"))
+        IEnumerable<object?[]> Source()
         {
-            report.Read++;
-            if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+            foreach (var r in _src.Rows(account.Table("feed_status"), "created_at", "user_id", "display_name", "status", "status_description", "previous_status", "previous_status_description"))
             {
-                report.Skip("no created_at or user_id");
-                continue;
+                report.Read++;
+                if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+                {
+                    report.Skip("no created_at or user_id");
+                    continue;
+                }
+                yield return [userId, at, r.Raw(3) ?? "", r.Raw(4), r.Raw(5) ?? "", r.Raw(6), r.String(2)];
             }
-            rows.Add([userId, at, r.Raw(3) ?? "", r.Raw(4), r.Raw(5) ?? "", r.Raw(6), r.String(2)]);
         }
         await BulkAsync(report, "stage_status",
             [Text("user_id"), Time("at"), Text("status"), Text("status_description"), Text("previous_status"), Text("previous_status_description"), Text("display_name")],
-            Rows(rows, r => _refs.User((string)r[0]!, r[6] as string, (DateTimeOffset)r[1]!)), async pg =>
+            Rows(Source(), r => _refs.User((string)r[0]!, r[6] as string, (DateTimeOffset)r[1]!)), async pg =>
             {
                 report.Inserted += await pg.ExecuteAsync("""
                     INSERT INTO user_status_changes (user_id, changed_at, status, status_description, previous_status, previous_status_description, display_name)
@@ -137,20 +145,22 @@ public sealed partial class LegacyImporter
     private async Task BioAsync(LegacyAccount account)
     {
         var report = _report.Table(account.Table("feed_bio"), "user_bio_changes");
-        var rows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("feed_bio"), "created_at", "user_id", "display_name", "bio", "previous_bio", "bio_links", "previous_bio_links"))
+        IEnumerable<object?[]> Source()
         {
-            report.Read++;
-            if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+            foreach (var r in _src.Rows(account.Table("feed_bio"), "created_at", "user_id", "display_name", "bio", "previous_bio", "bio_links", "previous_bio_links"))
             {
-                report.Skip("no created_at or user_id");
-                continue;
+                report.Read++;
+                if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+                {
+                    report.Skip("no created_at or user_id");
+                    continue;
+                }
+                yield return [userId, at, r.Raw(3), StringArray(r.Raw(5)), r.Raw(4), StringArray(r.Raw(6)), r.String(2)];
             }
-            rows.Add([userId, at, r.Raw(3), StringArray(r.Raw(5)), r.Raw(4), StringArray(r.Raw(6)), r.String(2)]);
         }
         await BulkAsync(report, "stage_bio",
             [Text("user_id"), Time("at"), Text("bio"), TextArray("bio_links"), Text("previous_bio"), TextArray("previous_bio_links"), Text("display_name")],
-            Rows(rows, r => _refs.User((string)r[0]!, r[6] as string, (DateTimeOffset)r[1]!)), async pg =>
+            Rows(Source(), r => _refs.User((string)r[0]!, r[6] as string, (DateTimeOffset)r[1]!)), async pg =>
             {
                 report.Inserted += await pg.ExecuteAsync("""
                     INSERT INTO user_bio_changes (user_id, changed_at, bio, bio_links, previous_bio, previous_bio_links, display_name)
@@ -168,22 +178,24 @@ public sealed partial class LegacyImporter
     private async Task AvatarFeedAsync(LegacyAccount account)
     {
         var report = _report.Table(account.Table("feed_avatar"), "user_avatar_changes");
-        var rows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("feed_avatar"), "created_at", "user_id", "display_name", "owner_id", "avatar_name",
-                     "current_avatar_image_url", "current_avatar_thumbnail_image_url", "previous_current_avatar_image_url", "previous_current_avatar_thumbnail_image_url"))
+        IEnumerable<object?[]> Source()
         {
-            report.Read++;
-            if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+            foreach (var r in _src.Rows(account.Table("feed_avatar"), "created_at", "user_id", "display_name", "owner_id", "avatar_name",
+                         "current_avatar_image_url", "current_avatar_thumbnail_image_url", "previous_current_avatar_image_url", "previous_current_avatar_thumbnail_image_url"))
             {
-                report.Skip("no created_at or user_id");
-                continue;
+                report.Read++;
+                if (r.Time(0) is not { } at || r.String(1) is not { } userId)
+                {
+                    report.Skip("no created_at or user_id");
+                    continue;
+                }
+                yield return [userId, at, r.Raw(5), r.Raw(6), r.Raw(7), r.Raw(8), r.Raw(4), r.Raw(3), r.String(2)];
             }
-            rows.Add([userId, at, r.Raw(5), r.Raw(6), r.Raw(7), r.Raw(8), r.Raw(4), r.Raw(3), r.String(2)]);
         }
         await BulkAsync(report, "stage_avatar",
             [Text("user_id"), Time("at"), Text("image_url"), Text("thumbnail_image_url"), Text("previous_image_url"), Text("previous_thumbnail_image_url"),
              Text("avatar_name"), Text("avatar_owner_id"), Text("display_name")],
-            Rows(rows, r => _refs.User((string)r[0]!, r[8] as string, (DateTimeOffset)r[1]!)), async pg =>
+            Rows(Source(), r => _refs.User((string)r[0]!, r[8] as string, (DateTimeOffset)r[1]!)), async pg =>
             {
                 report.Inserted += await pg.ExecuteAsync("""
                     INSERT INTO user_avatar_changes (user_id, changed_at, image_url, thumbnail_image_url, previous_image_url, previous_thumbnail_image_url,

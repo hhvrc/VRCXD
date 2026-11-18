@@ -1,3 +1,4 @@
+using System.Text.Json;
 using VRCX.Common.Errors;
 using VRCX.Common.Options;
 using VRCX.Common.Problems;
@@ -35,10 +36,15 @@ public sealed record LegacyImportStatus(
 /// is 100 MB) may refuse a body that large. Each part is appended to a file on disk, never held in
 /// memory, and a part that fails can be sent again from where the file ends.
 ///
-/// One upload at a time, kept in this process: a new upload replaces the last one. The dry run and
-/// the import run in the background, since the import takes about a minute on a large file. Every
-/// change is announced (<see cref="Changed"/>), which <see cref="LegacyImportTopic"/> streams to
-/// the page. The file is deleted once it has been imported.
+/// One upload at a time: a new upload replaces the last one. The dry run and the import run in the
+/// background, since the import takes about a minute on a large file. Every change is announced
+/// (<see cref="Changed"/>), which <see cref="LegacyImportTopic"/> streams to the page. The file is
+/// deleted once it has been imported.
+///
+/// The upload outlives a restart: its id and size are kept beside the file, so a server that
+/// started again knows the file it holds, and the page's upload goes on from where the file ends.
+/// What a run reported is not kept; the file is checked again. A file with no record of its upload
+/// is deleted.
 /// </summary>
 public sealed class LegacyImportRuns(
     LegacyImportUploadOptions options,
@@ -70,6 +76,40 @@ public sealed class LegacyImportRuns(
 
     private string FilePath => Path.Combine(Directory, "VRCX.sqlite3");
 
+    private string RecordPath => FilePath + ".upload.json";
+
+    private sealed record UploadRecord(string UploadId, long Size);
+
+    private bool _restored;
+
+    /// <summary>Takes up the upload a previous process left, once, before anything reads or changes the state.</summary>
+    private void Restore()
+    {
+        lock (_lock)
+        {
+            if (_restored) return;
+            _restored = true;
+            try
+            {
+                var record = File.Exists(RecordPath) ? JsonSerializer.Deserialize<UploadRecord>(File.ReadAllText(RecordPath)) : null;
+                var file = new FileInfo(FilePath);
+                if (record is { UploadId.Length: > 0, Size: > 0 } && file.Exists && file.Length <= record.Size)
+                {
+                    _uploadId = record.UploadId;
+                    _size = record.Size;
+                    _received = file.Length;
+                    _state = _received == _size ? LegacyImportState.Uploaded : LegacyImportState.Uploading;
+                    logger.LogInformation("Took up the VRCX database upload left at {Received} of {Size} bytes", _received, _size);
+                }
+                else if (record is not null || file.Exists) DeleteFiles();
+            }
+            catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+            {
+                logger.LogWarning(e, "Could not take up the VRCX database upload in {Directory}", Directory);
+            }
+        }
+    }
+
     /// <summary>
     /// Raised after every change to <see cref="Status"/>, outside the lock: a part received, a step
     /// started, a run finished, the upload started or discarded.
@@ -80,6 +120,7 @@ public sealed class LegacyImportRuns(
 
     public LegacyImportStatus Status()
     {
+        Restore();
         lock (_lock) return new(_uploadId, _state, _size, _received, _progress, _report, _error, _finishedAt);
     }
 
@@ -88,6 +129,7 @@ public sealed class LegacyImportRuns(
     {
         if (size <= 0) return LegacyImportError.Empty;
         if (size > options.MaxSize) return LegacyImportError.TooLarge(options.MaxSize);
+        Restore();
         await _writing.WaitAsync(ct);
         try
         {
@@ -103,9 +145,11 @@ public sealed class LegacyImportRuns(
             Announce();
             if (FreeSpace() is { } free && free < size) return LegacyImportError.NoSpace(free);
             await using (File.Create(FilePath)) { }
+            var uploadId = Guid.NewGuid().ToString("N");
+            await File.WriteAllTextAsync(RecordPath, JsonSerializer.Serialize(new UploadRecord(uploadId, size)), ct);
             lock (_lock)
             {
-                _uploadId = Guid.NewGuid().ToString("N");
+                _uploadId = uploadId;
                 _state = LegacyImportState.Uploading;
                 _size = size;
                 _received = 0;
@@ -129,6 +173,7 @@ public sealed class LegacyImportRuns(
     /// </summary>
     public async Task<Result<LegacyImportStatus>> AppendAsync(string uploadId, long offset, Stream body, CancellationToken ct)
     {
+        Restore();
         await _writing.WaitAsync(ct);
         try
         {
@@ -202,6 +247,7 @@ public sealed class LegacyImportRuns(
     /// <summary>Forgets the upload and deletes the file.</summary>
     public async Task<VrcxProblem?> DiscardAsync(CancellationToken ct)
     {
+        Restore();
         await _writing.WaitAsync(ct);
         try
         {
@@ -239,6 +285,7 @@ public sealed class LegacyImportRuns(
 
     private Result<LegacyImportStatus> Begin(string uploadId, bool dryRun)
     {
+        Restore();
         lock (_lock)
         {
             if (_uploadId != uploadId || _state is LegacyImportState.None) return LegacyImportError.UnknownUpload;
@@ -308,7 +355,7 @@ public sealed class LegacyImportRuns(
     private void DeleteFiles()
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-        foreach (var suffix in new[] { "", "-wal", "-shm", "-journal" }) File.Delete(FilePath + suffix);
+        foreach (var suffix in new[] { "", "-wal", "-shm", "-journal", ".upload.json" }) File.Delete(FilePath + suffix);
     }
 
     private long? FreeSpace()

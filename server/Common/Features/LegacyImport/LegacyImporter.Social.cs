@@ -283,40 +283,44 @@ public sealed partial class LegacyImporter
             """;
 
         var v1 = _report.Table(account.Table("notifications"), "notifications (version 1)");
-        var v1Rows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("notifications"), "id", "created_at", "type", "sender_user_id", "sender_username", "receiver_user_id", "message",
-                     "world_id", "world_name", "image_url", "invite_message", "request_message", "response_message", "expired"))
+        IEnumerable<object?[]> V1Rows()
         {
-            v1.Read++;
-            if (r.String(0) is not { } id || r.Time(1) is not { } at || r.String(2) is not { } type)
+            foreach (var r in _src.Rows(account.Table("notifications"), "id", "created_at", "type", "sender_user_id", "sender_username", "receiver_user_id", "message",
+                         "world_id", "world_name", "image_url", "invite_message", "request_message", "response_message", "expired"))
             {
-                v1.Skip("no id, created_at or type");
-                continue;
+                v1.Read++;
+                if (r.String(0) is not { } id || r.Time(1) is not { } at || r.String(2) is not { } type)
+                {
+                    v1.Skip("no id, created_at or type");
+                    continue;
+                }
+                var details = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string?>
+                {
+                    ["worldId"] = r.Raw(7), ["worldName"] = r.Raw(8), ["imageUrl"] = r.Raw(9),
+                    ["inviteMessage"] = r.Raw(10), ["requestMessage"] = r.Raw(11), ["responseMessage"] = r.Raw(12),
+                }.Where(kv => !string.IsNullOrEmpty(kv.Value)).ToDictionary());
+                yield return [id, 1L, type, r.String(3), r.Raw(4), r.String(5), null, r.Raw(6), r.String(9), null, null, details, null, null, true, r.Bool(13), at, null, null];
             }
-            var details = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string?>
-            {
-                ["worldId"] = r.Raw(7), ["worldName"] = r.Raw(8), ["imageUrl"] = r.Raw(9),
-                ["inviteMessage"] = r.Raw(10), ["requestMessage"] = r.Raw(11), ["responseMessage"] = r.Raw(12),
-            }.Where(kv => !string.IsNullOrEmpty(kv.Value)).ToDictionary());
-            v1Rows.Add([id, 1L, type, r.String(3), r.Raw(4), r.String(5), null, r.Raw(6), r.String(9), null, null, details, null, null, true, r.Bool(13), at, null, null]);
         }
-        await BulkAsync(v1, "stage_notifications", columns, Rows(v1Rows, NoteSender), async pg => v1.Inserted += await pg.ExecuteAsync(insert, _ct, Owner(account)));
+        await BulkAsync(v1, "stage_notifications", columns, Rows(V1Rows(), NoteSender), async pg => v1.Inserted += await pg.ExecuteAsync(insert, _ct, Owner(account)));
 
         var v2 = _report.Table(account.Table("notifications_v2"), "notifications (version 2)");
-        var v2Rows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("notifications_v2"), "id", "created_at", "updated_at", "expires_at", "type", "link", "link_text", "message", "title",
-                     "image_url", "seen", "sender_user_id", "sender_username", "data", "responses", "details"))
+        IEnumerable<object?[]> V2Rows()
         {
-            v2.Read++;
-            if (r.String(0) is not { } id || r.Time(1) is not { } at || r.String(4) is not { } type)
+            foreach (var r in _src.Rows(account.Table("notifications_v2"), "id", "created_at", "updated_at", "expires_at", "type", "link", "link_text", "message", "title",
+                         "image_url", "seen", "sender_user_id", "sender_username", "data", "responses", "details"))
             {
-                v2.Skip("no id, created_at or type");
-                continue;
+                v2.Read++;
+                if (r.String(0) is not { } id || r.Time(1) is not { } at || r.String(4) is not { } type)
+                {
+                    v2.Skip("no id, created_at or type");
+                    continue;
+                }
+                yield return [id, 2L, type, r.String(11), r.Raw(12), null, r.Raw(8), r.Raw(7), r.String(9), r.String(5), r.String(6),
+                    JsonText(r.Raw(13)), JsonText(r.Raw(14)), JsonText(r.Raw(15)), r.Bool(10), false, at, r.Time(2), r.Time(3)];
             }
-            v2Rows.Add([id, 2L, type, r.String(11), r.Raw(12), null, r.Raw(8), r.Raw(7), r.String(9), r.String(5), r.String(6),
-                JsonText(r.Raw(13)), JsonText(r.Raw(14)), JsonText(r.Raw(15)), r.Bool(10), false, at, r.Time(2), r.Time(3)]);
         }
-        await BulkAsync(v2, "stage_notifications", columns, Rows(v2Rows, NoteSender), async pg => v2.Inserted += await pg.ExecuteAsync(insert, _ct, Owner(account)));
+        await BulkAsync(v2, "stage_notifications", columns, Rows(V2Rows(), NoteSender), async pg => v2.Inserted += await pg.ExecuteAsync(insert, _ct, Owner(account)));
     }
 
     private void NoteSender(object?[] row)
@@ -329,19 +333,21 @@ public sealed partial class LegacyImporter
     {
         // moderation: who blocked or muted the account (Photon), not the account's own moderations.
         var moderation = _report.Table(account.Table("moderation"), "moderations_against");
-        var moderationRows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("moderation"), "user_id", "updated_at", "display_name", "block", "mute"))
+        IEnumerable<object?[]> ModerationRows()
         {
-            moderation.Read++;
-            if (r.String(0) is not { } userId)
+            foreach (var r in _src.Rows(account.Table("moderation"), "user_id", "updated_at", "display_name", "block", "mute"))
             {
-                moderation.Skip("no user_id");
-                continue;
+                moderation.Read++;
+                if (r.String(0) is not { } userId)
+                {
+                    moderation.Skip("no user_id");
+                    continue;
+                }
+                yield return [userId, r.Time(1) ?? _now, r.String(2), r.Bool(3), r.Bool(4)];
             }
-            moderationRows.Add([userId, r.Time(1) ?? _now, r.String(2), r.Bool(3), r.Bool(4)]);
         }
         await BulkAsync(moderation, "stage_moderation", [Text("user_id"), Time("at"), Text("display_name"), Bool("block"), Bool("mute")],
-            Rows(moderationRows, r => _refs.User((string)r[0]!, r[2] as string, (DateTimeOffset)r[1]!)), async pg =>
+            Rows(ModerationRows(), r => _refs.User((string)r[0]!, r[2] as string, (DateTimeOffset)r[1]!)), async pg =>
             {
                 moderation.Inserted += await pg.ExecuteAsync("""
                     INSERT INTO moderations_against (owner_user_id, user_id, display_name, block, mute, updated_at)
@@ -352,19 +358,21 @@ public sealed partial class LegacyImporter
 
         // notes: the original's copy of VRChat's user notes (no note id). The next notes sync replaces them with VRChat's own rows.
         var notes = _report.Table(account.Table("notes"), "user_notes");
-        var noteRows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("notes"), "user_id", "display_name", "note", "created_at"))
+        IEnumerable<object?[]> NoteRows()
         {
-            notes.Read++;
-            if (r.String(0) is not { } userId)
+            foreach (var r in _src.Rows(account.Table("notes"), "user_id", "display_name", "note", "created_at"))
             {
-                notes.Skip("no user_id");
-                continue;
+                notes.Read++;
+                if (r.String(0) is not { } userId)
+                {
+                    notes.Skip("no user_id");
+                    continue;
+                }
+                yield return [$"legacy:{account.UserId}:{userId}", userId, r.Raw(2) ?? "", r.Time(3), r.String(1)];
             }
-            noteRows.Add([$"legacy:{account.UserId}:{userId}", userId, r.Raw(2) ?? "", r.Time(3), r.String(1)]);
         }
         await BulkAsync(notes, "stage_notes", [Text("id"), Text("target"), Text("note"), Time("created_at"), Text("display_name")],
-            Rows(noteRows, r => _refs.User((string)r[1]!, r[4] as string, r[3] as DateTimeOffset? ?? _now)), async pg =>
+            Rows(NoteRows(), r => _refs.User((string)r[1]!, r[4] as string, r[3] as DateTimeOffset? ?? _now)), async pg =>
             {
                 notes.Inserted += await pg.ExecuteAsync("""
                     INSERT INTO user_notes (id, owner_user_id, target_user_id, note, created_at, fetched_at)
@@ -376,19 +384,21 @@ public sealed partial class LegacyImporter
 
         // avatar_history: avatars the account wore, when last and for how long -> avatar_usages.
         var history = _report.Table(account.Table("avatar_history"), "avatar_usages");
-        var historyRows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("avatar_history"), "avatar_id", "created_at", "time"))
+        IEnumerable<object?[]> HistoryRows()
         {
-            history.Read++;
-            if (r.String(0) is not { } avatarId || r.Time(1) is not { } at)
+            foreach (var r in _src.Rows(account.Table("avatar_history"), "avatar_id", "created_at", "time"))
             {
-                history.Skip("no avatar_id or created_at");
-                continue;
+                history.Read++;
+                if (r.String(0) is not { } avatarId || r.Time(1) is not { } at)
+                {
+                    history.Skip("no avatar_id or created_at");
+                    continue;
+                }
+                yield return [avatarId, at, Milliseconds(r.Long(2)) ?? TimeSpan.Zero];
             }
-            historyRows.Add([avatarId, at, Milliseconds(r.Long(2)) ?? TimeSpan.Zero]);
         }
         await BulkAsync(history, "stage_avatar_history", [Text("avatar_id"), Time("at"), Interval("time")],
-            Rows(historyRows, r => _refs.Avatar((string)r[0]!, (DateTimeOffset)r[1]!)), async pg =>
+            Rows(HistoryRows(), r => _refs.Avatar((string)r[0]!, (DateTimeOffset)r[1]!)), async pg =>
             {
                 history.Inserted += await pg.ExecuteAsync("""
                     INSERT INTO avatar_usages (owner_user_id, avatar_id, last_used_at, time_spent)
@@ -430,21 +440,24 @@ public sealed partial class LegacyImporter
         var (_, last) = AccountSpan(account);
 
         var linkReport = _report.Table(account.Table("mutual_graph_links"), "mutual_friend_links");
-        var linkRows = new List<object?[]>();
         HashSet<string> linked = [with(StringComparer.Ordinal)];
-        foreach (var r in _src.Rows(account.Table("mutual_graph_links"), "friend_id", "mutual_id"))
+        IEnumerable<object?[]> LinkRows()
         {
-            linkReport.Read++;
-            if (r.String(0) is not { } friendId || r.String(1) is not { } mutualId)
+            foreach (var r in _src.Rows(account.Table("mutual_graph_links"), "friend_id", "mutual_id"))
             {
-                linkReport.Skip("no friend_id or mutual_id");
-                continue;
+                linkReport.Read++;
+                if (r.String(0) is not { } friendId || r.String(1) is not { } mutualId)
+                {
+                    linkReport.Skip("no friend_id or mutual_id");
+                    continue;
+                }
+                linked.Add(friendId);
+                yield return [friendId, mutualId, meta.TryGetValue(friendId, out var m) ? m.At : last];
             }
-            linked.Add(friendId);
-            linkRows.Add([friendId, mutualId, meta.TryGetValue(friendId, out var m) ? m.At : last]);
         }
+        // BulkAsync reads every link before it returns, so `linked` is complete below.
         await BulkAsync(linkReport, "stage_links", [Text("friend_id"), Text("mutual_id"), Time("at")],
-            Rows(linkRows, r =>
+            Rows(LinkRows(), r =>
             {
                 _refs.User((string)r[0]!, null, (DateTimeOffset)r[2]!);
                 _refs.User((string)r[1]!, null, (DateTimeOffset)r[2]!);
@@ -482,19 +495,21 @@ public sealed partial class LegacyImporter
     private async Task UserProfileAsync(LegacyAccount account)
     {
         var report = _report.Table(account.Table("user_profile"), "users (bio, bio_links, profile_fetched_at)");
-        var rows = new List<object?[]>();
-        foreach (var r in _src.Rows(account.Table("user_profile"), "user_id", "bio", "bio_links", "updated_at"))
+        IEnumerable<object?[]> Source()
         {
-            report.Read++;
-            if (r.String(0) is not { } userId || r.Time(3) is not { } at)
+            foreach (var r in _src.Rows(account.Table("user_profile"), "user_id", "bio", "bio_links", "updated_at"))
             {
-                report.Skip("no user_id or updated_at");
-                continue;
+                report.Read++;
+                if (r.String(0) is not { } userId || r.Time(3) is not { } at)
+                {
+                    report.Skip("no user_id or updated_at");
+                    continue;
+                }
+                yield return [userId, r.Raw(1), StringArray(r.Raw(2)), at];
             }
-            rows.Add([userId, r.Raw(1), StringArray(r.Raw(2)), at]);
         }
         await BulkAsync(report, "stage_profile", [Text("user_id"), Text("bio"), TextArray("bio_links"), Time("at")],
-            Rows(rows, r => _refs.User((string)r[0]!, null, (DateTimeOffset)r[3]!)), async pg =>
+            Rows(Source(), r => _refs.User((string)r[0]!, null, (DateTimeOffset)r[3]!)), async pg =>
             {
                 report.Updated += await pg.ExecuteAsync("""
                     UPDATE users u SET bio = s.bio, bio_links = s.bio_links, profile_fetched_at = s.at

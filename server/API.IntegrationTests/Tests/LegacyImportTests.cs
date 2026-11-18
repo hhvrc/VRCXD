@@ -274,6 +274,98 @@ public sealed class LegacyImportTests
         await Assert.That((await StatusAsync(app)).GetProperty("state").GetString()).IsEqualTo("none");
     }
 
+    // A 779 MB file's Check took the API past its 1.5 GB memory limit: the presence step collected
+    // both feeds (1.5 million rows) in a list before counting them. The steps stream the rows now,
+    // so what a run holds is the ids it has seen, not the rows. Alone, so the heap is this run's.
+    [Test, NotInParallel]
+    public async Task A_check_of_feeds_with_hundreds_of_thousands_of_rows_does_not_hold_them_in_memory()
+    {
+        const int rowsPerFeed = 250_000;
+        using var fixture = Fixture.Create(Second(DateTimeOffset.UtcNow.AddDays(-30)));
+        var prefix = LegacyDatabase.TablePrefix(Me);
+        var t0 = DateTimeOffset.UtcNow.AddDays(-20);
+        await using (var db = new SqliteConnection($"Data Source={fixture.Path};Pooling=False"))
+        {
+            await db.OpenAsync();
+            await using var transaction = db.BeginTransaction();
+            await using var gps = db.CreateCommand();
+            gps.CommandText = $"INSERT INTO {prefix}_feed_gps (created_at, user_id, display_name, location, world_name, previous_location, time, group_name) VALUES (@at, @user, @name, @location, 'A World Name', @previous, 60000, '')";
+            await using var online = db.CreateCommand();
+            online.CommandText = $"INSERT INTO {prefix}_feed_online_offline (created_at, user_id, display_name, type, location, world_name, time, group_name) VALUES (@at, @user, @name, @type, @location, 'A World Name', 3600000, '')";
+            foreach (var command in new[] { gps, online })
+                foreach (var name in new[] { "@at", "@user", "@name", "@location", command == gps ? "@previous" : "@type" })
+                    command.Parameters.Add(new SqliteParameter(name, ""));
+            for (var i = 0; i < rowsPerFeed; i++)
+            {
+                // 500 friends in 2000 instances: few distinct ids, many rows, as a real feed.
+                var user = $"usr_{i % 500:x8}-0000-4000-8000-000000000000";
+                var location = $"wrld_{i % 2000:x8}-1111-4000-8000-000000000000:{i % 2000}~private({user})~region(eu)";
+                foreach (var command in new[] { gps, online })
+                {
+                    command.Parameters["@at"].Value = Iso(t0.AddSeconds(i));
+                    command.Parameters["@user"].Value = user;
+                    command.Parameters["@name"].Value = $"Friend {i % 500}";
+                    command.Parameters["@location"].Value = location;
+                    command.Parameters[4].Value = command == gps ? location : (i % 2 == 0 ? "Online" : "Offline");
+                    await command.ExecuteNonQueryAsync();
+                }
+            }
+            await transaction.CommitAsync();
+        }
+
+        var baseline = GC.GetTotalMemory(forceFullCollection: true);
+        long peak = 0;
+        using var stop = new CancellationTokenSource();
+        // A full collection now and then: what is still referenced, not garbage waiting for one.
+        var sampler = Task.Run(async () =>
+        {
+            while (!stop.IsCancellationRequested)
+            {
+                peak = Math.Max(peak, GC.GetTotalMemory(forceFullCollection: true) - baseline);
+                try { await Task.Delay(25, stop.Token); } catch (OperationCanceledException) { }
+            }
+        });
+        var report = await LegacyImporter.RunAsync(new LegacyImportOptions { SqlitePath = fixture.Path, DryRun = true });
+        await stop.CancelAsync();
+        await sampler;
+
+        await Assert.That(report.Tables.Single(t => t.Source == $"{prefix}_feed_gps").Candidates).IsEqualTo(rowsPerFeed + 1);
+        await Assert.That(report.Tables.Single(t => t.Source == $"{prefix}_feed_online_offline").Candidates).IsEqualTo(rowsPerFeed + 2);
+        // Collected, these rows took about 300 MB.
+        await Assert.That(peak).IsLessThan(64L * 1024 * 1024);
+    }
+
+    // After a restart GET said "none" while the 779 MB file was still on disk, and the page could
+    // neither go on with it nor delete it. A new process now takes up the upload from the file.
+    [Test]
+    public async Task An_upload_half_sent_before_a_restart_goes_on_where_the_file_ends_and_a_file_without_its_upload_is_deleted()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        using var fixture = Fixture.Create(Second(app.Time.GetUtcNow().AddDays(-3)));
+        var file = await File.ReadAllBytesAsync(fixture.Path);
+        var half = file.Length / 2;
+        var uploadId = await StartAsync(app, file.Length);
+        await VrcxScenario.EnsureSuccessAsync(await PutAsync(app, uploadId, 0, file[..half]), "first half");
+
+        // The process that starts next: the same directory, nothing in memory.
+        var restarted = ActivatorUtilities.CreateInstance<LegacyImportRuns>(app.Services);
+        var status = restarted.Status();
+        await Assert.That(status.UploadId).IsEqualTo(uploadId);
+        await Assert.That(status.State).IsEqualTo(LegacyImportState.Uploading);
+        await Assert.That(status.Size).IsEqualTo(file.LongLength);
+        await Assert.That(status.Received).IsEqualTo(half);
+
+        var appended = await restarted.AppendAsync(uploadId, half, new MemoryStream(file[half..]), CancellationToken.None);
+        await Assert.That(appended is LegacyImportStatus { State: LegacyImportState.Uploaded }).IsTrue();
+        await Assert.That(ActivatorUtilities.CreateInstance<LegacyImportRuns>(app.Services).Status().State).IsEqualTo(LegacyImportState.Uploaded);
+        await Assert.That(await File.ReadAllBytesAsync(Path.Combine(UploadDirectory(app), "VRCX.sqlite3"))).IsEquivalentTo(file, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+
+        // A file whose record is gone (an older server wrote no record) is not an upload anyone can finish.
+        File.Delete(Path.Combine(UploadDirectory(app), "VRCX.sqlite3.upload.json"));
+        await Assert.That(ActivatorUtilities.CreateInstance<LegacyImportRuns>(app.Services).Status().State).IsEqualTo(LegacyImportState.None);
+        await Assert.That(Directory.EnumerateFileSystemEntries(UploadDirectory(app))).IsEmpty();
+    }
+
     // The Settings page follows an upload, a check and an import on the "legacy_import" topic: the
     // snapshot is the status GET /1/legacy-import returns, and every change after it is a delta
     // carrying the whole status again, numbered without gaps.
