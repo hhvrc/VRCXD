@@ -7,14 +7,14 @@ using VRCX.Common.Errors;
 using VRCX.Common.Features.Feed;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Settings;
 
 // The per-account app settings the original kept in its config: what the server should ask
 // the desktop app to do with screenshots and a quitting game, and what to log.
 public sealed record YouTubeKeyTestBody(string? ApiKey);
 public sealed record YouTubeKeyTestResponse(bool Valid);
 
-public sealed partial class AccountsController
+public sealed partial class AccountSettingsController
 {
     /// <summary>The account's app settings.</summary>
     /// <response code="200">The settings</response>
@@ -25,9 +25,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetSettings([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        var account = await _db.Accounts.AsNoTracking().FirstOrDefaultAsync(a => a.UserId == accountId, cancellationToken);
-        if (account is null) return Problem(AccountError.AccountNotFound);
-        return Ok(account.Settings);
+        return await settings.GetAsync(accountId, cancellationToken) is { } stored ? Ok(stored) : Problem(AccountError.AccountNotFound);
     }
 
     /// <summary>
@@ -53,29 +51,13 @@ public sealed partial class AccountsController
     [ProducesResponseType<AccountSettings>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> PutSettings([FromRoute] string accountId, [FromBody] AccountSettings body, [FromServices] VRCX.Common.Services.Live.DesktopClients desktops, [FromServices] VRCX.Common.Services.Live.AgentSettingsPush agentSettings, [FromServices] VRCX.Common.Services.Live.DiscordPresenceService discordPresence, [FromServices] VRCX.Common.Services.Live.Photon.PhotonService photon, CancellationToken cancellationToken)
+    public async Task<IActionResult> PutSettings([FromRoute] string accountId, [FromBody] AccountSettings body, [FromServices] VRCX.Common.Services.Live.AgentSettingsPush agentSettings, [FromServices] VRCX.Common.Services.Live.DiscordPresenceService discordPresence, [FromServices] VRCX.Common.Services.Live.Photon.PhotonService photon, CancellationToken cancellationToken)
     {
-        var account = await _db.Accounts.FirstOrDefaultAsync(a => a.UserId == accountId, cancellationToken);
-        if (account is null) return Problem(AccountError.AccountNotFound);
-        account.Settings = body with
-        {
-            YoutubeApiKey = body.YoutubeApiKey?.Trim() ?? "",
-            // VRChat's limit, which the original's inputs enforce too.
-            AutoStateChangeAloneDesc = Clip(body.AutoStateChangeAloneDesc),
-            AutoStateChangeCompanyDesc = Clip(body.AutoStateChangeCompanyDesc),
-            AvatarAutoCleanup = AvatarFeedCleanup.Normalize(body.AvatarAutoCleanup),
-            // The server's own record of the last run; the client cannot move it.
-            LastAvatarCleanupAt = account.Settings.LastAvatarCleanupAt,
-            // The original's setAutoLoginDelaySeconds keeps it within 0 to 10.
-            AutoLoginDelaySeconds = Math.Clamp(body.AutoLoginDelaySeconds, 0, 10),
-            UgcFolderPath = body.UgcFolderPath?.Trim() ?? "",
-        };
-        await _db.SaveChangesAsync(cancellationToken);
-        await agentSettings.SendAsync(await FindDesktopAsync(accountId, desktops, cancellationToken), account.Settings, cancellationToken);
+        var saved = await settings.SaveAsync(accountId, body, cancellationToken);
+        if (saved is null) return Problem(AccountError.AccountNotFound);
+        await agentSettings.SendAsync(await desktop.FindAsync(accountId, cancellationToken), saved, cancellationToken);
         discordPresence.SettingsChanged(accountId);
         photon.SettingsChanged(accountId);
-        return Ok(account.Settings);
-
-        static string Clip(string? text) => text is { Length: > 32 } ? text[..32] : text ?? "";
+        return Ok(saved);
     }
 }

@@ -3,9 +3,9 @@ using Asp.Versioning;
 using Microsoft.AspNetCore.Mvc;
 using VRCX.Common.Services.Live.Photon;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Desktop;
 
-public sealed partial class AccountsController
+public sealed partial class AccountDesktopController
 {
     /// <summary>
     /// The Photon lobby of the account's PC (the original's photon store): the players with their

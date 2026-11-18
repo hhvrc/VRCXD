@@ -9,7 +9,7 @@ using VRCX.Common.Errors;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Desktop;
 
 public sealed record LaunchGameBody(string Url, bool DesktopMode, bool AllowSecondInstance);
 
@@ -20,7 +20,7 @@ public sealed record GameInstanceResponse(string? Location, IReadOnlyList<string
 
 // The original's launchGame and tryOpenInstanceInVrc. The game runs where the desktop app runs,
 // so these ask that app to do it over its live socket.
-public sealed partial class AccountsController
+public sealed partial class AccountDesktopController
 {
     [GeneratedRegex(@"^vrchat://launch\?ref=vrcx\.app&id=[A-Za-z0-9_:~().\-]+(&shortName=[A-Za-z0-9_\-]+)?$")]
     private static partial Regex LaunchUrlPattern();
@@ -39,14 +39,9 @@ public sealed partial class AccountsController
     {
         var location = await automation.GameLocationAsync(accountId, cancellationToken);
         if (location is null) return Ok(new GameInstanceResponse(null, []));
-        var ids = await _db.InstanceVisits.AsNoTracking()
-            .Where(v => v.InstanceLocation == location && v.LeftAt == null && v.Source == VRCX.Common.VrcxDb.VisitSource.GameLog && v.UserId != accountId)
-            .Select(v => v.UserId).Distinct().ToListAsync(cancellationToken);
-        // The original's lastLocation.date: when the game joined, for the wrist overlay's timer.
-        var joinedAt = await _db.InstanceVisits.AsNoTracking()
-            .Where(v => v.InstanceLocation == location && v.LeftAt == null && v.Source == VRCX.Common.VrcxDb.VisitSource.GameLog && v.UserId == accountId)
-            .OrderByDescending(v => v.JoinedAt).Select(v => (DateTimeOffset?)v.JoinedAt).FirstOrDefaultAsync(cancellationToken);
-        return Ok(new GameInstanceResponse(location, ids, joinedAt));
+        // JoinedAt is the original's lastLocation.date: when the game joined, for the wrist overlay's timer.
+        var players = await desktop.PlayersInAsync(accountId, location, cancellationToken);
+        return Ok(new GameInstanceResponse(location, players.PlayerIds, players.JoinedAt));
     }
 
     [HttpGet("{accountId}/desktop")]
@@ -54,25 +49,21 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetDesktopStatus([FromRoute] string accountId, [FromServices] DesktopClients desktops, CancellationToken cancellationToken)
     {
-        var desktop = await FindDesktopAsync(accountId, desktops, cancellationToken);
+        var pc = await desktop.FindAsync(accountId, cancellationToken);
         // The session times of the PC this account played on last (connected or not).
-        var times = await _db.GameLogClients.AsNoTracking()
-            .Where(c => c.AccountId == accountId || (desktop != null && c.ClientId == desktop.ClientId))
-            .OrderByDescending(c => desktop != null && c.ClientId == desktop.ClientId).ThenByDescending(c => c.LastSeenAt)
-            .Select(c => new { c.GameStartedAt, c.LastGameStartedAt, c.LastGameStoppedAt, c.GameNoVr })
-            .FirstOrDefaultAsync(cancellationToken);
-        var running = desktop?.GameRunning ?? false;
+        var times = await desktop.SessionTimesAsync(accountId, pc?.ClientId, cancellationToken);
+        var running = pc?.GameRunning ?? false;
         return Ok(new DesktopStatusResponse
         {
-            Connected = desktop is not null, ClientId = desktop?.ClientId, ClientName = desktop?.ClientName, GameRunning = running,
+            Connected = pc is not null, ClientId = pc?.ClientId, ClientName = pc?.ClientName, GameRunning = running,
             GameStartedAt = running ? times?.GameStartedAt : null,
             LastGameStartedAt = times?.LastGameStartedAt, LastGameStoppedAt = times?.LastGameStoppedAt,
             GameNoVr = times?.GameNoVr ?? false,
-            SteamVrRunning = desktop?.SteamVrRunning ?? false,
-            HmdAfk = desktop?.HmdAfk ?? false,
-            Capabilities = desktop?.Capabilities ?? [],
-            Os = desktop?.Os,
-            Folders = desktop?.Folders is { } f ? new DesktopFolders(f.AppData, f.Photos, f.Screenshots, f.Cache, f.UgcPhotos, f.CrashDumps) : null,
+            SteamVrRunning = pc?.SteamVrRunning ?? false,
+            HmdAfk = pc?.HmdAfk ?? false,
+            Capabilities = pc?.Capabilities ?? [],
+            Os = pc?.Os,
+            Folders = pc?.Folders is { } f ? new DesktopFolders(f.AppData, f.Photos, f.Screenshots, f.Cache, f.UgcPhotos, f.CrashDumps) : null,
         });
     }
 
@@ -111,9 +102,9 @@ public sealed partial class AccountsController
     private async Task<IActionResult> DesktopActionAsync(string accountId, string url, DesktopClients desktops, ClientAction action, CancellationToken ct)
     {
         if (!LaunchUrlPattern().IsMatch(url)) return Problem(DesktopError.InvalidLaunchUrl);
-        if (await FindDesktopAsync(accountId, desktops, ct) is not { } desktop) return Problem(DesktopError.NotConnected);
+        if (await desktop.FindAsync(accountId, ct) is not { } pc) return Problem(DesktopError.NotConnected);
 
-        var result = await desktops.RequestAsync(desktop.ClientId, action, ct);
+        var result = await desktops.RequestAsync(pc.ClientId, action, ct);
         return result?.Status switch
         {
             null => Problem(DesktopError.NoAnswer),
@@ -123,19 +114,4 @@ public sealed partial class AccountsController
         };
     }
 
-    /// <summary>The PC this account last played on, if connected; else a connected app whose log has not named an account yet.</summary>
-    private async Task<DesktopClient?> FindDesktopAsync(string accountId, DesktopClients desktops, CancellationToken ct)
-    {
-        var connected = desktops.ConnectedIds;
-        if (connected.Count == 0) return null;
-        var known = await _db.GameLogClients.AsNoTracking()
-            .Where(c => connected.Contains(c.ClientId))
-            .OrderByDescending(c => c.LastSeenAt)
-            .Select(c => new { c.ClientId, c.AccountId })
-            .ToListAsync(ct);
-        var clientId = known.FirstOrDefault(c => c.AccountId == accountId)?.ClientId
-            ?? known.FirstOrDefault(c => c.AccountId is null)?.ClientId
-            ?? connected.FirstOrDefault(id => known.All(c => c.ClientId != id));
-        return clientId is null ? null : desktops.Get(clientId);
-    }
 }

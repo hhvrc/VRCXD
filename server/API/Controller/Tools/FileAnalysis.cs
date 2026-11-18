@@ -7,9 +7,9 @@ using OpenShock.Internal.Common.Problems;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Tools;
 
-public sealed partial class AccountsController
+public sealed partial class AccountToolsController
 {
     /// <summary>
     /// The original's getBundleDateSize: for each platform, VRChat's analysis (file size, uncompressed

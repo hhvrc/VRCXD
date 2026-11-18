@@ -5,7 +5,7 @@ using OpenShock.Internal.Common.Problems;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Desktop;
 
 /// <summary>One wrist overlay row: the time as the page shows it, the name and what happened.</summary>
 public sealed record AgentWristRow(string Time, string Name, string Text, bool Friend, bool Favorite, string? Colour = null);
@@ -32,7 +32,7 @@ public sealed record AgentWristFeedBody(
     string? OnlineLabel = null,
     bool Hour12 = false);
 
-public sealed partial class AccountsController
+public sealed partial class AccountDesktopController
 {
     /// <summary>Hands the wrist feed to the account's PC, whose SteamVR wrist overlay draws it.</summary>
     /// <response code="204">Sent</response>
@@ -52,6 +52,6 @@ public sealed partial class AccountsController
         };
         // The original's maxEntries.
         feed.Rows.AddRange(body.Rows.Take(25).Select(r => new WristRow { Time = r.Time, Name = r.Name, Text = r.Text, Friend = r.Friend, Favorite = r.Favorite, Colour = r.Colour ?? "" }));
-        return AgentActionAsync(accountId, Capability.Openvr, desktops, new ClientAction { UpdateWristFeed = feed }, cancellationToken);
+        return AgentActionAsync(accountId, Capability.Openvr, new ClientAction { UpdateWristFeed = feed }, cancellationToken);
     }
 }

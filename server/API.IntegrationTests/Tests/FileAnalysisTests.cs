@@ -40,7 +40,7 @@ public sealed class FileAnalysisTests
         static Vrchat.Models.UnityPackage Package(string platform, string? url) =>
             new() { Id = "unp_" + platform, Platform = platform, AssetUrl = url, UnitySortNumber = 20220322000 };
 
-        var picked = Controller.Accounts.AccountsController.PickAnalysedBundles(
+        var picked = Controller.Tools.AccountToolsController.PickAnalysedBundles(
         [
             Package("standalonewindows", "https://api.vrchat.cloud/api/1/file/file_pc-big/123/file"),
             Package("android", "file_plain-string"),

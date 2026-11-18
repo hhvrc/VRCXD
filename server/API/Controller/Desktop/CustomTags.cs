@@ -4,19 +4,17 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.Common.Errors;
+using VRCX.Common.Features.Desktop;
 using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
 
-namespace VRCX.API.Controller.Accounts;
-
-/// <summary>A tag another program on the account's PC gave a user over the VRCX named pipe.</summary>
-public sealed record CustomTagResponse(string UserId, string Tag, string? Colour);
+namespace VRCX.API.Controller.Desktop;
 
 public sealed record ShowUserDialogBody(string UserId);
 
 // The VRCX named pipe on the account's PC (the original's Dotnet/IPC): the tags programs on it set,
 // and what VRCX tells them.
-public sealed partial class AccountsController
+public sealed partial class AccountDesktopController
 {
     /// <summary>The account's custom user tags (the original's customUserTags).</summary>
     /// <response code="200">The tags</response>
@@ -27,12 +25,8 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListCustomTags([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-        var tags = await _db.CustomUserTags.AsNoTracking().Where(t => t.OwnerUserId == accountId)
-            .OrderBy(t => t.UserId)
-            .Select(t => new CustomTagResponse(t.UserId, t.Tag, t.Colour))
-            .ToArrayAsync(cancellationToken);
-        return Ok(tags);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        return Ok(await desktop.CustomTagsAsync(accountId, cancellationToken));
     }
 
     /// <summary>
@@ -46,8 +40,8 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> SendShowUserDialog([FromRoute] string accountId, [FromBody] ShowUserDialogBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken)
     {
-        if (await FindDesktopAsync(accountId, desktops, cancellationToken) is { } desktop)
-            await desktops.PostAsync(desktop.ClientId, new ClientAction { SendIpc = new SendIpc { Type = "VrcxMessage", MsgType = "ShowUserDialog", Data = body.UserId } }, cancellationToken);
+        if (await desktop.FindAsync(accountId, cancellationToken) is { } pc)
+            await desktops.PostAsync(pc.ClientId, new ClientAction { SendIpc = new SendIpc { Type = "VrcxMessage", MsgType = "ShowUserDialog", Data = body.UserId } }, cancellationToken);
         return NoContent();
     }
 }

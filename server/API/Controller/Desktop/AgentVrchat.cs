@@ -9,7 +9,7 @@ using VRCX.Common.Live;
 using VRCX.Common.Services.Live;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Desktop;
 
 public sealed record VrchatConfigBody(string Json);
 
@@ -29,7 +29,7 @@ public sealed record RegistryCheckResponse(bool AskRestore);
 
 // VRChat's own settings on the PC: config.json, the registry (with backups kept here) and the
 // local show/hide avatar list.
-public sealed partial class AccountsController
+public sealed partial class AccountDesktopController
 {
     /// <summary>VRChat's config.json on the PC (ReadConfigFile).</summary>
     /// <response code="200">{"exists": bool, "json": "the file"}</response>
@@ -38,7 +38,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentReadVrchatConfig([FromRoute] string accountId, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.VrchatConfig, desktops, new ClientAction { ReadVrchatConfig = new LogNoData() }, cancellationToken);
+        AgentActionAsync(accountId, Capability.VrchatConfig, new ClientAction { ReadVrchatConfig = new LogNoData() }, cancellationToken);
 
     /// <summary>Writes VRChat's config.json on the PC (WriteConfigFile); a JSON object only.</summary>
     [HttpPut("{accountId}/agent/vrchat-config")]
@@ -46,7 +46,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentWriteVrchatConfig([FromRoute] string accountId, [FromBody] VrchatConfigBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.VrchatConfig, desktops, new ClientAction { WriteVrchatConfig = new WriteVrchatConfig { Json = body.Json } }, cancellationToken);
+        AgentActionAsync(accountId, Capability.VrchatConfig, new ClientAction { WriteVrchatConfig = new WriteVrchatConfig { Json = body.Json } }, cancellationToken);
 
     /// <summary>VRChat's whole registry on the PC (GetVRChatRegistry); 404 when VRChat has none.</summary>
     [HttpGet("{accountId}/agent/vrchat-registry")]
@@ -54,7 +54,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentReadVrchatRegistry([FromRoute] string accountId, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.Registry, desktops, new ClientAction { ReadVrchatRegistry = new LogNoData() }, cancellationToken);
+        AgentActionAsync(accountId, Capability.Registry, new ClientAction { ReadVrchatRegistry = new LogNoData() }, cancellationToken);
 
     /// <summary>Writes a backup into VRChat's registry (SetVRChatRegistry), e.g. one restored from a file.</summary>
     [HttpPost("{accountId}/agent/vrchat-registry/restore")]
@@ -62,7 +62,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentRestoreVrchatRegistry([FromRoute] string accountId, [FromBody] RegistryRestoreBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.Registry, desktops,
+        AgentActionAsync(accountId, Capability.Registry,
             new ClientAction { WriteVrchatRegistry = new WriteVrchatRegistry { Json = body.Data.GetRawText(), Confirm = body.Confirm } }, cancellationToken);
 
     /// <summary>Deletes VRChat's registry key on the PC (DeleteVRChatRegistryFolder): VRChat starts over with its defaults.</summary>
@@ -71,7 +71,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentDeleteVrchatRegistry([FromRoute] string accountId, [FromBody] ConfirmBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.Registry, desktops, new ClientAction { DeleteVrchatRegistry = new Confirm { Confirm_ = body.Confirm } }, cancellationToken);
+        AgentActionAsync(accountId, Capability.Registry, new ClientAction { DeleteVrchatRegistry = new Confirm { Confirm_ = body.Confirm } }, cancellationToken);
 
     /// <summary>One PlayerPrefs value (GetVRChatRegistryKey).</summary>
     /// <response code="200">{"value": the value or null}</response>
@@ -79,7 +79,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentReadVrchatRegistryKey([FromRoute] string accountId, [FromRoute] string key, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.Registry, desktops, new ClientAction { ReadVrchatRegistryKey = new ReadVrchatRegistryKey { Key = key } }, cancellationToken);
+        AgentActionAsync(accountId, Capability.Registry, new ClientAction { ReadVrchatRegistryKey = new ReadVrchatRegistryKey { Key = key } }, cancellationToken);
 
     /// <summary>Sets one PlayerPrefs value (SetVRChatRegistryKey); 404 when VRChat has no registry key yet.</summary>
     [HttpPut("{accountId}/agent/vrchat-registry/keys/{key}")]
@@ -87,7 +87,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentSetVrchatRegistryKey([FromRoute] string accountId, [FromRoute] string key, [FromBody] RegistryKeyBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.Registry, desktops,
+        AgentActionAsync(accountId, Capability.Registry,
             new ClientAction { SetVrchatRegistryKey = new SetVrchatRegistryKey { Key = key, ValueJson = body.Value.GetRawText(), Type = body.Type } }, cancellationToken);
 
     /// <summary>The account's local show/hide avatar list on the PC (GetVRChatModerations).</summary>
@@ -96,7 +96,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentReadLocalModerations([FromRoute] string accountId, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.LocalModerations, desktops,
+        AgentActionAsync(accountId, Capability.LocalModerations,
             new ClientAction { ReadLocalModerations = new ReadLocalModerations { CurrentUserId = accountId } }, cancellationToken);
 
     /// <summary>Hides (4) or shows (5) a user's avatar, or 0 to go back to the default (SetVRChatUserModeration).</summary>
@@ -105,7 +105,7 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
     public Task<IActionResult> AgentSetLocalModeration([FromRoute] string accountId, [FromRoute] string userId, [FromBody] LocalModerationBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken) =>
-        AgentActionAsync(accountId, Capability.LocalModerations, desktops,
+        AgentActionAsync(accountId, Capability.LocalModerations,
             new ClientAction { SetLocalModeration = new SetLocalModeration { CurrentUserId = accountId, UserId = userId, Type = body.Type } }, cancellationToken);
 
     /// <summary>The account's registry backups, newest first.</summary>
@@ -114,9 +114,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListRegistryBackups([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        var rows = await _db.VrchatRegistryBackups.AsNoTracking().Where(b => b.AccountId == accountId)
-            .OrderByDescending(b => b.CreatedAt).ToListAsync(cancellationToken);
-        return Ok(rows.Select(ToResponse));
+        return Ok((await desktop.RegistryBackupsAsync(accountId, cancellationToken)).Select(ToResponse));
     }
 
     /// <summary>Backs up the PC's registry now under a name (backupVrcRegistry).</summary>
@@ -127,15 +125,12 @@ public sealed partial class AccountsController
     public async Task<IActionResult> CreateRegistryBackup([FromRoute] string accountId, [FromBody] RegistryBackupBody body, [FromServices] DesktopClients desktops, [FromServices] RegistryBackups backups, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(body.Name)) return Problem(AgentError.NotConfirmed);
-        if (await FindDesktopAsync(accountId, desktops, cancellationToken) is not { } desktop) return Problem(DesktopError.NotConnected);
-        if (!desktop.Can(Capability.Registry)) return Problem(AgentError.Unsupported);
-        var read = await backups.ReadAsync(desktop, cancellationToken);
+        if (await desktop.FindAsync(accountId, cancellationToken) is not { } pc) return Problem(DesktopError.NotConnected);
+        if (!pc.Can(Capability.Registry)) return Problem(AgentError.Unsupported);
+        var read = await backups.ReadAsync(pc, cancellationToken);
         if (read.Missing) return Problem(AgentError.NotFound(read.Error));
         if (read.Data is null) return Problem(DesktopError.ActionFailed(read.Error));
-        var backup = new VrchatRegistryBackup { AccountId = accountId, Name = body.Name.Trim(), CreatedAt = DateTimeOffset.UtcNow, Data = read.Data };
-        _db.VrchatRegistryBackups.Add(backup);
-        await _db.SaveChangesAsync(cancellationToken);
-        return Ok(ToResponse(backup));
+        return Ok(ToResponse(await desktop.KeepRegistryBackupAsync(accountId, body.Name, read.Data, cancellationToken)));
     }
 
     /// <summary>Writes a kept backup back into the PC's registry (restoreVrcRegistryBackup).</summary>
@@ -145,9 +140,9 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> RestoreRegistryBackup([FromRoute] string accountId, [FromRoute] long id, [FromBody] ConfirmBody body, [FromServices] DesktopClients desktops, CancellationToken cancellationToken)
     {
-        var backup = await _db.VrchatRegistryBackups.AsNoTracking().FirstOrDefaultAsync(b => b.AccountId == accountId && b.Id == id, cancellationToken);
+        var backup = await desktop.RegistryBackupAsync(accountId, id, cancellationToken);
         if (backup is null) return Problem(AgentError.NotFound("No such backup"));
-        return await AgentActionAsync(accountId, Capability.Registry, desktops,
+        return await AgentActionAsync(accountId, Capability.Registry,
             new ClientAction { WriteVrchatRegistry = new WriteVrchatRegistry { Json = backup.Data.RootElement.GetRawText(), Confirm = body.Confirm } }, cancellationToken);
     }
 
@@ -157,7 +152,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> DeleteRegistryBackup([FromRoute] string accountId, [FromRoute] long id, CancellationToken cancellationToken)
     {
-        await _db.VrchatRegistryBackups.Where(b => b.AccountId == accountId && b.Id == id).ExecuteDeleteAsync(cancellationToken);
+        await desktop.ForgetRegistryBackupAsync(accountId, id, cancellationToken);
         return NoContent();
     }
 
@@ -170,9 +165,9 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> CheckRegistryBackups([FromRoute] string accountId, [FromServices] DesktopClients desktops, [FromServices] RegistryBackups backups, CancellationToken cancellationToken)
     {
-        if (await FindDesktopAsync(accountId, desktops, cancellationToken) is not { } desktop || !desktop.Can(Capability.Registry))
+        if (await desktop.FindAsync(accountId, cancellationToken) is not { } pc || !pc.Can(Capability.Registry))
             return Ok(new RegistryCheckResponse(false));
-        return Ok(new RegistryCheckResponse(await backups.CheckAsync(accountId, desktop, cancellationToken)));
+        return Ok(new RegistryCheckResponse(await backups.CheckAsync(accountId, pc, cancellationToken)));
     }
 
     private static RegistryBackupResponse ToResponse(VrchatRegistryBackup b) => new(b.Id, b.Name, b.CreatedAt, b.Data.RootElement.Clone());

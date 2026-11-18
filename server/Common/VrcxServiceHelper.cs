@@ -259,6 +259,7 @@ public static class VrcxServiceHelper
         // Read models over what is stored, per request on the request's context: the endpoints and
         // the MCP tools share them, so neither carries query logic of its own.
         services.AddScoped<VRCX.Common.Features.Accounts.AccountQueries>();
+        services.AddScoped<VRCX.Common.Features.Accounts.AccountSettingsStore>();
         services.AddSingleton<VRCX.Common.Features.Accounts.AccountSessionRunner>();
         services.AddSingleton<VRCX.Common.Features.Notifications.NotificationRefreshGate>();
         services.AddScoped<VRCX.Common.Features.Notifications.NotificationQueries>();
