@@ -10,14 +10,15 @@ import {
 	type ServerHello,
 	type ServerMessage
 } from '#lib/gen/vrcx_live_pb.js';
-import { getServerToken } from '#lib/api/client.js';
+import { mediaCookie } from '#lib/api/client.js';
 import { startKeepalive, type Keepalive } from '#lib/api/keepalive.js';
 import { debounce } from '#lib/helpers/debounce.js';
 
 // One websocket (/1/ws, binary protobuf frames) for the whole UI, shared by every page that
 // wants live state. The stream is live-only: pages seed their state from REST and apply the
-// ServerEvents here on top. Reconnects with backoff; the token rides along as ?token= since
-// browsers can't set headers on an upgrade. Events sent while the socket was down are gone, so
+// ServerEvents here on top. Reconnects with backoff. Browsers can't set headers on an upgrade, so
+// the socket is let in by the server's HttpOnly cookie (mediaCookie), not the token in its URL,
+// which a proxy would log. Events sent while the socket was down are gone, so
 // every reconnect is announced (onReconnect, live.reconnects) for the stores to read again.
 // Topics (topics.svelte.ts, docs/live-topics.md) ride the same socket: they subscribe after each
 // ServerHello (onHello) and read their snapshots and deltas through onTopicMessage.
@@ -146,16 +147,29 @@ let messageCount = 0;
 /** Messages received on the live socket so far: the status bar's per-minute rate, as the original's wsState.messageCount. */
 export const liveMessageCount = () => messageCount;
 
+let opening = false;
+
 function open() {
+	if (socket || opening || wanted <= 0) return;
+	if (mediaCookie.isReady()) return connect();
+	opening = true;
+	void mediaCookie.ensure().then(() => {
+		opening = false;
+		connect();
+	});
+}
+
+function connect() {
 	if (socket || wanted <= 0) return;
 	const url = new URL('/1/ws', location.href);
 	url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
-	url.searchParams.set('token', getServerToken());
 	const ws = new WebSocket(url);
+	let opened = false;
 	ws.binaryType = 'arraybuffer';
 	socket = ws;
 
 	ws.onopen = () => {
+		opened = true;
 		live.connected = true;
 		live.error = '';
 		retryDelay = 1000;
@@ -208,6 +222,8 @@ function open() {
 	ws.onclose = (event) => {
 		if (socket !== ws) return;
 		if (event.code === 1008 || event.code === 4401) live.error = 'The server rejected the token';
+		// Refused before it opened: the cookie may be gone (cleared, or set for an older token), so ask again.
+		if (!opened) mediaCookie.forget();
 		lost();
 	};
 }

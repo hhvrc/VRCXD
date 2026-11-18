@@ -78,6 +78,7 @@ public static class ConfigurationExtensions
             throw new InvalidOperationException("VRCX:Auth:Token must be at least 16 characters.");
 
         builder.Services.AddSingleton(options);
+        builder.Services.AddSingleton<VRCX.Common.Authentication.MediaCookie>();
         return options;
     }
 

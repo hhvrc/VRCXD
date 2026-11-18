@@ -36,7 +36,7 @@
 	import { sidebarData } from '#lib/people/sidebar-data.svelte.js';
 	import { SWITCH_AVATAR_CONFIRM_KEY } from '#lib/instances/launch-command.js';
 	import { readSetting, storeSetting } from '#lib/settings/settings-storage.js';
-	import { accountPath, api, ApiError, setServerToken } from '#lib/api/client.js';
+	import { accountPath, api, ApiError, mediaCookie, setServerToken } from '#lib/api/client.js';
 	import { formatDate } from '#lib/helpers/format.js';
 	import type { Account, AccountSettings, Favorites } from '#lib/api/types.js';
 	import { live } from '#lib/api/live.svelte.js';
@@ -339,7 +339,8 @@
 		}
 	}
 
-	function forgetToken() {
+	async function forgetToken() {
+		await mediaCookie.clear();
 		setServerToken('');
 		serverAuth.needsToken = true;
 	}

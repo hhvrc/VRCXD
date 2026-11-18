@@ -2,7 +2,17 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { create, fromBinary, toBinary } from '@bufbuild/protobuf';
 import { ClientMessageSchema, ServerMessageSchema, type ClientMessage } from '../gen/vrcx_live_pb.js';
 
-vi.mock('#lib/api/client.js', () => ({ getServerToken: () => 'token' }));
+const cookie = vi.hoisted(() => ({ ready: true, asked: 0, resolve: () => {} }));
+vi.mock('#lib/api/client.js', () => ({
+	mediaCookie: {
+		isReady: () => cookie.ready,
+		ensure: () => {
+			cookie.asked += 1;
+			return new Promise<void>((resolve) => (cookie.resolve = () => ((cookie.ready = true), resolve())));
+		},
+		forget: () => (cookie.ready = false)
+	}
+}));
 
 // A stand-in for the browser's WebSocket: the test opens, feeds and drops it.
 class FakeSocket {
@@ -48,6 +58,8 @@ beforeEach(async () => {
 	vi.useFakeTimers();
 	vi.resetModules();
 	FakeSocket.all = [];
+	cookie.ready = true;
+	cookie.asked = 0;
 	vi.stubGlobal('WebSocket', FakeSocket);
 	vi.stubGlobal('location', { href: 'http://vrcx.test/feed' });
 	live = await import('../api/live.svelte.js');
@@ -62,11 +74,30 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
+describe('live socket cookie', () => {
+	test('a socket refused before it opened waits for the cookie to be set again, then connects', async () => {
+		latest().drop();
+		vi.advanceTimersByTime(60_000);
+		expect(FakeSocket.all).toHaveLength(2);
+		expect(cookie.asked).toBe(0);
+		latest().drop(); // refused: it never opened
+		const refused = FakeSocket.all.length;
+		vi.advanceTimersByTime(60_000);
+		expect(cookie.asked).toBe(1);
+		expect(FakeSocket.all).toHaveLength(refused);
+
+		cookie.resolve();
+		await vi.advanceTimersByTimeAsync(0);
+		expect(FakeSocket.all).toHaveLength(refused + 1);
+	});
+});
+
 describe('live socket heartbeat', () => {
 	test('says hello, then pings every 30 seconds as the agent does', () => {
 		const ws = latest();
 		expect(ws.sent[0].message.case).toBe('hello');
-		expect(ws.url.searchParams.get('token')).toBe('token');
+		// The cookie lets it in; a token in the URL would be in the proxy's logs.
+		expect(ws.url.search).toBe('');
 		vi.advanceTimersByTime(29_999);
 		expect(ws.pings()).toBe(0);
 		vi.advanceTimersByTime(1);

@@ -16,6 +16,41 @@ const TOKEN_KEY = 'vrcx.serverToken';
 export const getServerToken = (): string => readText(TOKEN_KEY);
 export const setServerToken = (token: string): void => storeText(TOKEN_KEY, token);
 
+let cookieFor: { token: string; ready: Promise<void>; done: boolean } | undefined;
+
+/**
+ * The cookie the server lets the live socket and /1/images in by (the server's MediaCookie). A
+ * browser cannot set a header on either, and the token in their URLs ended up in proxy logs. Any
+ * request with the token sets the cookie; the socket asks for it once per token before it connects.
+ */
+export const mediaCookie = {
+	/** Set for the current token: the socket can connect without waiting. */
+	isReady(): boolean {
+		return cookieFor?.token === getServerToken() && cookieFor.done;
+	},
+	ensure(): Promise<void> {
+		const token = getServerToken();
+		if (cookieFor?.token !== token) {
+			const entry: NonNullable<typeof cookieFor> = { token, done: false, ready: Promise.resolve() };
+			// A failure is the socket's to report: it is refused, and asks again.
+			entry.ready = fetch('/1/auth/media-cookie', { method: 'POST', headers: { VrcxToken: token } })
+				.then(() => undefined, () => undefined)
+				.then(() => void (entry.done = true));
+			cookieFor = entry;
+		}
+		return cookieFor.ready;
+	},
+	/** Asks again next time: the socket was refused, so the cookie it relied on may be gone. */
+	forget(): void {
+		cookieFor = undefined;
+	},
+	/** Takes the cookie off on the server, before the token is forgotten here. */
+	async clear(): Promise<void> {
+		cookieFor = undefined;
+		await fetch('/1/auth/media-cookie', { method: 'DELETE', headers: { VrcxToken: getServerToken() } }).catch(() => undefined);
+	}
+};
+
 export type Problem = {
 	type: string;
 	title: string;

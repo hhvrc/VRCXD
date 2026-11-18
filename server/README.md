@@ -122,7 +122,11 @@ Table and column names are explicit snake_case in `VrcxContext`.
   the PC's agent (`GameLogBatch` of `LogEntry`, the shape `agent/src/log_parser.rs`
   produces) and the server side streams `ServerEvent`s (presence, user changes,
   friendships, notifications, instance visits, account sessions) plus `ClientAction`s for the
-  PC. Auth is the same token, as a header or `?token=` for browsers. The web UI generates its
+  PC. Auth is the same token, as a header. A browser cannot set one on the upgrade, so the web
+  UI's socket (and its `/1/images` loads) are let in by an HttpOnly, SameSite=Strict cookie
+  that any request with the token sets (`MediaCookie`, `POST`/`DELETE /1/auth/media-cookie`);
+  its value is derived from the token and opens nothing else. `?token=` still works on those two
+  paths for scripts, but puts the token in proxy logs. The web UI generates its
   TypeScript from the same `.proto` (protobuf-es / buf). Clients can also subscribe to live
   topics: independent snapshot-then-delta streams with per-subscription revisions. The friend list and
   the notification center come only from the `friends` and `notifications` topics; see

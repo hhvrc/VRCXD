@@ -1,12 +1,11 @@
-import { getServerToken } from './client';
-
 /**
  * Where to load a VRChat image from: this server's disk copy. Anything else, like a data or blob
- * URL or a site's favicon, is left as it is.
+ * URL or a site's favicon, is left as it is. The server lets the image in by its cookie
+ * (mediaCookie in client.ts), which the REST answer that named the image set.
  */
 export function imageSrc<T extends string | null | undefined>(url: T): T | string {
 	if (!url || !/^https:\/\/([a-z0-9-]+\.)*vrchat\.(cloud|com)\//i.test(url)) return url;
-	return `/1/images?url=${encodeURIComponent(url)}&token=${encodeURIComponent(getServerToken())}`;
+	return `/1/images?url=${encodeURIComponent(url)}`;
 }
 
 /**

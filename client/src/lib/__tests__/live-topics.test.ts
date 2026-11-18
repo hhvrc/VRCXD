@@ -4,7 +4,7 @@ import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { ClientMessageSchema, FriendEntrySchema, ServerMessageSchema, TopicCloseReason, type ClientMessage, type FriendEntry, type Subscribe } from '../gen/vrcx_live_pb.js';
 import type { Friend } from '../api/types.js';
 
-vi.mock('#lib/api/client.js', () => ({ getServerToken: () => 'token' }));
+vi.mock('#lib/api/client.js', () => ({ mediaCookie: { isReady: () => true, ensure: async () => {}, forget: () => {} } }));
 
 // The browser's WebSocket, driven by the test (as in live-socket.test.ts).
 class FakeSocket {

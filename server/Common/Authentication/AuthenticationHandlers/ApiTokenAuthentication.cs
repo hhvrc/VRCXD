@@ -15,30 +15,38 @@ namespace VRCX.Common.Authentication.AuthenticationHandlers;
 /// <summary>
 /// The one credential this server knows: the shared token from VRCX:Auth:Token, sent as
 /// <c>VrcxToken: …</c> or <c>Authorization: Bearer …</c>. The server only runs behind a
-/// LAN/VPN boundary; this keeps a stray browser on that network out of friend history.
+/// LAN/VPN boundary; this keeps a stray browser on that network out of friend history. /1/ws and
+/// /1/images also take the <see cref="MediaCookie"/>, which a request with the token is given.
 /// </summary>
 public sealed class ApiTokenAuthentication : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     private readonly byte[] _expected;
+    private readonly MediaCookie _cookie;
     private VrcxProblem? _authResultError;
 
     public ApiTokenAuthentication(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        AuthOptions authOptions)
+        AuthOptions authOptions,
+        MediaCookie cookie)
         : base(options, logger, encoder)
     {
         _expected = Encoding.UTF8.GetBytes(authOptions.Token);
+        _cookie = cookie;
     }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        if (!TryGetToken(out var token))
+        if (TryGetToken(out var token))
+        {
+            if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(token), _expected))
+                return Task.FromResult(Fail(AuthResultError.TokenInvalid));
+            // The page's first request gives it what its socket and images need; a new token replaces it.
+            if (!_cookie.IsOn(Request)) _cookie.Set(Context);
+        }
+        else if (!(MediaCookie.Accepts(Context) && _cookie.IsOn(Request)))
             return Task.FromResult(Fail(AuthResultError.HeaderMissingOrInvalid));
-
-        if (!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(token), _expected))
-            return Task.FromResult(Fail(AuthResultError.TokenInvalid));
 
         var identity = new ClaimsIdentity(
         [
@@ -63,8 +71,9 @@ public sealed class ApiTokenAuthentication : AuthenticationHandler<Authenticatio
             token = authorization[bearer.Length..];
             return true;
         }
-        // Browsers cannot set headers on a websocket upgrade or an img tag, so /1/ws and /1/images also take ?token=.
-        if ((Context.WebSockets.IsWebSocketRequest || Context.Request.Path.StartsWithSegments("/1/images")) && Context.Request.Query.TryGetValue("token", out var query) && !string.IsNullOrEmpty(query))
+        // Scripts and older pages put the token in the URL of what a browser cannot set a header on.
+        // The page uses the cookie, since a proxy logs URLs.
+        if (MediaCookie.Accepts(Context) && Context.Request.Query.TryGetValue("token", out var query) && !string.IsNullOrEmpty(query))
         {
             token = query.ToString();
             return true;
