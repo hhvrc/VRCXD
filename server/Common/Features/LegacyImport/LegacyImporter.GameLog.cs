@@ -1,4 +1,4 @@
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 // The game log. The original kept one game log for the PC (not per account); here every row is
 // global and an account's log is the rows in the instances it stayed in, so each stay is given

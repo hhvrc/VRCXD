@@ -5,7 +5,7 @@ using Npgsql;
 using NpgsqlTypes;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 /// <summary>A column of a staging table: its name and how COPY writes it.</summary>
 public sealed record StageColumn(string Name, NpgsqlDbType Type)

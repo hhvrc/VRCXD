@@ -17,8 +17,8 @@ original design goes to the VRCX team. VRCXD is not made or supported by them: r
 with VRCXD here, not to VRCX.
 
 If you want the desktop app that runs on your PC, use VRCX itself. VRCXD is for running the
-tracking all the time on a separate machine. A database from VRCX can be imported once
-(`server/LegacyImport/README.md`).
+tracking all the time on a separate machine. A database from VRCX can be imported from the
+Settings page (`server/LegacyImport/README.md`).
 
 ## The parts
 

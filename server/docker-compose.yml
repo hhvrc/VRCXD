@@ -65,6 +65,7 @@ services:
       VRCX__IMAGES__DIR: /data/images
       VRCX__AUTH__TOKEN: ${VRCX_TOKEN:?api token required}
       VRCX__KEYS__DIR: /data/keys
+      VRCX__LEGACYIMPORT__DIR: /data/legacy-import
       VRCX__ERRORREPORTING__DSN: ${ERROR_REPORTING_DSN:-}
     volumes:
       # VRChat's images, on disk. Safe to delete: they are fetched again when needed.
@@ -72,6 +73,8 @@ services:
       # The keys the stored VRChat session cookies are encrypted with. Kept out of the database and
       # out of its backups; losing them only means logging in to VRChat again.
       - ./keys:/data/keys
+      # A VRCX database uploaded on the Settings page, until it is imported. Empty otherwise.
+      - ./legacy-import:/data/legacy-import
     # Not published: everything reaches it through the web container.
     expose:
       - "80"

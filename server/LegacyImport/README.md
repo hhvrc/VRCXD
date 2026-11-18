@@ -1,14 +1,35 @@
 # LegacyImport
 
 Carries an original VRCX database (`%APPDATA%\VRCX\VRCX.sqlite3`) into this server's Postgres.
+The importer is `Common/Features/LegacyImport/`; there are two ways to run it.
 
-## Running it
+## From the Settings page
 
-It runs on the PC that holds the file, not on the server. The file is large, it is in use while
-VRCX runs, and it is read once from start to finish. A console tool reads it in place and needs
-only a Postgres connection to wherever the server's database is, so nothing has to be uploaded
-through the API. The server has to have started once against that database, so its migrations
-are applied. The tool checks this and stops if they are not.
+Settings, Advanced, Import from VRCX. Pick the file, and the page uploads it to the server in
+parts of 16 MiB: the files are often larger than 700 MB, and a proxy in front of the server
+(Cloudflare's refuses bodies over 100 MB) need not take it in one piece. Check runs a dry run
+and shows what the file holds; Import brings it in. The import uses only Postgres, makes no
+VRChat call, and takes about a minute on a large file. The file waits in `VRCX__LEGACYIMPORT__DIR`
+and is deleted once it has been imported. Close VRCX before picking the file: while it runs, its
+latest writes are in `VRCX.sqlite3-wal` beside it, and only `VRCX.sqlite3` is uploaded.
+
+The endpoints, under the API token like everything else:
+
+| Request | Does |
+| --- | --- |
+| `GET /1/legacy-import` | The upload, the step running and the last report |
+| `POST /1/legacy-import` `{"size": n}` | Starts an upload, replacing the last one |
+| `PUT /1/legacy-import/{uploadId}?offset=n` | One part as the raw body, at most 64 MiB, starting where the file ends. A 409 says where that is |
+| `POST /1/legacy-import/{uploadId}/dry-run` | Reads the file in the background and reports what an import would add |
+| `POST /1/legacy-import/{uploadId}/import` | Imports in the background and deletes the file |
+| `DELETE /1/legacy-import` | Forgets the upload and deletes the file |
+
+## From the command line
+
+On the PC that holds the file. A console tool reads it in place, even while VRCX runs, and needs
+only a Postgres connection to wherever the server's database is. The server has to have started
+once against that database, so its migrations are applied. The tool checks this and stops if
+they are not.
 
 ```
 cd server

@@ -22,6 +22,18 @@ public sealed class ImageOptions
 }
 
 /// <summary>
+/// VRCX:LegacyImport - where an original VRCX database uploaded from the Settings page is kept
+/// until it has been imported. These files are often larger than 700 MB, so put this on a disk with
+/// room; it is emptied once an import has finished.
+/// </summary>
+public sealed class LegacyImportUploadOptions
+{
+    public string Dir { get; init; } = "legacy-import";
+    /// <summary>The largest file taken, in bytes.</summary>
+    public long MaxSize { get; init; } = 8L * 1024 * 1024 * 1024;
+}
+
+/// <summary>
 /// VRCX:Keys - where the keys that encrypt stored VRChat session cookies are kept. Outside the
 /// database on purpose: a database dump alone must not be enough to sign in as the account.
 /// Losing the keys only means logging in to VRChat again.

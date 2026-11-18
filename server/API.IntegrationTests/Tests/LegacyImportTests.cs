@@ -1,8 +1,13 @@
 using System.Globalization;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using VRCX.LegacyImport;
+using VRCX.Common.Features.LegacyImport;
 using VRCX.Testing;
 using VRCX.Testing.Desktop;
 
@@ -161,6 +166,148 @@ public sealed class LegacyImportTests
         SqliteConnection.ClearAllPools();
         await Assert.That(fixture.Hash()).IsEqualTo(hash);
     }
+
+    // The Settings page's way in: the file goes up in parts (a proxy such as Cloudflare refuses a
+    // body over 100 MB, and these files are often 700 MB), a dry run reports, the import brings it in.
+    [Test]
+    public async Task An_upload_in_parts_is_checked_then_imported_then_deleted_and_importing_again_adds_nothing()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        app.Vrchat.SetMe(Me, "Me");
+        await app.LoginAsync();
+        using var fixture = Fixture.Create(Second(app.Time.GetUtcNow().AddDays(-3)));
+        var file = await File.ReadAllBytesAsync(fixture.Path);
+        var before = await CountsAsync(app);
+
+        var uploadId = await UploadAsync(app, file, parts: 3);
+        var uploaded = await StatusAsync(app);
+        await Assert.That(uploaded.GetProperty("state").GetString()).IsEqualTo("uploaded");
+        await Assert.That(uploaded.GetProperty("received").GetInt64()).IsEqualTo(file.LongLength);
+
+        var checkedStatus = await RunAsync(app, $"/1/legacy-import/{uploadId}/dry-run");
+        await Assert.That(checkedStatus.GetProperty("state").GetString()).IsEqualTo("checked");
+        await Assert.That(checkedStatus.GetProperty("report").GetProperty("dryRun").GetBoolean()).IsTrue();
+        await Assert.That(Table(checkedStatus, "gamelog_location").GetProperty("candidates").GetInt64()).IsEqualTo(2);
+        foreach (var (table, count) in await CountsAsync(app)) await Assert.That(count).IsEqualTo(before[table]).Because(table);
+
+        var imported = await RunAsync(app, $"/1/legacy-import/{uploadId}/import");
+        await Assert.That(imported.GetProperty("state").GetString()).IsEqualTo("imported");
+        await Assert.That(imported.GetProperty("report").GetProperty("dryRun").GetBoolean()).IsFalse();
+        var progress = imported.GetProperty("progress");
+        await Assert.That(progress.GetProperty("step").GetInt32()).IsEqualTo(progress.GetProperty("steps").GetInt32());
+        var after = await CountsAsync(app);
+        foreach (var table in Targets.Except(["accounts", "instances"])) await Assert.That(after[table]).IsGreaterThan(before[table]).Because(table);
+        await Assert.That(Directory.EnumerateFiles(UploadDirectory(app)).Any()).IsFalse();
+        // The file is gone, so it cannot be imported a second time without a new upload.
+        var again = await app.Api.PostAsync($"/1/legacy-import/{uploadId}/import", null);
+        await Assert.That(again.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+
+        var second = await UploadAsync(app, file, parts: 1);
+        var reimported = await RunAsync(app, $"/1/legacy-import/{second}/import");
+        await Assert.That(reimported.GetProperty("state").GetString()).IsEqualTo("imported");
+        await Assert.That(reimported.GetProperty("report").GetProperty("tables").EnumerateArray().Sum(t => t.TryGetProperty("inserted", out var i) ? i.GetInt64() : 0)).IsEqualTo(0);
+        foreach (var (table, count) in await CountsAsync(app)) await Assert.That(count).IsEqualTo(after[table]).Because(table);
+    }
+
+    [Test]
+    public async Task A_part_that_does_not_follow_is_refused_with_where_the_upload_continues()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        using var fixture = Fixture.Create(Second(app.Time.GetUtcNow().AddDays(-3)));
+        var file = await File.ReadAllBytesAsync(fixture.Path);
+        var uploadId = await StartAsync(app, file.LongLength);
+        await Assert.That((await PutAsync(app, uploadId, 0, file.AsMemory(0, 100))).StatusCode).IsEqualTo(HttpStatusCode.OK);
+
+        // Sent again, as after a lost answer: the server already has it and says where to go on.
+        var repeated = await PutAsync(app, uploadId, 0, file.AsMemory(0, 100));
+        await Assert.That(repeated.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+        await Assert.That((await repeated.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("detail").GetString()).IsEqualTo("The upload continues at byte 100");
+
+        var early = await app.Api.PostAsync($"/1/legacy-import/{uploadId}/dry-run", null);
+        await Assert.That(early.StatusCode).IsEqualTo(HttpStatusCode.Conflict);
+
+        await Assert.That((await PutAsync(app, uploadId, 100, file.AsMemory(100))).StatusCode).IsEqualTo(HttpStatusCode.OK);
+        await Assert.That((await StatusAsync(app)).GetProperty("state").GetString()).IsEqualTo("uploaded");
+        await Assert.That(await File.ReadAllBytesAsync(Path.Combine(UploadDirectory(app), "VRCX.sqlite3"))).IsEquivalentTo(file);
+
+        var unknown = await PutAsync(app, "not-an-upload", 0, file.AsMemory(0, 10));
+        await Assert.That(unknown.StatusCode).IsEqualTo(HttpStatusCode.NotFound);
+    }
+
+    [Test]
+    public async Task A_file_that_is_not_an_SQLite_database_or_is_longer_than_said_is_refused()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        var text = "this is not a database, just a text file"u8.ToArray();
+        var uploadId = await StartAsync(app, text.Length);
+        await Assert.That((await PutAsync(app, uploadId, 0, text)).StatusCode).IsEqualTo(HttpStatusCode.UnsupportedMediaType);
+        await Assert.That((await StatusAsync(app)).GetProperty("received").GetInt64()).IsEqualTo(0);
+
+        var header = "SQLite format 3\0"u8.ToArray();
+        uploadId = await StartAsync(app, header.Length - 1);
+        await Assert.That((await PutAsync(app, uploadId, 0, header)).StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+
+        var empty = await app.Api.PostAsJsonAsync("/1/legacy-import", new { size = 0 });
+        await Assert.That(empty.StatusCode).IsEqualTo(HttpStatusCode.BadRequest);
+        var huge = await app.Api.PostAsJsonAsync("/1/legacy-import", new { size = long.MaxValue });
+        await Assert.That(huge.StatusCode).IsEqualTo(HttpStatusCode.RequestEntityTooLarge);
+    }
+
+    [Test]
+    public async Task A_broken_file_fails_with_the_reason_and_is_kept_until_discarded()
+    {
+        await using var app = await VrcxScenario.StartAsync();
+        // An SQLite header with nothing a database needs after it.
+        var broken = "SQLite format 3\0"u8.ToArray().Concat(new byte[4096]).ToArray();
+        var uploadId = await UploadAsync(app, broken, parts: 1);
+
+        var failed = await RunAsync(app, $"/1/legacy-import/{uploadId}/dry-run");
+        await Assert.That(failed.GetProperty("state").GetString()).IsEqualTo("failed");
+        await Assert.That(failed.GetProperty("error").GetString()).IsNotNull().And.IsNotEmpty();
+        await Assert.That(File.Exists(Path.Combine(UploadDirectory(app), "VRCX.sqlite3"))).IsTrue();
+
+        var discarded = await app.Api.DeleteAsync("/1/legacy-import");
+        await Assert.That(discarded.StatusCode).IsEqualTo(HttpStatusCode.NoContent);
+        await Assert.That(File.Exists(Path.Combine(UploadDirectory(app), "VRCX.sqlite3"))).IsFalse();
+        await Assert.That((await StatusAsync(app)).GetProperty("state").GetString()).IsEqualTo("none");
+    }
+
+    private static string UploadDirectory(VrcxScenario app) => Path.GetFullPath(app.Services.GetRequiredService<VRCX.Common.Options.LegacyImportUploadOptions>().Dir);
+
+    private static async Task<string> StartAsync(VrcxScenario app, long size)
+    {
+        var response = await app.Api.PostAsJsonAsync("/1/legacy-import", new { size });
+        await VrcxScenario.EnsureSuccessAsync(response, "start upload");
+        return (await response.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("uploadId").GetString()!;
+    }
+
+    private static Task<HttpResponseMessage> PutAsync(VrcxScenario app, string uploadId, long offset, ReadOnlyMemory<byte> part)
+    {
+        var content = new ReadOnlyMemoryContent(part);
+        content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+        return app.Api.PutAsync($"/1/legacy-import/{uploadId}?offset={offset}", content);
+    }
+
+    private static async Task<string> UploadAsync(VrcxScenario app, byte[] file, int parts)
+    {
+        var uploadId = await StartAsync(app, file.LongLength);
+        var size = (file.Length + parts - 1) / parts;
+        for (var offset = 0; offset < file.Length; offset += size)
+            await VrcxScenario.EnsureSuccessAsync(await PutAsync(app, uploadId, offset, file.AsMemory(offset, Math.Min(size, file.Length - offset))), "upload part");
+        return uploadId;
+    }
+
+    private static async Task<JsonElement> RunAsync(VrcxScenario app, string path)
+    {
+        await VrcxScenario.EnsureSuccessAsync(await app.Api.PostAsync(path, null), path);
+        await app.Services.GetRequiredService<LegacyImportRuns>().Running;
+        return await StatusAsync(app);
+    }
+
+    private static Task<JsonElement> StatusAsync(VrcxScenario app) => app.GetJsonAsync("/1/legacy-import");
+
+    private static JsonElement Table(JsonElement status, string source) =>
+        status.GetProperty("report").GetProperty("tables").EnumerateArray().Single(t => t.GetProperty("source").GetString() == source);
 
     private static Task<ImportReport> ImportAsync(VrcxScenario app, string path) =>
         LegacyImporter.RunAsync(new LegacyImportOptions { SqlitePath = path, ConnectionString = app.Database.ConnectionString });

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 /// <summary>What happened to one source table (or one derived set of rows).</summary>
 public sealed class TableReport(string source, string target)

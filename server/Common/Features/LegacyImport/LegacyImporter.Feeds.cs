@@ -1,6 +1,6 @@
 using VRCX.Common.Services.Presence;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 // The friend feeds: where friends went (GPS, online/offline) and what they changed (status, bio,
 // avatar). The original kept a copy per account; here they are facts about the friend, stored once.

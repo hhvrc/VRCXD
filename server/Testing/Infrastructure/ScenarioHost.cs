@@ -64,6 +64,7 @@ internal sealed class ScenarioHost(ScenarioHostSettings settings) : WebApplicati
             Environment.SetEnvironmentVariable("VRCX__AUTH__TOKEN", settings.ApiToken);
             Environment.SetEnvironmentVariable("VRCX__IMAGES__DIR", settings.ImageDirectory);
             Environment.SetEnvironmentVariable("VRCX__KEYS__DIR", Path.Combine(settings.ImageDirectory, "keys"));
+            Environment.SetEnvironmentVariable("VRCX__LEGACYIMPORT__DIR", Path.Combine(settings.ImageDirectory, "legacy-import"));
             // Set or cleared every time: the variable is process-wide and the previous host may have set it.
             Environment.SetEnvironmentVariable("VRCX__MCP__ENABLED", settings.EnableMcp ? "true" : null);
             // A test project gets its content root from the attribute Mvc.Testing generates into

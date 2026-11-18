@@ -4,7 +4,7 @@ using NpgsqlTypes;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 /// <summary>
 /// The users, worlds, groups, avatars and instances the imported rows point at. Rows only name

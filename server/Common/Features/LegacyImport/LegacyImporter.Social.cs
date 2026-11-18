@@ -3,7 +3,7 @@ using Npgsql;
 using NpgsqlTypes;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 // Friends, the friend log, notifications and the other per-account tables.
 public sealed partial class LegacyImporter

@@ -1,4 +1,4 @@
-using VRCX.LegacyImport;
+using VRCX.Common.Features.LegacyImport;
 
 // LegacyImport --sqlite <VRCX.sqlite3> [--dry-run] [--connection <npgsql>] [--game-log-account usr_...] [--match-window-seconds N]
 // The connection string can also come from VRCX__DB__CONN, as for the server and dotnet ef.

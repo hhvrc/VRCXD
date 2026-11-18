@@ -2,7 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 // What the original kept for the PC rather than per account: memos, local favorites, the avatar
 // and world caches, and the configs table.

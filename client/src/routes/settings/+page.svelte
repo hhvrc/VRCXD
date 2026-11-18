@@ -24,6 +24,7 @@
 	import { wristFeedSettings } from '#lib/notifications/wrist-feed.svelte.js';
 	import TranslationApiDialog from '#lib/components/settings/translation-api-dialog.svelte';
 	import DatabaseCleanup from '#lib/components/settings/database-cleanup.svelte';
+	import LegacyImport from '#lib/components/settings/legacy-import.svelte';
 	import { errorReporting } from '#lib/settings/error-reporting.svelte.js';
 	import Languages from '@lucide/svelte/icons/languages';
 	import { translation } from '#lib/settings/translation.svelte.js';
@@ -903,6 +904,7 @@
 						</div>
 					</SettingsGroup>
 					<DatabaseCleanup value={settings.avatarAutoCleanup ?? 'Off'} onchange={(v) => saveSettings({ avatarAutoCleanup: v })} />
+					<LegacyImport />
 					<SettingsGroup title={m.view_settings_advanced_advanced_launch_commands_header()}>
 						<SettingsItem label={m.view_settings_advanced_advanced_launch_commands_show_confirmation_on_switch_avatar_enable()} description={m.view_settings_advanced_advanced_launch_commands_show_confirmation_on_switch_avatar_tooltip()} toggle>
 							<Switch checked={switchAvatarConfirm} aria-label={m.view_settings_advanced_advanced_launch_commands_show_confirmation_on_switch_avatar_enable()} onCheckedChange={(v) => { switchAvatarConfirm = v; storeSetting(SWITCH_AVATAR_CONFIRM_KEY, v); }} />

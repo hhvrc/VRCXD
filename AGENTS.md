@@ -13,7 +13,7 @@ apply only there.
 | `server/` | ASP.NET Core (.NET 11), EF Core on Postgres, Redis, Hangfire. REST under `/1/`, the protobuf websocket `/1/ws`, MCP at `/1/mcp` | `server/README.md`, `server/AGENTS.md` |
 | `server/Common/Protos/vrcx_live.proto` | The one websocket contract, shared by server, client and agent | |
 | `server/Testing/` | The integration test harness (`VrcxScenario` and the fakes) | `server/Testing/README.md` |
-| `server/LegacyImport/` | One-time import of an original VRCX database | `server/LegacyImport/README.md` |
+| `server/LegacyImport/` | The command line import of an original VRCX database; the importer is `server/Common/Features/LegacyImport/` | `server/LegacyImport/README.md` |
 | `client/` | SvelteKit static web client, Svelte 5 runes, paraglide i18n | `client/README.md`, `client/AGENTS.md` |
 | `agent/` | Headless Rust agent for the PC that runs VRChat | `agent/README.md`, `agent/AGENTS.md` |
 | `docs/desktop-ipc.md` | The VRCX named pipe the agent runs | |

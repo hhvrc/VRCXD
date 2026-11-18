@@ -118,8 +118,28 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
 }
 
 
+/** Sends raw bytes as the body, for a file going up in parts (the legacy import). */
+async function putBytes<T>(path: string, body: Blob, query?: Query): Promise<T> {
+	const headers: Record<string, string> = { accept: 'application/json', 'content-type': 'application/octet-stream' };
+	const token = getServerToken();
+	if (token) headers['VrcxToken'] = token;
+	let response: Response;
+	try {
+		response = await fetch(withQuery(path, query), { method: 'PUT', headers, body });
+	} catch (err) {
+		throw new ApiError(0, undefined, `Couldn't reach the server: ${(err as Error).message}`);
+	}
+	if (response.status === 401) serverAuth.needsToken = true;
+	if (!response.ok) {
+		const problem = (await response.json().catch(() => undefined)) as Problem | undefined;
+		throw new ApiError(response.status, problem, problem?.detail || problem?.title || `${response.status} ${response.statusText}`);
+	}
+	return (await response.json()) as T;
+}
+
 export const api = {
 	upload,
+	putBytes,
 	get: <T>(path: string, query?: Query) => request<T>('GET', path, undefined, query),
 	post: <T>(path: string, body?: unknown, query?: Query) => request<T>('POST', path, body ?? null, query),
 	put: <T>(path: string, body?: unknown) => request<T>('PUT', path, body),

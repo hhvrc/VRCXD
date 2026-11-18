@@ -78,3 +78,16 @@ public static class VrchatError
     public static VrcxProblem Upstream(string? detail) => new("Vrchat.Upstream", "VRChat returned an error", HttpStatusCode.BadGateway, detail);
     public static VrcxProblem SessionExpired => new("Vrchat.SessionExpired", "VRChat no longer accepts this account's session; log in again", HttpStatusCode.Conflict);
 }
+
+public static class LegacyImportError
+{
+    public static VrcxProblem Busy => new("LegacyImport.Busy", "A check or an import of the uploaded file is running", HttpStatusCode.Conflict);
+    public static VrcxProblem UnknownUpload => new("LegacyImport.UnknownUpload", "No such upload; start the upload again", HttpStatusCode.NotFound);
+    public static VrcxProblem NotUploaded => new("LegacyImport.NotUploaded", "The file has not been uploaded completely", HttpStatusCode.Conflict);
+    public static VrcxProblem WrongOffset(long expected) => new("LegacyImport.WrongOffset", "That part of the file does not follow what was received", HttpStatusCode.Conflict, $"The upload continues at byte {expected}");
+    public static VrcxProblem TooLarge(long max) => new("LegacyImport.TooLarge", "The file is larger than this server takes", HttpStatusCode.RequestEntityTooLarge, $"At most {max} bytes");
+    public static VrcxProblem Empty => new("LegacyImport.Empty", "The file is empty", HttpStatusCode.BadRequest);
+    public static VrcxProblem NoSpace(long free) => new("LegacyImport.NoSpace", "There is not enough free disk space on the server for the file", HttpStatusCode.InsufficientStorage, $"{free} bytes are free");
+    public static VrcxProblem NotSqlite => new("LegacyImport.NotSqlite", "That is not an SQLite database; pick VRCX.sqlite3", HttpStatusCode.UnsupportedMediaType);
+    public static VrcxProblem PastTheEnd => new("LegacyImport.PastTheEnd", "More was sent than the file's size", HttpStatusCode.BadRequest);
+}

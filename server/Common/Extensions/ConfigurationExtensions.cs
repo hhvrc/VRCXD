@@ -37,6 +37,14 @@ public static class ConfigurationExtensions
         return options;
     }
 
+    public static LegacyImportUploadOptions RegisterLegacyImportOptions(this WebApplicationBuilder builder)
+    {
+        var options = builder.Configuration.GetSection("VRCX:LegacyImport").Get<LegacyImportUploadOptions>() ?? new LegacyImportUploadOptions();
+        if (options.MaxSize <= 0) throw new InvalidOperationException("VRCX:LegacyImport:MaxSize must be above 0.");
+        builder.Services.AddSingleton(options);
+        return options;
+    }
+
     public static VrchatOptions RegisterVrchatOptions(this WebApplicationBuilder builder)
     {
         var options = builder.Configuration.GetSection("VRCX:Vrchat").Get<VrchatOptions>() ?? new VrchatOptions();

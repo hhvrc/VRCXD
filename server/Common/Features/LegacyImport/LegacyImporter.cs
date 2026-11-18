@@ -5,7 +5,7 @@ using Npgsql;
 using NpgsqlTypes;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 public sealed record LegacyImportOptions
 {
@@ -26,7 +26,12 @@ public sealed record LegacyImportOptions
     /// the same event (both apps watching the same friend). Exact re-imports always match.
     /// </summary>
     public TimeSpan MatchWindow { get; init; } = TimeSpan.FromMinutes(2);
+    /// <summary>Told as each step starts, so a page can show how far the import is.</summary>
+    public IProgress<LegacyImportProgress>? Progress { get; init; }
 }
+
+/// <summary>The step that is starting (from 1) of how many, and what it imports.</summary>
+public sealed record LegacyImportProgress(int Step, int Steps, string Name);
 
 /// <summary>
 /// Carries the original VRCX's SQLite database into this server's Postgres, table by table, see
@@ -94,21 +99,33 @@ public sealed partial class LegacyImporter
     private async Task ImportAsync()
     {
         _accounts = _src.Accounts();
+        var steps = 7 + _accounts.Count;
+        var step = 0;
+        void Starting(string name) => _options.Progress?.Report(new LegacyImportProgress(++step, steps, name));
+
+        Starting("names");
         CollectNames();
         _refs.LatestUserNames = _latestName.ToDictionary(kv => kv.Key, kv => kv.Value.Name, StringComparer.Ordinal);
 
+        Starting("accounts");
         await AccountsAsync();
+        Starting("cached avatars and worlds");
         await CachedEntitiesAsync();
+        Starting("game log");
         await GameLogAsync();
         foreach (var account in _accounts)
         {
+            Starting($"friend log, feed and notifications of {account.UserId}");
             await FriendLogAsync(account);
             await FeedsAsync(account);
             await NotificationsAsync(account);
             await AccountTablesAsync(account);
         }
+        Starting("name and trust changes");
         await NameAndTrustChangesAsync();
+        Starting("memos, favorites and tags");
         await LocalDataAsync();
+        Starting("settings");
         await SettingsAsync();
         SkippedTables();
     }

@@ -27,7 +27,7 @@ server/
   API/                  controllers (one file per endpoint), request/response models,
                         Hangfire jobs ([CronJob]), the pipeline hosted service, Program.cs
   MigrationHelper/      startup project for dotnet ef
-  LegacyImport/         one-time import of an original VRCX database (LegacyImport/README.md)
+  LegacyImport/         the command line import of an original VRCX database (LegacyImport/README.md)
   Common.Tests/         TUnit: wire protocol + store semantics (Postgres via Testcontainers)
   API.IntegrationTests/ TUnit: the real host, fake VRChat, Testcontainers Postgres
   Testing/              the integration test harness: VrcxScenario and the fakes (Testing/README.md)
@@ -48,6 +48,8 @@ The `VRCX:*` configuration schema, as environment variables:
 | `VRCX__REDIS__CONN`       | x        |                 | Current presence, live game client state, pending presence changes, Hangfire jobs |
 | `VRCX__IMAGES__DIR`       |          | `image-cache`   | Where VRChat's images are kept on disk. Safe to delete: they are fetched again |
 | `VRCX__KEYS__DIR`         |          | `keys`          | Keys that encrypt the stored VRChat session cookies. Keep out of database backups; losing them means logging in again |
+| `VRCX__LEGACYIMPORT__DIR` |          | `legacy-import` | Where a VRCX database uploaded from the Settings page waits to be imported. Needs room for the file (often 700 MB or more); emptied after the import |
+| `VRCX__LEGACYIMPORT__MAXSIZE` |      | 8 GiB           | The largest such file taken, in bytes                        |
 | `VRCX__ERRORREPORTING__DSN` |        | (none)          | A Sentry DSN for the web client's opt-in error reports. Unset: error reporting is off, users are never asked and nothing is sent |
 | `VRCX__DB__DEBUG`         |          | `false`         | Sensitive data logging + detailed errors                     |
 | `VRCX__AUTH__TOKEN`       | x        |                 | The one API token; `VrcxToken:` header or `Authorization: Bearer` |
@@ -223,7 +225,8 @@ token travels in plain HTTP, so keep `VRCX_BIND` on the LAN address and do not f
 Watch `GET /1/health` (allowed from private networks): it says `degraded` and names the account
 when a VRChat session is lost or friend sync stalls, while still answering 200.
 
-To import the original VRCX's database once the server has started, see `LegacyImport/README.md`.
+To import the original VRCX's database, upload it on the Settings page (Advanced, Import from
+VRCX), or run the command line tool; see `LegacyImport/README.md`.
 
 ## Develop
 

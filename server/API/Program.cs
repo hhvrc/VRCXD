@@ -19,6 +19,7 @@ var builder = VrcxApplication.CreateDefaultBuilder<Program>(args);
 var databaseOptions = builder.RegisterDatabaseOptions();
 var redisOptions = builder.RegisterRedisOptions();
 builder.RegisterImageOptions();
+builder.RegisterLegacyImportOptions();
 builder.RegisterVrchatOptions();
 builder.RegisterKeyOptions();
 builder.RegisterErrorReportingOptions();

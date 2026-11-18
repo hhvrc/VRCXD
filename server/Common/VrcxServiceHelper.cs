@@ -295,6 +295,7 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.QuickSearch.QuickSearchQueries>();
         services.AddScoped<VRCX.Common.Features.Avatars.AvatarHistory>();
         services.AddScoped<VRCX.Common.Features.Memos.MemoStore>();
+        services.AddSingleton<VRCX.Common.Features.LegacyImport.LegacyImportRuns>();
 
         return services;
     }

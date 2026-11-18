@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
 
-namespace VRCX.LegacyImport;
+namespace VRCX.Common.Features.LegacyImport;
 
 /// <summary>
 /// The original VRCX database, opened read-only. The whole import reads from one snapshot (a read
@@ -52,8 +52,17 @@ public sealed partial class LegacyDatabase : IDisposable
             DefaultTimeout = 30,
         }.ToString();
         var connection = new SqliteConnection(connectionString);
-        connection.Open();
-        return new LegacyDatabase(connection);
+        try
+        {
+            connection.Open();
+            return new LegacyDatabase(connection);
+        }
+        catch
+        {
+            // A file that is not a database fails here; left open, its handle keeps the file locked.
+            connection.Dispose();
+            throw;
+        }
     }
 
     public IReadOnlyCollection<string> Tables => _columns.Keys;
