@@ -36,9 +36,16 @@
 	import { vrchatAuth } from '#lib/api/vrchat-auth.svelte.js';
 	import { appearance } from '#lib/settings/appearance.svelte.js';
 	import { NOTIFICATION_LABELS, boopView, canDecline, detailsOf, linkHref, openLink, responseIcon } from '#lib/notifications/notification-meta.js';
+	import { notificationCenter } from '#lib/notifications/notification-center.svelte.js';
+	import { mergeNotificationLog } from '#lib/notifications/notification-log.js';
 
-	// The original's Notifications table over GET /1/accounts/{id}/notifications. Declining marks a
-	// row hidden, and deleting takes it off this page. Neither removes the row from the database.
+	// The original's Notifications table. Declining marks a row hidden, and deleting takes it off this
+	// page. Neither removes the row from the database.
+	//
+	// The table is read over REST once when the page opens, and after that the notifications topic
+	// (which the notification center already follows) keeps it current: its rows replace REST's for
+	// the newest ones, so an event no longer reads every page again. Rows older than the topic
+	// carries stay as read. A server without the topic reloads on the events, as before.
 
 	const FILTER_TYPES = [
 		'requestInvite',
@@ -68,7 +75,10 @@
 	].map((value) => ({ value, label: NOTIFICATION_LABELS[value] }));
 	const FILTERS_KEY = 'VRCX_notificationTableFilters';
 
-	let rows = $state.raw<Notification[]>([]);
+	/** The table as last read over REST. */
+	let restRows = $state.raw<Notification[]>([]);
+	const viaTopic = $derived(notificationCenter.followsTopic);
+	const rows = $derived(viaTopic ? mergeNotificationLog(notificationCenter.allRows, restRows, appearance.maxTableSize.value) : restRows);
 	let loading = $state(false);
 	let refreshing = $state(false);
 	let loadError = $state('');
@@ -118,7 +128,7 @@
 				all.push(...page.items);
 				if (pageNumber >= page.totalPages || page.items.length === 0) break;
 			}
-			rows = all.slice(0, max);
+			restRows = all.slice(0, max);
 			loadError = '';
 		} catch (err) {
 			loadError = ApiError.from(err).message;
@@ -165,7 +175,8 @@
 
 	const hide = (row: Notification) => act(() => api.post(path(row, '/hide'), {}));
 	const removeLog = (row: Notification) => {
-		rows = rows.filter((r) => r.id !== row.id);
+		// Gone from the table at once; from the topic's rows it goes with the server's delta.
+		restRows = restRows.filter((r) => r.id !== row.id);
 		return act(() => api.delete(path(row)));
 	};
 
@@ -192,7 +203,8 @@
 			(data) => (currentLocation = data.currentLocation ?? null),
 			() => (currentLocation = null)
 		);
-		return watchLive(['notification'], load, 500);
+		// Following the topic, the server sends the changed rows themselves: nothing to read on an event.
+		return watchLive(['notification'], () => (notificationCenter.followsTopic ? undefined : load()), 500);
 	});
 
 	const columns: Column<Notification>[] = [

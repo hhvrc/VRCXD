@@ -58,14 +58,15 @@ newest 500, newest first. Older notifications are only on REST, and a row older 
 sent when it changes. `NotificationWriter` announces every notification a `SaveChanges` wrote, and
 makes the two bulk changes itself (hiding friend requests answered elsewhere, taking a row off the
 page). A removal means the row left the list: it was taken off the page, or it is a friend request
-or group notice that was answered. A row carries its sender's name as it was when the row last
-changed.
+or group notice that was answered. A row shows its sender's name, so the writer also announces a
+user's display name changing, and the rows that user sent are sent again in every account.
 
 `AccountRowsTopic<TRow>` is the base for a topic of this shape: rows per account with a key, one
 shared feed per subscribed account, coalescing, and whole-row upserts and removals. A new topic
 overrides the key, the read (everything, or just some keys) and the two payload builders, and its
-writer calls `Changed(accountId, keys)` after commit. The friends topic predates it and does the
-same by hand, because a change to one user reaches every account that has them as a friend.
+writer calls `Changed(accountId, keys)` after commit, or `ChangedWhere(match)` when what changed is
+not a row's key but something rows show (a sender's name). The friends topic predates it and does
+the same by hand, because a change to one user reaches every account that has them as a friend.
 
 ## Client
 
@@ -76,8 +77,10 @@ store `unsupported`.
 
 The notification center (the sidebar bell) follows the `notifications` topic the same way the
 friend list follows `friends`: it waits up to four seconds for the first snapshot, shows the rows
-that are not hidden, and falls back to REST plus events without it. The Notifications page still
-reads its pages over REST, since it shows more than the topic carries.
+that are not hidden, and falls back to REST plus events without it. The Notifications page shows
+more than the topic carries, so it reads its pages over REST once when it opens and lays the
+topic's rows over them (`notification-log.ts`): for the time the topic covers its rows are the
+truth, and older rows stay as read. It no longer reads again on an event.
 
 Keep each feature's encoding and reduction in a plain module:
 

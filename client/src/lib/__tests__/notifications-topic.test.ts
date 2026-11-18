@@ -4,6 +4,7 @@ import { timestampFromDate } from '@bufbuild/protobuf/wkt';
 import { NotificationEntrySchema } from '../gen/vrcx_live_pb.js';
 import type { Notification } from '../api/types.js';
 import { applyNotificationsDelta, applyNotificationsSnapshot, notificationFromEntry } from '../live/topics/notifications.js';
+import { mergeNotificationLog } from '../notifications/notification-log.js';
 
 const get = vi.hoisted(() => vi.fn());
 const post = vi.hoisted(() => vi.fn(async () => ({})));
@@ -122,6 +123,8 @@ describe('notification center and the topic', () => {
 		const { center, wait } = await started();
 		topic.emit([row('a'), row('gone', { hidden: true })], 'live');
 		expect(center.rows.map((n) => n.id)).toEqual(['a']);
+		// The Notifications page lists the hidden ones too.
+		expect(center.allRows.map((n) => n.id)).toEqual(['a', 'gone']);
 		expect(center.followsTopic).toBe(true);
 
 		topic.emit([row('b'), row('a', { seen: true })], 'live');
@@ -166,5 +169,39 @@ describe('notification center and the topic', () => {
 		release({ items: [row('stale')] });
 		await vi.advanceTimersByTimeAsync(0);
 		expect(center.rows.map((n) => n.id)).toEqual(['live']);
+	});
+});
+
+// The Notifications page: the table REST returned when it opened, with the topic's rows over it.
+describe('notification log merge', () => {
+	const at = (minute: number) => new Date(Date.UTC(2026, 10, 18, 12, minute)).toISOString();
+	const row = (id: string, minute: number, more: Partial<Notification> = {}): Notification => ({ id, version: 1, type: 'invite', message: '', seen: false, hidden: false, createdAt: at(minute), ...more });
+
+	test('without topic rows the table is what REST returned, cut to the table size', () => {
+		expect(mergeNotificationLog([], [row('b', 2), row('a', 1)], 1).map((n) => n.id)).toEqual(['b']);
+	});
+
+	test("the topic's row replaces REST's, and new ones come first", () => {
+		const rest = [row('b', 2), row('a', 1)];
+		const live = [row('c', 3), row('b', 2, { seen: true }), row('a', 1)];
+		expect(mergeNotificationLog(live, rest, 10).map((n) => [n.id, n.seen])).toEqual([['c', false], ['b', true], ['a', false]]);
+	});
+
+	test('rows older than the topic carries stay as REST read them', () => {
+		const rest = [row('c', 30), row('b', 20), row('old2', 10), row('old1', 5)];
+		const live = [row('c', 30), row('b', 20)];
+		expect(mergeNotificationLog(live, rest, 10).map((n) => n.id)).toEqual(['c', 'b', 'old2', 'old1']);
+		expect(mergeNotificationLog(live, rest, 3).map((n) => n.id)).toEqual(['c', 'b', 'old2']);
+	});
+
+	test('a row from the time the topic covers that it no longer has was removed, and goes', () => {
+		const rest = [row('c', 30), row('removed', 25), row('b', 20), row('old', 5)];
+		const live = [row('c', 30), row('b', 20)];
+		expect(mergeNotificationLog(live, rest, 10).map((n) => n.id)).toEqual(['c', 'b', 'old']);
+	});
+
+	test("a row at the very time of the topic's oldest is kept: the cap may have cut it off", () => {
+		const rest = [row('b', 20), row('tie', 20), row('old', 5)];
+		expect(mergeNotificationLog([row('b', 20)], rest, 10).map((n) => n.id).sort()).toEqual(['b', 'old', 'tie']);
 	});
 });

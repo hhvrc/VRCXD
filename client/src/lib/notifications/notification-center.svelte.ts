@@ -21,6 +21,8 @@ export const NOTIFICATIONS_TOPIC_WAIT_MS = 4000;
 class NotificationCenter {
 	open = $state(false);
 	rows = $state.raw<Notification[]>([]);
+	/** The topic's rows, hidden ones included, newest first: what the Notifications page lists. Empty while there is no topic. */
+	allRows = $state.raw<Notification[]>([]);
 	now = $state(Date.now());
 	#pendingSee = new Set<string>();
 
@@ -39,7 +41,7 @@ class NotificationCenter {
 	#for = '';
 	/** The notifications topic for #for, while held. */
 	#topic: TopicHandle<Notification[]> | undefined;
-	#viaTopic = false;
+	#viaTopic = $state(false);
 	#topicWait: ReturnType<typeof setTimeout> | undefined;
 
 	/** The rows follow the topic: the events and reconnects need not read them. */
@@ -53,6 +55,7 @@ class NotificationCenter {
 		if (!account || account === this.#for) return;
 		this.#for = account;
 		this.rows = [];
+		this.allRows = [];
 		clearTimeout(this.#topicWait);
 		this.#topic?.release();
 		this.#viaTopic = false;
@@ -80,11 +83,13 @@ class NotificationCenter {
 				clearTimeout(this.#topicWait);
 				this.#viaTopic = true;
 				// The topic carries the hidden ones too, for the Notifications page; the bell does not show them.
+				this.allRows = notifications;
 				this.rows = notifications.filter((n) => !n.hidden);
 				this.now = Date.now();
 			} else if (status === 'unsupported' || status === 'closed') {
 				clearTimeout(this.#topicWait);
 				this.#viaTopic = false;
+				this.allRows = [];
 				fallBack();
 			}
 		});
