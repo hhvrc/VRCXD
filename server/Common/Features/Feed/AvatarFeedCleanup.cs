@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.Common.Services.Feed;
+namespace VRCX.Common.Features.Feed;
 
 /// <summary>
 /// The original's Database Cleanup (Settings, Advanced): purgeAvatarFeedData deletes the account's
@@ -24,6 +24,17 @@ public sealed class AvatarFeedCleanup(IDbContextFactory<VrcxContext> dbFactory, 
     public static readonly TimeSpan AutoCleanupInterval = TimeSpan.FromDays(7);
 
     public static string Normalize(string? value) => value is not null && AutoCleanupDays.Contains(value) ? value : "Off";
+
+    /// <summary>
+    /// The purge as the endpoint takes it: the rows older than that many days, or all of them. Null
+    /// when neither a positive day count nor all was chosen, and then nothing is deleted.
+    /// </summary>
+    public async Task<int?> PurgeChosenAsync(string accountId, int? olderThanDays, bool all, CancellationToken ct)
+    {
+        if (all) return await PurgeAsync(accountId, null, ct);
+        if (olderThanDays is > 0 and var days) return await PurgeAsync(accountId, time.GetUtcNow().AddDays(-days), ct);
+        return null;
+    }
 
     /// <summary>Deletes the account's avatar feed rows older than <paramref name="cutoff"/>, or all of them when it is null.</summary>
     /// <returns>The number of rows deleted.</returns>

@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Services;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 
-namespace VRCX.Common.Services.Feed;
+namespace VRCX.Common.Features.Feed;
 
 /// <summary>One row of the feed: the original's feed_* tables unioned, newest first.</summary>
 public sealed class FeedEntry
@@ -72,6 +73,10 @@ public interface IFeedService
 public sealed class FeedService(IDbContextFactory<VrcxContext> dbFactory) : IFeedService
 {
     public static readonly string[] AllTypes = ["GPS", "Online", "Offline", "Status", "Avatar", "Bio"];
+
+    /// <summary>The feed types in a comma separated list, as GET feed takes them. Names that are not feed types are dropped; none means all.</summary>
+    public static string[] ParseTypes(string? types) =>
+        (types ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Where(t => AllTypes.Contains(t)).ToArray();
 
     public async Task<IReadOnlyList<FeedEntry>> QueryAsync(string accountId, FeedQuery query, CancellationToken ct)
     {

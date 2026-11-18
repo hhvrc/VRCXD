@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 using VRCX.Common.Services.Charts;
-using VRCX.Common.Services.Feed;
+using VRCX.Common.Features.Feed;
 using VRCX.Common.VrcxDb;
 
 namespace VRCX.API.Mcp;

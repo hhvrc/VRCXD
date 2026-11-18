@@ -1,5 +1,5 @@
 using VRCX.API.Attributes;
-using VRCX.Common.Services.Feed;
+using VRCX.Common.Features.Feed;
 
 namespace VRCX.API.Jobs;
 

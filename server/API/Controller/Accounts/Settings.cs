@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.Common.Errors;
-using VRCX.Common.Services.Feed;
+using VRCX.Common.Features.Feed;
 using VRCX.Common.VrcxDb;
 
 namespace VRCX.API.Controller.Accounts;

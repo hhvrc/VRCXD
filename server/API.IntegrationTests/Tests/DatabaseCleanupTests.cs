@@ -4,7 +4,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using VRCX.API.Jobs;
-using VRCX.Common.Services.Feed;
+using VRCX.Common.Features.Feed;
 using VRCX.Common.VrcxDb;
 using VRCX.Testing;
 

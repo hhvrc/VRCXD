@@ -18,7 +18,7 @@ using VRCX.Common.Options;
 using VRCX.Common.Problems;
 using VRCX.Common.Services.Automation;
 using VRCX.Common.Services.Charts;
-using VRCX.Common.Services.Feed;
+using VRCX.Common.Features.Feed;
 using VRCX.Common.Services.Ingestion;
 using VRCX.Common.Services.Live;
 using VRCX.Common.Websocket;
