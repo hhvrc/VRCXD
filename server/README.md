@@ -169,7 +169,8 @@ own user, world and avatar memos. With several VRChat accounts logged in, accoun
 need an `account` argument (`list_accounts` names them) and fail rather than pick one. Lists are
 paged (50 rows by default, 200 at most). It is off by default because a client holding the
 token reads the whole stored history, as the web UI can. The tools live in `API/Mcp/`; their
-query logic is shared with the endpoints in `Common/Services/Queries/`.
+query logic is shared with the endpoints in `Common/Services/Queries/` and, for the features that
+have moved, `Common/Features/`.
 
 ## Run
 

@@ -55,45 +55,6 @@ public sealed class PrimaryPasswordResponse
     public required bool Enabled { get; init; }
 }
 
-/// <summary>One row of the Friend List page: everything its columns and search need.</summary>
-public sealed class FriendDetailResponse
-{
-    public required int FriendNumber { get; init; }
-    public required string UserId { get; init; }
-    public required string DisplayName { get; init; }
-    public required string TrustLevel { get; init; }
-    public required IReadOnlyList<string> Tags { get; init; }
-    public required string DeveloperType { get; init; }
-    public required string Status { get; init; }
-    public string? StatusDescription { get; init; }
-    public string? ThumbnailImageUrl { get; init; }
-    public string? Bio { get; init; }
-    public required IReadOnlyList<string> BioLinks { get; init; }
-    public string? Note { get; init; }
-    public string? Memo { get; init; }
-    /// <summary>Times the account's game log saw them join.</summary>
-    public required int JoinCount { get; init; }
-    public required long TimeTogetherMs { get; init; }
-    public DateTimeOffset? LastSeen { get; init; }
-    public required int MutualCount { get; init; }
-    public required bool MutualOptedOut { get; init; }
-    public DateTimeOffset? LastActivity { get; init; }
-    public DateTimeOffset? LastLogin { get; init; }
-    public DateOnly? DateJoined { get; init; }
-    public required bool IsFavorite { get; init; }
-    /// <summary>The full user object or profile has never been fetched.</summary>
-    public required bool NeedsLoad { get; init; }
-    /// <summary>The original's random name colour hue for this user id, 0 to 65535.</summary>
-    public required int NameHue { get; init; }
-}
-
-public sealed class FriendDetailsResponse
-{
-    public required IReadOnlyList<FriendDetailResponse> Friends { get; init; }
-    /// <summary>The account has turned off sharing its connections, so mutuals can't be loaded.</summary>
-    public required bool MutualOptOut { get; init; }
-}
-
 public sealed class UserResponse
 {
     public required string Id { get; init; }

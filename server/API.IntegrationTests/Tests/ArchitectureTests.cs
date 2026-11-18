@@ -1,0 +1,85 @@
+using System.Reflection;
+using Microsoft.AspNetCore.Mvc;
+using ModelContextProtocol.Server;
+using VRCX.API.Controller.Friends;
+using VRCX.Common.Services.Sessions;
+using VRCX.Common.VrcxDb;
+using VRCX.Vrchat;
+
+namespace VRCX.API.IntegrationTests.Tests;
+
+/// <summary>
+/// The ratchet for the target architecture (AGENTS.md): controllers and MCP tools call
+/// Common/Features and do not take the database, a VRChat client or the session manager
+/// themselves. What did so before its feature moved is listed in <see cref="NotYetMoved"/>; the
+/// list may only shrink, and nothing new may join it.
+/// </summary>
+public sealed class ArchitectureTests
+{
+    private static readonly Type[] Banned = [typeof(VrcxContext), typeof(VrchatApiClient), typeof(IAccountSessionManager)];
+
+    /// <summary>
+    /// Today's violations, as "Type: what it takes". Remove a line when its feature moves. Never add
+    /// one to make a change pass: move the code into the feature instead. The pure VRChat proxy
+    /// controllers stay as they are, so their lines stay too.
+    /// </summary>
+    private static readonly string[] NotYetMoved =
+    [
+        "AccountTools: IAccountSessionManager",
+        "AccountTools: VrcxContext",
+        "AccountsController: IAccountSessionManager",
+        "AccountsController: VrcxContext",
+        "AvatarsController: IAccountSessionManager",
+        "AvatarsController: VrcxContext",
+        "ContentTools: VrcxContext",
+        "DatabaseController: VrcxContext",
+        "FeedTools: VrcxContext",
+        "FriendTools: VrcxContext",
+        "GameLogTools: VrcxContext",
+        "GroupsController: IAccountSessionManager",
+        "GroupsController: VrcxContext",
+        "InstancesController: IAccountSessionManager",
+        "InstancesController: VrcxContext",
+        "ListTools: VrcxContext",
+        "UserTools: VrcxContext",
+        "UsersController: IAccountSessionManager",
+        "UsersController: VrcxContext",
+        "WorldsController: IAccountSessionManager",
+        "WorldsController: VrcxContext",
+    ];
+
+    private static List<string> Violations() =>
+        typeof(FriendsController).Assembly.GetTypes()
+            .Where(t => !t.IsAbstract && (typeof(ControllerBase).IsAssignableFrom(t) || t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null))
+            .SelectMany(t => t.GetConstructors().SelectMany(c => c.GetParameters())
+                .Concat(t.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly).SelectMany(m => m.GetParameters()))
+                .Select(p => p.ParameterType)
+                .Where(Banned.Contains)
+                .Select(p => $"{t.Name}: {p.Name}"))
+            .Distinct()
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+    [Test]
+    public async Task No_controller_or_mcp_tool_newly_takes_the_database_or_a_vrchat_session()
+    {
+        // Failed by hand, so the message names every new violation rather than the first few.
+        var added = Violations().Except(NotYetMoved).ToList();
+        if (added.Count > 0) Assert.Fail("Takes what only Common/Features may: " + string.Join(", ", added));
+        await Assert.That(added).IsEmpty();
+    }
+
+    [Test]
+    public async Task The_allow_list_holds_only_what_still_violates()
+    {
+        var moved = NotYetMoved.Except(Violations()).ToList();
+        if (moved.Count > 0) Assert.Fail("No longer violates; remove from NotYetMoved: " + string.Join(", ", moved));
+        await Assert.That(moved).IsEmpty();
+    }
+
+    [Test]
+    public async Task The_friends_feature_has_moved()
+    {
+        await Assert.That(Violations().Where(v => v.StartsWith(nameof(FriendsController) + ":", StringComparison.Ordinal)).ToList()).IsEmpty();
+    }
+}

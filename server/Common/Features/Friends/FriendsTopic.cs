@@ -3,7 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using VRCX.Common.Live;
 using VRCX.Common.Live.Topics;
 using VRCX.Common.Services.Presence;
-using VRCX.Common.Services.Queries;
 using VRCX.Common.VrcxDb;
 
 namespace VRCX.Common.Features.Friends;

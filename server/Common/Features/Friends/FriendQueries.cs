@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
-using VRCX.Common.Features.Friends;
+using VRCX.Common.Services;
 using VRCX.Common.Services.Presence;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.Common.Services.Queries;
+namespace VRCX.Common.Features.Friends;
 
 public sealed class FriendResponse
 {
@@ -38,6 +38,45 @@ public sealed class FriendResponse
     public string? IconFrame { get; init; }
     /// <summary>The friend's profile effect template id, drawn behind the Friends Locations card.</summary>
     public string? ProfileEffect { get; init; }
+}
+
+/// <summary>One row of the Friend List page: everything its columns and search need.</summary>
+public sealed class FriendDetailResponse
+{
+    public required int FriendNumber { get; init; }
+    public required string UserId { get; init; }
+    public required string DisplayName { get; init; }
+    public required string TrustLevel { get; init; }
+    public required IReadOnlyList<string> Tags { get; init; }
+    public required string DeveloperType { get; init; }
+    public required string Status { get; init; }
+    public string? StatusDescription { get; init; }
+    public string? ThumbnailImageUrl { get; init; }
+    public string? Bio { get; init; }
+    public required IReadOnlyList<string> BioLinks { get; init; }
+    public string? Note { get; init; }
+    public string? Memo { get; init; }
+    /// <summary>Times the account's game log saw them join.</summary>
+    public required int JoinCount { get; init; }
+    public required long TimeTogetherMs { get; init; }
+    public DateTimeOffset? LastSeen { get; init; }
+    public required int MutualCount { get; init; }
+    public required bool MutualOptedOut { get; init; }
+    public DateTimeOffset? LastActivity { get; init; }
+    public DateTimeOffset? LastLogin { get; init; }
+    public DateOnly? DateJoined { get; init; }
+    public required bool IsFavorite { get; init; }
+    /// <summary>The full user object or profile has never been fetched.</summary>
+    public required bool NeedsLoad { get; init; }
+    /// <summary>The original's random name colour hue for this user id, 0 to 65535.</summary>
+    public required int NameHue { get; init; }
+}
+
+public sealed class FriendDetailsResponse
+{
+    public required IReadOnlyList<FriendDetailResponse> Friends { get; init; }
+    /// <summary>The account has turned off sharing its connections, so mutuals can't be loaded.</summary>
+    public required bool MutualOptOut { get; init; }
 }
 
 public sealed class FriendLogEntryResponse
@@ -134,6 +173,93 @@ public sealed class FriendQueries(VrcxContext db, IPresenceCache presence, IPend
             };
         }).ToArray();
     }
+
+    /// <summary>
+    /// Every current friend with what the Friend List page shows and searches: GET friends/details.
+    /// Null when no such account is logged into this server.
+    /// </summary>
+    public async Task<FriendDetailsResponse?> ListFriendDetailsAsync(string accountId, CancellationToken cancellationToken)
+    {
+        var account = await db.Accounts.AsNoTracking().Where(a => a.UserId == accountId).Select(a => new { a.SharedConnectionsOptOut }).FirstOrDefaultAsync(cancellationToken);
+        if (account is null) return null;
+
+        var friends = await db.Friendships.AsNoTracking().CurrentOf(accountId)
+            .Select(f => new { f.FriendNumber, User = f.Friend })
+            .ToListAsync(cancellationToken);
+        var ids = friends.Select(f => f.User.Id).ToArray();
+
+        var notes = await db.UserNotes.AsNoTracking().Where(n => n.OwnerUserId == accountId && ids.Contains(n.TargetUserId))
+            .Select(n => new { n.TargetUserId, n.Note }).ToListAsync(cancellationToken);
+        var noteByUser = notes.GroupBy(n => n.TargetUserId).ToDictionary(g => g.Key, g => g.First().Note);
+        var memos = await db.UserMemos.AsNoTracking().Where(m => ids.Contains(m.UserId)).ToDictionaryAsync(m => m.UserId, m => m.Memo, cancellationToken);
+
+        // Only the game log says they were in the same instance as the account. Identical rows are
+        // counted once: the same join has been stored twice in places. Summed by Postgres: a friend
+        // list of a few hundred has tens of thousands of visits behind it, and only three numbers
+        // per friend leave the database.
+        var together = await db.InstanceVisits.AsNoTracking()
+            .Where(v => v.Source == VisitSource.GameLog && ids.Contains(v.UserId))
+            .Select(v => new { v.UserId, v.InstanceLocation, v.JoinedAt, v.LeftAt })
+            .Distinct()
+            .GroupBy(v => v.UserId)
+            .Select(g => new
+            {
+                g.Key,
+                Joins = g.Count(),
+                Ms = g.Where(v => v.LeftAt != null).Sum(v => (v.LeftAt!.Value - v.JoinedAt).TotalMilliseconds),
+                LastSeen = g.Max(v => v.LeftAt ?? v.JoinedAt),
+            })
+            .ToDictionaryAsync(g => g.Key, cancellationToken);
+
+        var mutualCounts = await db.MutualFriendLinks.AsNoTracking().Where(l => l.OwnerUserId == accountId)
+            .GroupBy(l => l.FriendUserId).Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(g => g.Key, g => g.Count, cancellationToken);
+        var optedOut = (await db.MutualGraphMetas.AsNoTracking().Where(m => m.OwnerUserId == accountId && m.OptedOut)
+            .Select(m => m.FriendUserId).ToListAsync(cancellationToken)).ToHashSet();
+
+        var favorites = await FavoriteFriends.IdSetAsync(db, accountId, cancellationToken);
+
+        return new FriendDetailsResponse
+        {
+            MutualOptOut = account.SharedConnectionsOptOut,
+            Friends = friends.Select(f =>
+            {
+                var user = f.User;
+                var seen = together.GetValueOrDefault(user.Id);
+                return new FriendDetailResponse
+                {
+                    FriendNumber = f.FriendNumber,
+                    UserId = user.Id,
+                    DisplayName = user.DisplayName,
+                    TrustLevel = user.TrustLevel,
+                    Tags = user.Tags,
+                    DeveloperType = user.DeveloperType,
+                    Status = user.Status,
+                    StatusDescription = user.StatusDescription,
+                    ThumbnailImageUrl = UserImage.Pick(user.IconUrl, user.CurrentAvatarThumbnailImageUrl, user.CurrentAvatarImageUrl),
+                    Bio = user.Bio,
+                    BioLinks = user.BioLinks,
+                    Note = noteByUser.GetValueOrDefault(user.Id),
+                    Memo = memos.GetValueOrDefault(user.Id),
+                    JoinCount = seen?.Joins ?? 0,
+                    TimeTogetherMs = (long)(seen?.Ms ?? 0),
+                    LastSeen = seen?.LastSeen,
+                    MutualCount = mutualCounts.GetValueOrDefault(user.Id),
+                    MutualOptedOut = optedOut.Contains(user.Id),
+                    LastActivity = user.LastActivity,
+                    LastLogin = user.LastLogin,
+                    DateJoined = user.DateJoined,
+                    IsFavorite = favorites.Contains(user.Id),
+                    NeedsLoad = user.LastFullFetchAt == null || user.ProfileFetchedAt == null,
+                    NameHue = NameHue(user.Id),
+                };
+            }).ToArray(),
+        };
+    }
+
+    /// <summary>Whether the account is logged into this server: what the friend endpoints answer 404 on.</summary>
+    public Task<bool> AccountExistsAsync(string accountId, CancellationToken cancellationToken) =>
+        db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken);
 
     /// <summary>The original's random name colour hue for a user id, 0 to 65535.</summary>
     public static int NameHue(string userId)

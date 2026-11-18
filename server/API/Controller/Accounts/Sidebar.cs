@@ -196,16 +196,6 @@ public sealed partial class AccountsController
     public Task<IActionResult> SaveClientConfig([FromRoute] string accountId, [FromBody] SaveClientConfigBody body, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client => await client.SaveClientConfigAsync(accountId, new Dictionary<string, bool> { ["accessReduceDecorAnim"] = body.AccessReduceDecorAnim }, cancellationToken));
 
-    /// <summary>Read the friend list from VRChat again, as the sidebar's refresh button does.</summary>
-    /// <response code="204">Refreshed</response>
-    /// <response code="409">No live session</response>
-    [HttpPost("{accountId}/friends/refresh")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
-    [MapToApiVersion("1")]
-    public Task<IActionResult> RefreshFriends([FromRoute] string accountId, CancellationToken cancellationToken) =>
-        RunAsync(accountId, _ => _sync.SyncFriendsAsync(accountId, cancellationToken));
-
     /// <summary>Open instances in the account's groups, as the Groups tab lists them.</summary>
     /// <response code="200">The instances</response>
     /// <response code="409">No live session</response>

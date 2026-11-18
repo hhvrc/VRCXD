@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.API.Services;
-using VRCX.Common.Services.Queries;
+using VRCX.Common.Features.Friends;
 using VRCX.Vrchat.Models;
 
 namespace VRCX.API.Controller.Accounts;

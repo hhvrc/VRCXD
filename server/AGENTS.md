@@ -10,7 +10,7 @@ changing before you change it.
 | --- | --- |
 | A VRChat call | `Vrchat/VrchatApiClient.cs`, models in `Vrchat/Models/` (skill `add-vrchat-endpoint`) |
 | Storing what VRChat returned | `Common/Services/Ingestion/VrchatStore.cs`, the only writer of VRChat data. Its methods take the caller's `VrcxContext` and do not save |
-| A read that REST and MCP share | `Common/Services/Queries/`, registered scoped in `Common/VrcxServiceHelper.cs` |
+| A read that REST and MCP share | `Common/Services/Queries/`, or `Common/Features/<Feature>/` for a moved feature; registered scoped in `Common/VrcxServiceHelper.cs` |
 | An endpoint | `API/Controller/<Area>/<Name>.cs`, one file per endpoint, a `partial` of the area's controller, `[MapToApiVersion("1")]` |
 | An API error | `Common/Errors/Errors.cs`: one static class per domain, stable `Domain.Reason` type strings |
 | A recurring job | `API/Jobs/`, found by `[CronJob]` |
@@ -37,8 +37,12 @@ is where its code lives.
   publish nothing, so pages go stale.
 - The topic's snapshot builder is the code that serves the REST GET and the MCP read. Do not
   write a second query for one of them.
-- Planned: a TUnit `ArchitectureTests` ratchet with a checked-in allow-list of today's
-  violations that may only shrink.
+- `API.IntegrationTests/Tests/ArchitectureTests.cs` is the ratchet: it lists the controllers and
+  MCP tools that still take one of those three, and fails on a new one or on a line that no longer
+  applies. The list may only shrink.
+- Friends is the moved feature to copy: `Common/Features/Friends/` (`FriendQueries`,
+  `FriendActions` for what goes to VRChat, `FriendWriter`, `FriendsTopic`) and
+  `API/Controller/Friends/FriendsController.cs`.
 - Never: a Domain / Application / Infrastructure project split, a generic `IRepository<T>`,
   MediatR or pipeline behaviours, route or proto shape changes inside a refactor, or large file
   moves while other worktrees are active.

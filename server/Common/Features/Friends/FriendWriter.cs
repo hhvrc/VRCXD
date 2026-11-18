@@ -53,6 +53,25 @@ public sealed class FriendWriter(VrchatStore store, FriendsTopic topic)
         await db.SaveChangesAsync(ct);
     }
 
+    /// <summary>
+    /// The account sent or withdrew a friend request through VRCXD: a FriendRequest or
+    /// CancelFriendRequest row of its friend log, with the name they had then. Saves.
+    /// </summary>
+    public static async Task LogRequestAsync(VrcxContext db, string accountId, string userId, string type, DateTimeOffset now, CancellationToken ct)
+    {
+        var name = await db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => u.DisplayName).FirstOrDefaultAsync(ct);
+        db.FriendRequestEvents.Add(new FriendRequestEvent { OwnerUserId = accountId, TargetUserId = userId, DisplayName = name ?? userId, Type = type, CreatedAt = now });
+        await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Removes a row from the account's friend log view; the history behind it stays. Saves.</summary>
+    public static async Task HideLogEntryAsync(VrcxContext db, string accountId, string key, DateTimeOffset now, CancellationToken ct)
+    {
+        if (await db.FriendLogHiddenEntries.AnyAsync(h => h.OwnerUserId == accountId && h.EntryKey == key, ct)) return;
+        db.FriendLogHiddenEntries.Add(new FriendLogHiddenEntry { OwnerUserId = accountId, EntryKey = key, HiddenAt = now });
+        await db.SaveChangesAsync(ct);
+    }
+
     /// <summary>Deletes the user's memo and announces the changed friend rows after commit.</summary>
     public async Task DeleteMemoAsync(VrcxContext db, string userId, CancellationToken ct)
     {

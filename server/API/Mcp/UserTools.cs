@@ -2,6 +2,7 @@ using System.ComponentModel;
 using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.Services.Presence;
 using VRCX.Common.Services.Queries;
 using VRCX.Common.VrcxDb;

@@ -41,9 +41,10 @@ public Task<Thing?> GetThingAsync(string worldId, CancellationToken ct = default
 
 ## 3. Use it
 
-- Get the account's client through `IAccountSessionManager` (controllers have helpers such as
-  `RunAsync(accountId, client => ...)` in `FriendActions.cs`). A 401 marks the session invalid;
-  do not retry.
+- Get the account's client through `IAccountSessionManager`. In a moved feature that is the
+  feature's actions class (`Common/Features/Friends/FriendActions.cs`); the accounts controller
+  still has `RunAsync(accountId, client => ...)` in `_ApiController.cs` for what has not moved. A
+  401 marks the session invalid; do not retry.
 - Store what comes back through `VrchatStore` in the caller's unit of work.
 - A write that the pipeline will echo (friend add, favorites) should not also trigger a refetch.
 
