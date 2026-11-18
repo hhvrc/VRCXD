@@ -1204,7 +1204,7 @@ public class VrcxContext : DbContext
 
 internal static class NulStripping
 {
-    public static string Strip(string value) => value.Contains(' ') ? value.Replace(" ", "", StringComparison.Ordinal) : value;
+    public static string Strip(string value) => value.Contains('\0') ? value.Replace("\0", "", StringComparison.Ordinal) : value;
 }
 
 internal sealed class NulStrippingStringConverter() : ValueConverter<string, string>(v => NulStripping.Strip(v), v => v);

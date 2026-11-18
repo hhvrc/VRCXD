@@ -193,8 +193,8 @@ public class StoreTests
         var dbs = await Postgres.NewDatabaseAsync(Presence);
         await using var db = dbs.CreateDbContext();
 
-        await Store.UpsertGroupAsync(db, new Vrchat.Models.Group { Id = "grp_nul", Name = "Nul Club", Description = "rules here", Links = ["https://a b"] }, T0, CancellationToken.None);
-        await Store.UpsertUserAsync(db, ApiUser("usr_nul", "Na me", bio: "bio "), T0, CancellationToken.None);
+        await Store.UpsertGroupAsync(db, new Vrchat.Models.Group { Id = "grp_nul", Name = "Nul\0Club", Description = "rules\0here", Links = ["https://a\0b"] }, T0, CancellationToken.None);
+        await Store.UpsertUserAsync(db, ApiUser("usr_nul", "Na\0me", bio: "bio\0"), T0, CancellationToken.None);
         await db.SaveChangesAsync();
 
         var group = await db.Groups.AsNoTracking().SingleAsync(g => g.Id == "grp_nul");

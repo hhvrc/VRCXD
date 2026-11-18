@@ -1,0 +1,27 @@
+name: Repository
+
+# Checks over the whole tree. Text files must stay text: a stray control byte (a raw NUL inside a
+# string literal, say) makes git, grep and code review treat the file as binary, so its diffs and
+# searches go blank. Write such characters as escapes (\0) instead. Files marked binary in
+# .gitattributes are left out.
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  text-files:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: No text file is detected as binary
+        run: |
+          bad=$(git ls-files --eol | awk -F '\t' '$1 ~ /^i\/-text/ { print $2 }' | while read -r f; do
+            [ "$(git check-attr binary -- "$f" | awk '{ print $NF }')" = set ] || echo "$f"
+          done)
+          if [ -n "$bad" ]; then echo "Text files detected as binary:"; echo "$bad"; exit 1; fi
