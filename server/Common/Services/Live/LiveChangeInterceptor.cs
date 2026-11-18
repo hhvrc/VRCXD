@@ -102,7 +102,7 @@ public sealed class LiveChangeInterceptor(ILiveEventBus bus) : SaveChangesInterc
             };
             if (item is { } i && seen.Add((i.Item1, i.Item2))) content.Add(LiveEvents.Content(i.Item1, i.Item2, i.Item3));
         }
-        var events = new List<ServerEvent>(users.Count + content.Count);
+        List<ServerEvent> events = [with(users.Count + content.Count)];
         foreach (var (userId, changed) in users)
         {
             var name = db.ChangeTracker.Entries<User>().FirstOrDefault(u => u.Entity.Id == userId)?.Entity.DisplayName ?? "";

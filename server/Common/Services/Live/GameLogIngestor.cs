@@ -295,8 +295,8 @@ public sealed class GameLogIngestor(
         public static async Task<BatchLookups> LoadAsync(VrcxContext db, GameLogSession session, IReadOnlyList<LogEntry> entries, CancellationToken ct)
         {
             var lookups = new BatchLookups();
-            var ids = new HashSet<string>(StringComparer.Ordinal);
-            var names = new HashSet<string>(StringComparer.Ordinal);
+            HashSet<string> ids = [with(StringComparer.Ordinal)];
+            HashSet<string> names = [with(StringComparer.Ordinal)];
             if (session.AccountId is { } account) ids.Add(account);
             foreach (var entry in entries)
             {
@@ -363,7 +363,7 @@ public sealed class GameLogIngestor(
                     .Where(v => v.InstanceLocation == location && v.Source == VisitSource.GameLog && v.LeftAt == null)
                     .Select(v => new { v.UserId, v.User.DisplayName })
                     .ToListAsync(ct);
-                here = new Dictionary<string, string>(StringComparer.Ordinal);
+                here = [with(StringComparer.Ordinal)];
                 foreach (var row in rows) here.TryAdd(row.DisplayName, row.UserId);
                 _namesInInstance[location] = here;
             }
@@ -392,7 +392,7 @@ public sealed class GameLogIngestor(
         }
         DateTimeOffset? newest = session.LastEntryAt;
         // Rows other than stays this batch adds, for one live event once they are saved.
-        var storedKinds = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> storedKinds = [with(StringComparer.Ordinal)];
 
         var currentAt = DateTimeOffset.UtcNow;
         VideoPlay? lastSpecPlay = null;
@@ -833,7 +833,7 @@ public sealed class GameLogIngestor(
         if (joined)
         {
             if (open is not null && open.InstanceLocation == session.CurrentInstanceLocation) return;
-            if (open is not null) open.LeftAt = at;
+            open?.LeftAt = at;
             if (await AlreadyStoredAsync(db, lookups, userId, session.CurrentInstanceLocation, at, ct)) return;
             db.InstanceVisits.Add(new InstanceVisit { UserId = userId, InstanceLocation = session.CurrentInstanceLocation, JoinedAt = at, Source = VisitSource.GameLog });
             published.Add(LiveEvents.Visit(userId, user.DisplayName, session.CurrentInstanceLocation, worldId, joined: true, VisitSource.GameLog));

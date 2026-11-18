@@ -130,14 +130,14 @@ public sealed class LiveSocketHandler(
         try
         {
             var buffer = new byte[64 * 1024];
-            while (socket.State == WebSocketState.Open && !closing.IsCancellationRequested)
+            receive: while (socket.State == WebSocketState.Open && !closing.IsCancellationRequested)
             {
                 using var frame = new MemoryStream();
                 ValueWebSocketReceiveResult result;
                 do
                 {
                     result = await socket.ReceiveAsync(buffer.AsMemory(), closing.Token);
-                    if (result.MessageType == WebSocketMessageType.Close) goto done;
+                    if (result.MessageType == WebSocketMessageType.Close) break receive;
                     frame.Write(buffer, 0, result.Count);
                     if (frame.Length > MaxFrameBytes) throw new WebSocketException("frame too large");
                 } while (!result.EndOfMessage);
@@ -286,7 +286,6 @@ public sealed class LiveSocketHandler(
                     finally { sendLock.Release(); }
                 }
             }
-            done:;
         }
         catch (OperationCanceledException) when (closing.IsCancellationRequested) { }
         catch (WebSocketException ex)

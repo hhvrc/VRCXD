@@ -32,7 +32,7 @@ public sealed partial class LegacyDatabase : IDisposable
             while (reader.Read()) tables.Add(reader.GetString(0));
         foreach (var table in tables)
         {
-            var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            HashSet<string> columns = [with(StringComparer.OrdinalIgnoreCase)];
             using var command = Command($"SELECT name FROM pragma_table_info('{table.Replace("'", "''")}')");
             using var reader = command.ExecuteReader();
             while (reader.Read()) columns.Add(reader.GetString(0));
@@ -127,7 +127,7 @@ public sealed partial class LegacyDatabase : IDisposable
     /// </summary>
     public IReadOnlyList<LegacyAccount> Accounts()
     {
-        var prefixes = new SortedSet<string>(StringComparer.Ordinal);
+        SortedSet<string> prefixes = [with(StringComparer.Ordinal)];
         foreach (var table in Tables)
         foreach (var suffix in AccountTableSuffixes)
         {
@@ -138,7 +138,7 @@ public sealed partial class LegacyDatabase : IDisposable
             }
         }
 
-        var known = new Dictionary<string, string>(StringComparer.Ordinal);
+        Dictionary<string, string> known = [with(StringComparer.Ordinal)];
         foreach (var row in Rows("configs", "key", "value"))
         {
             var key = row.String(0) ?? "";

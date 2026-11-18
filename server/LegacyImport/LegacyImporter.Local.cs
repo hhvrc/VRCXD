@@ -13,7 +13,7 @@ public sealed partial class LegacyImporter
     private Dictionary<string, string> Configs()
     {
         if (_configs is not null) return _configs;
-        _configs = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        _configs = [with(StringComparer.OrdinalIgnoreCase)];
         foreach (var r in _src.Rows("configs", "key", "value"))
             if (r.String(0) is { } key) _configs[key] = r.Raw(1) ?? "";
         return _configs;

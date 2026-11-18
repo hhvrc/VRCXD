@@ -118,7 +118,7 @@ public sealed partial class LegacyImporter
     private void SeeName(string? userId, string? name, DateTimeOffset? at)
     {
         if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(name) || !userId.StartsWith("usr_", StringComparison.Ordinal)) return;
-        if (!_idsByName.TryGetValue(name, out var ids)) _idsByName[name] = ids = new HashSet<string>(StringComparer.Ordinal);
+        if (!_idsByName.TryGetValue(name, out var ids)) _idsByName[name] = ids = [with(StringComparer.Ordinal)];
         ids.Add(userId);
         var when = at ?? DateTimeOffset.MinValue;
         if (!_latestName.TryGetValue(userId, out var latest) || when >= latest.At) _latestName[userId] = (name, when);

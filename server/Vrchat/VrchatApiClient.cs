@@ -1204,7 +1204,7 @@ public enum TwoFactorMethod
     EmailOtp,
 }
 
-public abstract record LoginResult
+public closed record LoginResult
 {
     public sealed record LoggedIn(CurrentUser User) : LoginResult;
     /// <summary>Methods as VRChat names them: "totp", "otp", "emailOtp".</summary>

@@ -32,7 +32,7 @@ public sealed class RedisPresenceCache : IPresenceCache
         try
         {
             var values = await _redis.GetDatabase().HashGetAsync(PresenceKey, ids.Select(id => (RedisValue)id).ToArray());
-            var found = new Dictionary<string, UserPresence>(StringComparer.Ordinal);
+            Dictionary<string, UserPresence> found = [with(StringComparer.Ordinal)];
             for (var i = 0; i < ids.Length; i++)
                 if (values[i].HasValue) found[ids[i]] = Deserialize(values[i]);
             return found;

@@ -994,7 +994,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     /// </summary>
     public async Task SyncUserGroupsAsync(VrcxContext db, string userId, IReadOnlyList<LimitedUserGroup> groups, DateTimeOffset now, CancellationToken ct, IReadOnlySet<string>? stillMember = null)
     {
-        var listed = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> listed = [with(StringComparer.Ordinal)];
         await PreloadGroupsAsync(db, groups.Select(g => g.GroupId), ct);
         await PreloadUsersAsync(db, groups.Select(g => g.OwnerId).Append(userId), ct);
         await PreloadMembershipsAsync(db, userId, groups.Select(g => g.GroupId), ct);
@@ -1121,7 +1121,7 @@ public sealed class VrchatStore(ILogger<VrchatStore> logger, IPresenceCache pres
     public async Task<Friendship?> RemoveFriendAsync(VrcxContext db, string ownerId, string friendId, DateTimeOffset now, CancellationToken ct)
     {
         var friendship = await db.Friendships.FirstOrDefaultAsync(f => f.OwnerUserId == ownerId && f.FriendUserId == friendId && f.EndedAt == null, ct);
-        if (friendship is not null) friendship.EndedAt = now;
+        friendship?.EndedAt = now;
         return friendship;
     }
 

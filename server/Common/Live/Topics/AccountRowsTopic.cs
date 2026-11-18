@@ -144,7 +144,7 @@ public abstract class AccountRowsTopic<TRow>(ILogger logger) : ILiveTopic where 
             lock (feed.Marks)
             {
                 (dirty, matchers, all) = (feed.Dirty, feed.Matchers, feed.All);
-                feed.Dirty = new HashSet<string>(StringComparer.Ordinal);
+                feed.Dirty = [with(StringComparer.Ordinal)];
                 feed.Matchers = [];
                 feed.All = false;
                 feed.Scheduled = false;
@@ -223,7 +223,7 @@ public abstract class AccountRowsTopic<TRow>(ILogger logger) : ILiveTopic where 
         public bool Broken { get; set; }
         /// <summary>The lock for Dirty, Matchers, All and Scheduled.</summary>
         public Lock Marks { get; } = new();
-        public HashSet<string> Dirty { get; set; } = new(StringComparer.Ordinal);
+        public HashSet<string> Dirty { get; set; } = [with(StringComparer.Ordinal)];
         /// <summary>Rows that match any of these are read again too.</summary>
         public List<Func<TRow, bool>> Matchers { get; set; } = [];
         public bool All { get; set; }

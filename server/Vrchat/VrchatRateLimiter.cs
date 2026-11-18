@@ -41,7 +41,7 @@ public sealed class VrchatRateLimiter
     // Waiters queue up here in arrival order; whoever holds it is the only one consulting the stamps.
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly Queue<DateTimeOffset> _stamps = new();
-    private readonly object _penaltyLock = new();
+    private readonly Lock _penaltyLock = new();
     private DateTimeOffset _blockedUntil = DateTimeOffset.MinValue;
 
     public VrchatRateLimiter(IReadOnlyList<Window> windows, TimeProvider? time = null)

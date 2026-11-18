@@ -10,7 +10,7 @@ namespace VRCX.Vrchat.Pipeline;
 /// string containing JSON (double-encoded), occasionally a real object, and
 /// for the see/hide/clear-notification types a bare id string.
 /// </summary>
-public abstract record PipelineEvent
+public closed record PipelineEvent
 {
     public required string Type { get; init; }
     /// <summary>The decoded content, for logging and for types this library doesn't model.</summary>

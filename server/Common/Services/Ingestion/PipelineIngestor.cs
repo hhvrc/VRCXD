@@ -268,7 +268,7 @@ public sealed class PipelineIngestor(IDbContextFactory<VrcxContext> dbFactory, V
             case "group-left" when p.GroupId is not null:
                 {
                     var membership = await db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == p.GroupId && m.UserId == accountId, ct);
-                    if (membership is not null) membership.LeftAt = now;
+                    membership?.LeftAt = now;
                     break;
                 }
             case "group-member-updated" when p.Member is not null:

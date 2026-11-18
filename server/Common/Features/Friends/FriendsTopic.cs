@@ -139,7 +139,7 @@ public sealed class FriendsTopic(IDbContextFactory<VrcxContext> dbFactory, IPres
             lock (feed.Marks)
             {
                 (dirty, all) = (feed.Dirty, feed.All);
-                feed.Dirty = new HashSet<string>(StringComparer.Ordinal);
+                feed.Dirty = [with(StringComparer.Ordinal)];
                 feed.All = false;
                 feed.Scheduled = false;
             }

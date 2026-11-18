@@ -68,7 +68,7 @@ public sealed class PhotonFeedEntry
 }
 
 /// <summary>What a packet asks of the world outside the lobby; the service does it.</summary>
-public abstract record PhotonEffect;
+public closed record PhotonEffect;
 /// <summary>addPhotonEventToGameLog for an Event: a game log Event row.</summary>
 public sealed record PhotonGameLogEvent(DateTimeOffset At, string Data) : PhotonEffect;
 /// <summary>addPhotonPortalSpawn: the target found from its short name, then a feed row and a game log row.</summary>

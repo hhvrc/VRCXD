@@ -153,7 +153,7 @@ public sealed class AccountSyncService(
             .Where(f => f.OwnerUserId == accountId && f.EndedAt == null && !listed.Contains(f.FriendUserId))
             .Select(f => f.FriendUserId).ToListAsync(ct);
         var ids = me.Friends.ToHashSet(StringComparer.Ordinal);
-        var stillFriends = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> stillFriends = [with(StringComparer.Ordinal)];
         foreach (var id in missing)
         {
             if (ids.Contains(id))
@@ -185,7 +185,7 @@ public sealed class AccountSyncService(
         var missing = await db.GroupMembers.AsNoTracking()
             .Where(m => m.UserId == accountId && m.LeftAt == null && !listed.Contains(m.GroupId))
             .Select(m => m.GroupId).ToListAsync(ct);
-        var stillMember = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> stillMember = [with(StringComparer.Ordinal)];
         foreach (var id in missing)
         {
             try

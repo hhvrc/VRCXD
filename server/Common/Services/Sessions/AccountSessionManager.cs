@@ -468,7 +468,7 @@ public sealed class AccountSessionManager(
     }
 }
 
-public abstract record LoginOutcome
+public closed record LoginOutcome
 {
     public sealed record LoggedIn(string UserId, string DisplayName) : LoginOutcome;
     public sealed record NeedsTwoFactor(string PendingId, IReadOnlyList<string> Methods) : LoginOutcome;

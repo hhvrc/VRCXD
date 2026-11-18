@@ -431,7 +431,7 @@ public sealed partial class LegacyImporter
 
         var linkReport = _report.Table(account.Table("mutual_graph_links"), "mutual_friend_links");
         var linkRows = new List<object?[]>();
-        var linked = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> linked = [with(StringComparer.Ordinal)];
         foreach (var r in _src.Rows(account.Table("mutual_graph_links"), "friend_id", "mutual_id"))
         {
             linkReport.Read++;

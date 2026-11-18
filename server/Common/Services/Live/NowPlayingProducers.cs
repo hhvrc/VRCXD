@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 namespace VRCX.Common.Services.Live;
 
 /// <summary>What the ingestor does for one nowplaying line.</summary>
-public abstract record NowPlayingEffect;
+public closed record NowPlayingEffect;
 
 /// <summary>addGameLogVideo: a producer's unnamed URL, stored and named like any video line.</summary>
 public sealed record NowPlayingAddVideo(string VideoUrl, string? OwnerName, string? MediaId) : NowPlayingEffect;

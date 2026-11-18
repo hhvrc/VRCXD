@@ -100,7 +100,7 @@ public sealed class FriendWriter(VrchatStore store, FriendsTopic topic)
 
     private void Collect(VrcxContext db)
     {
-        var users = new HashSet<string>(StringComparer.Ordinal);
+        HashSet<string> users = [with(StringComparer.Ordinal)];
         var friendships = new List<(string, string)>();
         foreach (var entry in db.ChangeTracker.Entries())
         {
