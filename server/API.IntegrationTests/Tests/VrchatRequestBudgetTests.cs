@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using VRCX.API.Services;
+using VRCX.Common.Services;
 using VRCX.Common.Services.Sessions;
 using VRCX.Common.Services.Sync;
 using VRCX.Testing;

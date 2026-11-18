@@ -12,6 +12,14 @@ namespace VRCX.Common.Features.Accounts;
 /// </summary>
 public sealed class AccountSessionRunner(IAccountSessionManager sessions)
 {
+    /// <summary>
+    /// Picks the VRChat session a read-through should use: the requested account when it has a
+    /// live session, otherwise any live account, otherwise null (the caller answers with
+    /// <see cref="AccountError.NoAccounts"/>).
+    /// </summary>
+    public string? PickAccount(string? requested) =>
+        requested is not null && sessions.Get(requested) is not null ? requested : sessions.ActiveAccountIds.FirstOrDefault();
+
     /// <summary>Whether this server holds a live VRChat session for the account right now.</summary>
     public bool HasSession(string accountId) => sessions.Get(accountId) is not null;
 

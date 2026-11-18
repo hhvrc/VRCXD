@@ -1,7 +1,8 @@
 using System.Collections.Concurrent;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Filters;
 
-namespace VRCX.API.Services;
+namespace VRCX.Common.Services;
 
 /// <summary>
 /// Short-lived answers to the VRChat reads a dialog makes each time it opens (a user's mutual
@@ -108,7 +109,7 @@ public sealed class VrchatReadCache(TimeProvider time)
     /// goes; so does the account's stored auth/user, unless the write stored a new one itself (a status
     /// change answers with the account; selecting a fallback avatar or a home world does not).
     /// </summary>
-    public sealed class ClearOnWriteFilter(VrchatReadCache cache, Common.Services.Sessions.CurrentUserCache currentUsers, TimeProvider time) : IAsyncActionFilter
+    public sealed class ClearOnWriteFilter(VrchatReadCache cache, Sessions.CurrentUserCache currentUsers, TimeProvider time) : IAsyncActionFilter
     {
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {

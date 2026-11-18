@@ -22,7 +22,7 @@ public sealed class RepresentedGroupTests
 
         app.Vrchat.Json("users/usr_member/groups/represented", """{"groupId":"grp_b","name":"B","isRepresenting":true}""");
         // The tab is kept for a few minutes; past that it is read again.
-        app.Time.Advance(VRCX.API.Services.VrchatReadCache.DialogTtl + TimeSpan.FromSeconds(1));
+        app.Time.Advance(VRCX.Common.Services.VrchatReadCache.DialogTtl + TimeSpan.FromSeconds(1));
         var one = (await app.GetJsonAsync(app.AccountPath("users/usr_member/groups"))).EnumerateArray().ToList();
         await Assert.That(one.Where(g => g.GetProperty("isRepresenting").GetBoolean()).Select(g => g.GetProperty("groupId").GetString()!)).IsEquivalentTo(new[] { "grp_b" });
     }

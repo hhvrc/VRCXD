@@ -273,6 +273,9 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.GameLog.PreviousInstanceQueries>();
         services.AddScoped<VRCX.Common.Features.Users.UserQueries>();
         services.AddScoped<VRCX.Common.Features.Content.ContentQueries>();
+        services.AddSingleton<VrchatReadCache>();
+        services.AddSingleton<VRCX.Common.Features.Content.ContentRefresh>();
+        services.AddScoped<VRCX.Common.Features.Users.UserSearch>();
         services.AddScoped<VRCX.Common.Features.Database.DatabaseQueries>();
         services.AddScoped<VRCX.Common.Features.Favorites.FavoriteQueries>();
         services.AddScoped<VRCX.Common.Features.Favorites.FavoriteActions>();

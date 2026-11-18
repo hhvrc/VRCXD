@@ -28,16 +28,6 @@ public sealed class ArchitectureTests
     [
         "AccountsController: IAccountSessionManager",
         "AccountsController: VrcxContext",
-        "AvatarsController: IAccountSessionManager",
-        "AvatarsController: VrcxContext",
-        "GroupsController: IAccountSessionManager",
-        "GroupsController: VrcxContext",
-        "InstancesController: IAccountSessionManager",
-        "InstancesController: VrcxContext",
-        "UsersController: IAccountSessionManager",
-        "UsersController: VrcxContext",
-        "WorldsController: IAccountSessionManager",
-        "WorldsController: VrcxContext",
     ];
 
     private static List<string> Violations() =>

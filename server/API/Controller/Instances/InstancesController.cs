@@ -2,40 +2,25 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
-using VRCX.API.Models.Response;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
-using VRCX.Common.Services.Sessions;
-using VRCX.Common.Services.Sync;
-using VRCX.Common.VrcxDb;
+using VRCX.Common.Features.Content;
 using VRCX.Vrchat;
 
 namespace VRCX.API.Controller.Instances;
 
 /// <summary>
-/// Instances (one row per location tag) and who is in them.
+/// Instances, as stored here. Read by Common/Features/Content, after it has fetched from VRChat when asked to.
 /// </summary>
 [ApiController]
 [Tags("Instances")]
 [ApiVersion("1")]
 [Route("/{version:apiVersion}/instances")]
 [Authorize(AuthenticationSchemes = VrcxAuthSchemes.ApiToken)]
-public sealed class InstancesController : VrcxControllerBase
+public sealed class InstancesController(ContentQueries content, ContentRefresh fetch) : VrcxControllerBase
 {
-    private readonly VrcxContext _db;
-    private readonly IAccountSessionManager _sessions;
-    private readonly IAccountSyncService _sync;
-
-    public InstancesController(VrcxContext db, IAccountSessionManager sessions, IAccountSyncService sync)
-    {
-        _db = db;
-        _sessions = sessions;
-        _sync = sync;
-    }
-
     /// <summary>
     /// An instance by its location tag ("wrld_…:12345~region(eu)"), with everyone we believe is there now.
     /// With refresh=true, GET instances/{location} is fetched from VRChat first, unless it was less than 30 seconds ago.
@@ -50,53 +35,13 @@ public sealed class InstancesController : VrcxControllerBase
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetInstance([FromServices] VRCX.Common.Services.Presence.IPresenceCache presence, [FromRoute] string location, [FromQuery] bool refresh, [FromQuery] string? account, [FromServices] VRCX.API.Services.VrchatReadCache cache, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetInstance([FromRoute] string location, [FromQuery] bool refresh, [FromQuery] string? account, CancellationToken cancellationToken)
     {
         var parsed = VrchatLocation.Parse(location);
         if (!parsed.IsRealInstance) return Problem(InstanceError.NotAnInstance);
 
-        if (refresh)
-        {
-            var via = PickAccount(account, _sessions);
-            if (via is null) return Problem(AccountError.NoAccounts);
-            try
-            {
-                await cache.ThrottleAsync(VRCX.API.Services.VrchatReadCache.Key(via, "refresh-instance", parsed.InstanceLocation), VRCX.API.Services.VrchatReadCache.RefreshMinAge,
-                    () => _sync.RefreshInstanceAsync(via, parsed.InstanceLocation, cancellationToken));
-            }
-            catch (VrchatApiException ex)
-            {
-                return VrchatProblem(ex);
-            }
-        }
-
-        var key = parsed.InstanceLocation;
-        var instance = await _db.Instances.AsNoTracking().Include(i => i.World).FirstOrDefaultAsync(i => i.Location == key, cancellationToken);
-        if (instance is null) return Problem(InstanceError.InstanceNotFound);
-
-        // The game log's own record of who it saw, plus who VRChat's pipeline places here right now.
-        var seen = await _db.InstanceVisits.AsNoTracking()
-            .Where(v => v.InstanceLocation == key && v.Source == VisitSource.GameLog && v.LeftAt == null)
-            .Select(v => new InstancePresentResponse { UserId = v.UserId, DisplayName = v.User.DisplayName, JoinedAt = v.JoinedAt, Source = v.Source })
-            .ToListAsync(cancellationToken);
-        var occupants = await presence.GetOccupantsAsync(key, cancellationToken);
-        var occupantIds = occupants.Select(o => o.UserId).ToArray();
-        var names = await _db.Users.AsNoTracking().Where(u => occupantIds.Contains(u.Id)).ToDictionaryAsync(u => u.Id, u => u.DisplayName, cancellationToken);
-        var present = seen
-            .Concat(occupants.Where(o => names.ContainsKey(o.UserId)).Select(o => new InstancePresentResponse
-            {
-                UserId = o.UserId, DisplayName = names[o.UserId], JoinedAt = o.Since ?? DateTimeOffset.UtcNow, Source = VisitSource.Pipeline,
-            }))
-            .OrderBy(p => p.JoinedAt)
-            .ToList();
-
-        return Ok(new InstanceResponse
-        {
-            Location = instance.Location, WorldId = instance.WorldId, WorldName = instance.World.Name, InstanceName = instance.InstanceName,
-            Type = instance.Type, Region = instance.Region, OwnerUserId = instance.OwnerUserId, GroupId = instance.GroupId,
-            GroupAccessType = instance.GroupAccessType, CanRequestInvite = instance.CanRequestInvite, AgeGate = instance.AgeGate,
-            Name = instance.Name, DisplayName = instance.DisplayName, Capacity = instance.Capacity, ClosedAt = instance.ClosedAt,
-            FirstSeenAt = instance.FirstSeenAt, FetchedAt = instance.FetchedAt, Present = present,
-        });
+        if (refresh && await fetch.InstanceAsync(account, parsed.InstanceLocation, cancellationToken) is { } problem) return Problem(problem);
+        var instance = await content.InstanceDetailsAsync(parsed.InstanceLocation, cancellationToken);
+        return instance is null ? Problem(InstanceError.InstanceNotFound) : Ok(instance);
     }
 }

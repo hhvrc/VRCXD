@@ -9,17 +9,6 @@ public sealed class MemoResponse
     public required DateTimeOffset UpdatedAt { get; init; }
 }
 
-public sealed class UserSearchResultResponse
-{
-    public required string Id { get; init; }
-    public required string DisplayName { get; init; }
-    public required string Status { get; init; }
-    public string? StatusDescription { get; init; }
-    public required string TrustLevel { get; init; }
-    public string? ThumbnailImageUrl { get; init; }
-    public required bool IsFriend { get; init; }
-}
-
 public sealed class UserRelationshipResponse
 {
     public required bool IsFriend { get; init; }

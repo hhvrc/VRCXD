@@ -59,6 +59,14 @@ public sealed class UserQueries(VrcxContext db)
         };
     }
 
+    /// <summary>The stored user, or null when the server has never seen them: GET users/{id}.</summary>
+    public Task<User?> FindUserAsync(string userId, CancellationToken cancellationToken) =>
+        db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+
+    /// <summary>Whether the server has ever stored this user.</summary>
+    public Task<bool> ExistsAsync(string userId, CancellationToken cancellationToken) =>
+        db.Users.AnyAsync(u => u.Id == userId, cancellationToken);
+
     /// <summary>The stored user's display name, or null when the server has never seen them.</summary>
     public Task<string?> DisplayNameAsync(string userId, CancellationToken cancellationToken) =>
         db.Users.AsNoTracking().Where(u => u.Id == userId).Select(u => (string?)u.DisplayName).FirstOrDefaultAsync(cancellationToken);

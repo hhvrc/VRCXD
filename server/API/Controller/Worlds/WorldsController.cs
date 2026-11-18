@@ -2,40 +2,25 @@ using System.Net.Mime;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common;
 using VRCX.Common.Authentication;
 using VRCX.Common.Errors;
-using VRCX.Common.Services.Sessions;
-using VRCX.Common.Services.Sync;
-using VRCX.Common.VrcxDb;
-using VRCX.Vrchat;
+using VRCX.Common.Features.Content;
 
 namespace VRCX.API.Controller.Worlds;
 
 /// <summary>
-/// Worlds, as stored here.
+/// Worlds, as stored here. Read by Common/Features/Content, after it has fetched from VRChat when asked to.
 /// </summary>
 [ApiController]
 [Tags("Worlds")]
 [ApiVersion("1")]
 [Route("/{version:apiVersion}/worlds")]
 [Authorize(AuthenticationSchemes = VrcxAuthSchemes.ApiToken)]
-public sealed partial class WorldsController : VrcxControllerBase
+public sealed class WorldsController(ContentQueries content, ContentRefresh fetch) : VrcxControllerBase
 {
-    private readonly VrcxContext _db;
-    private readonly IAccountSessionManager _sessions;
-    private readonly IAccountSyncService _sync;
-
-    public WorldsController(VrcxContext db, IAccountSessionManager sessions, IAccountSyncService sync)
-    {
-        _db = db;
-        _sessions = sessions;
-        _sync = sync;
-    }
-
     /// <summary>
     /// A world as last seen. With refresh=true, GET worlds/{id} is fetched from VRChat first, unless it was less than 30 seconds ago.
     /// </summary>
@@ -47,25 +32,10 @@ public sealed partial class WorldsController : VrcxControllerBase
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> GetWorld([FromRoute] string worldId, [FromQuery] bool refresh, [FromQuery] string? account, [FromServices] VRCX.API.Services.VrchatReadCache cache, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetWorld([FromRoute] string worldId, [FromQuery] bool refresh, [FromQuery] string? account, CancellationToken cancellationToken)
     {
-        if (refresh)
-        {
-            var via = PickAccount(account, _sessions);
-            if (via is null) return Problem(AccountError.NoAccounts);
-            try
-            {
-                await cache.ThrottleAsync(VRCX.API.Services.VrchatReadCache.Key(via, "refresh-world", worldId), VRCX.API.Services.VrchatReadCache.RefreshMinAge,
-                    () => _sync.RefreshWorldAsync(via, worldId, cancellationToken));
-            }
-            catch (VrchatApiException ex)
-            {
-                return VrchatProblem(ex);
-            }
-        }
-
-        var world = await _db.Worlds.AsNoTracking().Include(w => w.Author).FirstOrDefaultAsync(w => w.Id == worldId, cancellationToken);
-        if (world is null) return Problem(WorldError.WorldNotFound);
-        return Ok(WorldResponse.From(world));
+        if (refresh && await fetch.WorldAsync(account, worldId, cancellationToken) is { } problem) return Problem(problem);
+        var world = await content.FindWorldAsync(worldId, cancellationToken);
+        return world is null ? Problem(WorldError.WorldNotFound) : Ok(WorldResponse.From(world));
     }
 }
