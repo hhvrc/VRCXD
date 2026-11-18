@@ -10,7 +10,7 @@ using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Tools;
 
 public sealed class GalleryLimits
 {
@@ -81,7 +81,7 @@ public sealed record CosmeticAsset(string Type, string Url, int? TotalDurationMs
 /// <remarks>A nameplate effect also has the two hex colours (no #) of the gradient behind it.</remarks>
 public sealed record CosmeticResponse(string Id, string? Name, IReadOnlyList<CosmeticAsset> Assets, string? GradientStart, string? GradientEnd);
 
-public sealed partial class AccountsController
+public sealed partial class AccountToolsController
 {
     /// <summary>The account's upload limits, VRC+ state and current icon.</summary>
     /// <response code="200">The info</response>
@@ -262,7 +262,7 @@ public sealed partial class AccountsController
         ReadLiveAsync(accountId, async client =>
         {
             var prints = await client.GetPrintsAsync(accountId, cancellationToken);
-            var favorites = await _db.PrintFavorites.AsNoTracking().Where(f => f.OwnerUserId == accountId).Select(f => f.PrintId).ToListAsync(cancellationToken);
+            var favorites = await printFavorites.IdsAsync(accountId, cancellationToken);
             return new GalleryPrints { Prints = prints.OrderByDescending(p => p.Timestamp).ToList(), Favorites = favorites };
         });
 
@@ -302,12 +302,8 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> AddPrintFavorite([FromRoute] string accountId, [FromRoute] string printId, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-        if (!await _db.PrintFavorites.AnyAsync(f => f.OwnerUserId == accountId && f.PrintId == printId, cancellationToken))
-        {
-            _db.PrintFavorites.Add(new PrintFavorite { OwnerUserId = accountId, PrintId = printId, CreatedAt = DateTimeOffset.UtcNow });
-            await _db.SaveChangesAsync(cancellationToken);
-        }
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        await printFavorites.AddAsync(accountId, printId, cancellationToken);
         return NoContent();
     }
 
@@ -318,7 +314,7 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> RemovePrintFavorite([FromRoute] string accountId, [FromRoute] string printId, CancellationToken cancellationToken)
     {
-        await _db.PrintFavorites.Where(f => f.OwnerUserId == accountId && f.PrintId == printId).ExecuteDeleteAsync(cancellationToken);
+        await printFavorites.RemoveAsync(accountId, printId, cancellationToken);
         return NoContent();
     }
 

@@ -56,4 +56,29 @@ public sealed partial class AccountsController : VrcxControllerBase
         }
         return NoContent();
     }
+
+    private async Task<IActionResult> ReadLiveAsync<T>(string accountId, Func<VrchatApiClient, Task<T>> read)
+    {
+        if (_sessions.Get(accountId) is not { } client) return Problem(AccountError.NoLiveSession);
+        try
+        {
+            return Ok(await read(client));
+        }
+        catch (VrchatUnauthorizedException)
+        {
+            await _sessions.InvalidateAsync(accountId, HttpContext.RequestAborted);
+            return Problem(VrchatError.SessionExpired);
+        }
+        catch (VrchatApiException ex)
+        {
+            return VrchatProblem(ex);
+        }
+    }
+
+    private async Task<IActionResult> FetchAsync(string accountId, Func<VrchatApiClient, Task<object>> fetch)
+    {
+        object? result = null;
+        var outcome = await RunAsync(accountId, async client => result = await fetch(client));
+        return result is null ? outcome : Ok(result);
+    }
 }

@@ -7,7 +7,7 @@ using VRCX.Common.Errors;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Tools;
 
 public sealed class CalendarGroup
 {
@@ -28,7 +28,7 @@ public sealed class FollowCalendarEventBody
 }
 
 // The Tools page's calendar and info push: live from VRChat, as in the original.
-public sealed partial class AccountsController
+public sealed partial class AccountToolsController
 {
     /// <summary>Group events for the month around a date.</summary>
     /// <param name="accountId">The account</param>
@@ -47,7 +47,7 @@ public sealed partial class AccountsController
         {
             var events = await client.GetAllCalendarEventsAsync(scope == "all" ? "calendar" : $"calendar/{scope}", date, cancellationToken);
             var ownerIds = events.Select(e => e.OwnerId).Where(id => id.Length > 0).Distinct().ToList();
-            var known = await _db.Groups.AsNoTracking().Where(g => ownerIds.Contains(g.Id) && !g.IsStub).ToDictionaryAsync(g => g.Id, g => new CalendarGroup { Name = g.Name, BannerUrl = g.BannerUrl }, cancellationToken);
+            var known = (await groupQueries.CardsAsync(ownerIds, cancellationToken)).ToDictionary(g => g.Key, g => new CalendarGroup { Name = g.Value.Name, BannerUrl = g.Value.BannerUrl });
             foreach (var missing in ownerIds.Where(id => !known.ContainsKey(id)))
             {
                 try
@@ -85,20 +85,8 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> GetCalendarEventIcs([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken)
     {
-        if (_sessions.Get(accountId) is not { } client) return Problem(AccountError.NoLiveSession);
-        try
-        {
-            return Content(await client.GetCalendarEventIcsAsync(groupId, eventId, cancellationToken), "text/calendar");
-        }
-        catch (VrchatUnauthorizedException)
-        {
-            await _sessions.InvalidateAsync(accountId, HttpContext.RequestAborted);
-            return Problem(VrchatError.SessionExpired);
-        }
-        catch (VrchatApiException ex)
-        {
-            return VrchatProblem(ex);
-        }
+        var ics = await Runner.ReadAsync(accountId, client => client.GetCalendarEventIcsAsync(groupId, eventId, cancellationToken), cancellationToken);
+        return ics.Problem is { } problem ? Problem(problem) : Content(ics.Value!, "text/calendar");
     }
 
     /// <summary>Opens the event's .ics with the calendar app on the account's PC (the original's Export to Calendar, OpenCalendarFile).</summary>
@@ -109,24 +97,11 @@ public sealed partial class AccountsController
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status502BadGateway, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public async Task<IActionResult> OpenCalendarEventOnPc([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, [FromServices] VRCX.Common.Services.Live.DesktopClients desktops, CancellationToken cancellationToken)
+    public async Task<IActionResult> OpenCalendarEventOnPc([FromRoute] string accountId, [FromRoute] string groupId, [FromRoute] string eventId, CancellationToken cancellationToken)
     {
-        if (_sessions.Get(accountId) is not { } client) return Problem(AccountError.NoLiveSession);
-        string ics;
-        try
-        {
-            ics = await client.GetCalendarEventIcsAsync(groupId, eventId, cancellationToken);
-        }
-        catch (VrchatUnauthorizedException)
-        {
-            await _sessions.InvalidateAsync(accountId, HttpContext.RequestAborted);
-            return Problem(VrchatError.SessionExpired);
-        }
-        catch (VrchatApiException ex)
-        {
-            return VrchatProblem(ex);
-        }
-        return await AgentActionAsync(accountId, VRCX.Common.Live.Capability.Calendar, desktops, new VRCX.Common.Live.ClientAction { OpenCalendarFile = new VRCX.Common.Live.OpenCalendarFile { Ics = ics } }, cancellationToken);
+        var ics = await Runner.ReadAsync(accountId, client => client.GetCalendarEventIcsAsync(groupId, eventId, cancellationToken), cancellationToken);
+        if (ics.Problem is { } problem) return Problem(problem);
+        return Desktop(await desktop.RequestAsync(accountId, VRCX.Common.Live.Capability.Calendar, new VRCX.Common.Live.ClientAction { OpenCalendarFile = new VRCX.Common.Live.OpenCalendarFile { Ics = ics.Value! } }, cancellationToken));
     }
 
     /// <summary>VRChat's info push items: help articles, quick menu banners and loading screens. The shape varies by item, so it is passed through.</summary>

@@ -9,13 +9,13 @@ using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Search;
 
 public sealed record PurchaseListingBody(string ListingId, int TotalPrice, int Quantity);
 
 // The Search page. Each tab asks VRChat through the account's session and gets VRChat's answer back
 // as it came, the way the original reads it. Users found are stored, as everywhere else.
-public sealed partial class AccountsController
+public sealed partial class AccountSearchController
 {
     private static readonly string[] StoreIds =
     [
@@ -30,28 +30,9 @@ public sealed partial class AccountsController
     private static HttpClient CreateAvatarProviderClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
-        var version = typeof(AccountsController).Assembly.GetName().Version;
+        var version = typeof(AccountSearchController).Assembly.GetName().Version;
         client.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", $"VRCX {version?.ToString(3) ?? "2.0.0"}");
         return client;
-    }
-
-    private const string VrcxIdKey = "VRCX_id";
-
-    private async Task<string> VrcxIdAsync(CancellationToken ct)
-    {
-        var row = await _db.ServerSettings.FindAsync([VrcxIdKey], ct);
-        if (row is not null) return row.Value;
-        row = new ServerSetting { Key = VrcxIdKey, Value = Guid.NewGuid().ToString() };
-        _db.ServerSettings.Add(row);
-        await _db.SaveChangesAsync(ct);
-        return row.Value;
-    }
-
-    private async Task<IActionResult> FetchAsync(string accountId, Func<VrchatApiClient, Task<object>> fetch)
-    {
-        object? result = null;
-        var outcome = await RunAsync(accountId, async client => result = await fetch(client));
-        return result is null ? outcome : Ok(result);
     }
 
     /// <summary>Search VRChat users, 60 at a time.</summary>
@@ -61,15 +42,12 @@ public sealed partial class AccountsController
     [ProducesResponseType<JsonElement>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     [ProducesResponseType<OpenShockProblem>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     [MapToApiVersion("1")]
-    public Task<IActionResult> SearchUsers([FromRoute] string accountId, [FromQuery] string search, [FromQuery] int offset, [FromQuery] string? sort, [FromServices] VrchatStore store, CancellationToken cancellationToken) =>
+    public Task<IActionResult> SearchUsers([FromRoute] string accountId, [FromQuery] string search, [FromQuery] int offset, [FromQuery] string? sort, CancellationToken cancellationToken) =>
         FetchAsync(accountId, async client =>
         {
             var json = await client.GetJsonAsync("users",
                 [new("search", search), new("n", "60"), new("offset", offset.ToString()), new("customFields", "displayName"), new("sort", sort is "last_login" ? "last_login" : "relevance")], cancellationToken);
-            var now = DateTimeOffset.UtcNow;
-            foreach (var user in json.EnumerateArray())
-                if (user.Deserialize<LimitedUserSearch>(VrchatJson.Options) is { } found) await store.UpsertSearchResultAsync(_db, found, now, cancellationToken);
-            await _db.SaveChangesAsync(cancellationToken);
+            await searchStore.StoreUsersAsync(json, cancellationToken);
             return json;
         });
 
@@ -252,7 +230,7 @@ public sealed partial class AccountsController
         var query = !string.IsNullOrEmpty(authorId) ? $"authorId={Uri.EscapeDataString(authorId)}" : $"search={Uri.EscapeDataString(search ?? "")}&n=5000";
         using var request = new HttpRequestMessage(HttpMethod.Get, $"{uri}{separator}{query}");
         request.Headers.Referrer = new Uri("https://vrcx.app");
-        request.Headers.TryAddWithoutValidation("VRCX-ID", await VrcxIdAsync(cancellationToken));
+        request.Headers.TryAddWithoutValidation("VRCX-ID", await searchStore.VrcxIdAsync(cancellationToken));
         try
         {
             using var response = await AvatarProviders.SendAsync(request, cancellationToken);

@@ -40,6 +40,18 @@ public sealed class FriendResponse
     public string? ProfileEffect { get; init; }
 }
 
+/// <summary>One friend as the Tools page exports them.</summary>
+public sealed class FriendExportRow
+{
+    public required string UserId { get; init; }
+    public required string DisplayName { get; init; }
+    public string? Memo { get; init; }
+    public string? Note { get; init; }
+    public string? Bio { get; init; }
+    public string? StatusDescription { get; init; }
+    public string? ThumbnailImageUrl { get; init; }
+}
+
 /// <summary>One row of the Friend List page: everything its columns and search need.</summary>
 public sealed class FriendDetailResponse
 {
@@ -256,6 +268,22 @@ public sealed class FriendQueries(VrcxContext db, IPresenceCache presence, IPend
             }).ToArray(),
         };
     }
+
+    /// <summary>The account's current friends with the memo and note on each, in friend-number order: the Tools page's export.</summary>
+    public Task<FriendExportRow[]> ExportAsync(string accountId, CancellationToken cancellationToken) =>
+        db.Friendships.AsNoTracking().CurrentOf(accountId)
+            .OrderBy(f => f.FriendNumber)
+            .Select(f => new FriendExportRow
+            {
+                UserId = f.Friend.Id,
+                DisplayName = f.Friend.DisplayName,
+                Memo = db.UserMemos.Where(m => m.UserId == f.Friend.Id).Select(m => m.Memo).FirstOrDefault(),
+                Note = db.UserNotes.Where(n => n.OwnerUserId == accountId && n.TargetUserId == f.Friend.Id).Select(n => n.Note).FirstOrDefault(),
+                Bio = f.Friend.Bio,
+                StatusDescription = f.Friend.StatusDescription,
+                ThumbnailImageUrl = UserImage.Pick(f.Friend.IconUrl, f.Friend.CurrentAvatarThumbnailImageUrl, f.Friend.CurrentAvatarImageUrl),
+            })
+            .ToArrayAsync(cancellationToken);
 
     /// <summary>The original's random name colour hue for a user id, 0 to 65535.</summary>
     public static int NameHue(string userId)

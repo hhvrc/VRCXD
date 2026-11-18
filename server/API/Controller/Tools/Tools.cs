@@ -7,27 +7,17 @@ using Microsoft.EntityFrameworkCore;
 using OpenShock.Internal.Common.Problems;
 using VRCX.API.Models.Response;
 using VRCX.Common.Errors;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.VrcxDb;
 using VRCX.Vrchat;
 using VRCX.Vrchat.Models;
 using VRCX.Common.Services;
 
-namespace VRCX.API.Controller.Accounts;
+namespace VRCX.API.Controller.Tools;
 
 public sealed record SubmitReportBody([Required] string Type, [Required] string Category, [Required] string Reason, [Required] string ContentId, string? Description = null, JsonElement? Details = null);
 
 /// <summary>One friend with what the export tools read: the VRCX memo, the VRChat note, bio and status text.</summary>
-public sealed class FriendExportRow
-{
-    public required string UserId { get; init; }
-    public required string DisplayName { get; init; }
-    public string? Memo { get; init; }
-    public string? Note { get; init; }
-    public string? Bio { get; init; }
-    public string? StatusDescription { get; init; }
-    public string? ThumbnailImageUrl { get; init; }
-}
-
 public sealed class UpdateInviteMessageBody
 {
     [Required(AllowEmptyStrings = true)]
@@ -47,7 +37,7 @@ public sealed class SaveUserNoteBody
 // they were in the original.
 public sealed record OnlineUsersResponse(long Users, long? Instances);
 
-public sealed partial class AccountsController
+public sealed partial class AccountToolsController
 {
     /// <summary>The account's friends with their memos, notes, bios and status text, for the export tools.</summary>
     /// <response code="200">The friends</response>
@@ -75,23 +65,8 @@ public sealed partial class AccountsController
     [MapToApiVersion("1")]
     public async Task<IActionResult> ListFriendsForExport([FromRoute] string accountId, CancellationToken cancellationToken)
     {
-        if (!await _db.Accounts.AnyAsync(a => a.UserId == accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
-
-        var rows = await _db.Friendships.AsNoTracking()
-            .Where(f => f.OwnerUserId == accountId && f.EndedAt == null)
-            .OrderBy(f => f.FriendNumber)
-            .Select(f => new FriendExportRow
-            {
-                UserId = f.Friend.Id,
-                DisplayName = f.Friend.DisplayName,
-                Memo = _db.UserMemos.Where(m => m.UserId == f.Friend.Id).Select(m => m.Memo).FirstOrDefault(),
-                Note = _db.UserNotes.Where(n => n.OwnerUserId == accountId && n.TargetUserId == f.Friend.Id).Select(n => n.Note).FirstOrDefault(),
-                Bio = f.Friend.Bio,
-                StatusDescription = f.Friend.StatusDescription,
-                ThumbnailImageUrl = UserImage.Pick(f.Friend.IconUrl, f.Friend.CurrentAvatarThumbnailImageUrl, f.Friend.CurrentAvatarImageUrl),
-            })
-            .ToArrayAsync(cancellationToken);
-        return Ok(rows);
+        if (!await accounts.ExistsAsync(accountId, cancellationToken)) return Problem(AccountError.AccountNotFound);
+        return Ok(await friends.ExportAsync(accountId, cancellationToken));
     }
 
     /// <summary>Write the account's VRChat note on a user (POST userNotes) and keep the stored copy in step.</summary>
@@ -106,27 +81,7 @@ public sealed partial class AccountsController
         RunAsync(accountId, async client =>
         {
             var saved = await client.SaveUserNoteAsync(userId, body.Note, cancellationToken);
-            // The original's EditNoteAndMemoDialog shows the saved note through replaceBioSymbols.
-            var note = VRCX.Common.Services.VrchatText.ReplaceBioSymbols(body.Note);
-            var row = await _db.UserNotes.FirstOrDefaultAsync(n => n.OwnerUserId == accountId && n.TargetUserId == userId, cancellationToken);
-            if (row is not null)
-            {
-                row.Note = note;
-                row.FetchedAt = DateTimeOffset.UtcNow;
-            }
-            else if (await _db.Users.AnyAsync(u => u.Id == userId, cancellationToken))
-            {
-                _db.UserNotes.Add(new global::VRCX.Common.VrcxDb.UserNote
-                {
-                    Id = saved.Id,
-                    OwnerUserId = accountId,
-                    TargetUserId = userId,
-                    Note = note,
-                    CreatedAt = saved.CreatedAt,
-                    FetchedAt = DateTimeOffset.UtcNow,
-                });
-            }
-            await _db.SaveChangesAsync(cancellationToken);
+            await notes.SavedAsync(accountId, userId, body.Note, saved, cancellationToken);
         });
 
     /// <summary>The account's groups in one membership state, live from VRChat.</summary>
@@ -276,23 +231,6 @@ public sealed partial class AccountsController
     public Task<IActionResult> ListEconomyTransactions([FromRoute] string accountId, CancellationToken cancellationToken) =>
         ReadLiveAsync(accountId, client => client.GetEconomyTransactionsAsync(accountId, 100, cancellationToken));
 
-    private async Task<IActionResult> ReadLiveAsync<T>(string accountId, Func<VrchatApiClient, Task<T>> read)
-    {
-        if (_sessions.Get(accountId) is not { } client) return Problem(AccountError.NoLiveSession);
-        try
-        {
-            return Ok(await read(client));
-        }
-        catch (VrchatUnauthorizedException)
-        {
-            await _sessions.InvalidateAsync(accountId, HttpContext.RequestAborted);
-            return Problem(VrchatError.SessionExpired);
-        }
-        catch (VrchatApiException ex)
-        {
-            return VrchatProblem(ex);
-        }
-    }
 }
 
 /// <summary>The account's membership status after joining: member, requested, or null when VRChat didn't say.</summary>

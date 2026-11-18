@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using VRCX.Common;
 using VRCX.Common.Features.Accounts;
+using VRCX.Common.Features.Desktop;
 using VRCX.Vrchat;
 
 namespace VRCX.API.Controller;
@@ -14,6 +15,17 @@ namespace VRCX.API.Controller;
 /// </summary>
 public abstract class AccountForwardController(AccountSessionRunner runner) : VrcxControllerBase
 {
+    /// <summary>For the endpoint that needs more than one call's result turned into a response.</summary>
+    protected AccountSessionRunner Runner => runner;
+
+    /// <summary>What the agent on the account's PC answered: 204 for nothing, 200 with its JSON, else its problem.</summary>
+    [NonAction]
+    protected IActionResult Desktop(DesktopAnswer answer)
+    {
+        if (answer.Problem is { } problem) return Problem(problem);
+        return string.IsNullOrEmpty(answer.Json) ? NoContent() : Content(answer.Json, System.Net.Mime.MediaTypeNames.Application.Json);
+    }
+
     /// <summary>Runs an action on VRChat with the account's own session and answers 204, or the problem it failed with.</summary>
     [NonAction]
     protected async Task<IActionResult> RunAsync(string accountId, Func<VrchatApiClient, Task> action) =>
