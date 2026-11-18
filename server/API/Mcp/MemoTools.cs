@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
-using VRCX.Common.Services;
+using VRCX.Common.Features.Memos;
 
 namespace VRCX.API.Mcp;
 

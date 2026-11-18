@@ -81,6 +81,7 @@ public sealed class ArchitectureTests
     [Test]
     [Arguments(typeof(FriendsController))]
     [Arguments(typeof(GameLogController))]
+    [Arguments(typeof(VRCX.API.Controller.Memos.MemosController))]
     public async Task A_moved_feature_takes_none_of_them(Type controller)
     {
         await Assert.That(Violations().Where(v => v.StartsWith(controller.Name + ":", StringComparison.Ordinal)).ToList()).IsEmpty();

@@ -260,7 +260,7 @@ public static class VrcxServiceHelper
         services.AddScoped<VRCX.Common.Features.GameLog.PreviousInstanceQueries>();
         services.AddScoped<VRCX.Common.Services.Queries.UserQueries>();
         services.AddScoped<VRCX.Common.Services.Queries.AccountListQueries>();
-        services.AddScoped<MemoStore>();
+        services.AddScoped<VRCX.Common.Features.Memos.MemoStore>();
 
         return services;
     }

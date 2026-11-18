@@ -1,17 +1,33 @@
 using Microsoft.EntityFrameworkCore;
+using VRCX.Common.Features.Friends;
 using VRCX.Common.VrcxDb;
 
-namespace VRCX.Common.Services;
+namespace VRCX.Common.Features.Memos;
 
 /// <summary>What a memo write left behind. <see cref="Found"/> is false when the user, world or avatar was never seen.</summary>
 public sealed record MemoWriteResult(bool Found, string Memo, DateTimeOffset? UpdatedAt);
 
+/// <summary>A memo as stored.</summary>
+public sealed record StoredMemo(string Memo, DateTimeOffset UpdatedAt);
+
 /// <summary>
 /// VRCX's own memos on users, worlds and avatars: local data, VRChat never sees it. The memo
-/// endpoints and the MCP memo tools both write through here.
+/// endpoints and the MCP memo tools both read and write through here.
 /// </summary>
-public sealed class MemoStore(VrcxContext db, VRCX.Common.Features.Friends.FriendWriter friends)
+public sealed class MemoStore(VrcxContext db, FriendWriter friends)
 {
+    /// <summary>The memo on a user, or null when there is none.</summary>
+    public Task<StoredMemo?> GetUserMemoAsync(string userId, CancellationToken cancellationToken) =>
+        db.UserMemos.AsNoTracking().Where(m => m.UserId == userId).Select(m => new StoredMemo(m.Memo, m.UpdatedAt)).FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>The memo on a world, or null when there is none.</summary>
+    public Task<StoredMemo?> GetWorldMemoAsync(string worldId, CancellationToken cancellationToken) =>
+        db.WorldMemos.AsNoTracking().Where(m => m.WorldId == worldId).Select(m => new StoredMemo(m.Memo, m.UpdatedAt)).FirstOrDefaultAsync(cancellationToken);
+
+    /// <summary>The memo on an avatar, or null when there is none.</summary>
+    public Task<StoredMemo?> GetAvatarMemoAsync(string avatarId, CancellationToken cancellationToken) =>
+        db.AvatarMemos.AsNoTracking().Where(m => m.AvatarId == avatarId).Select(m => new StoredMemo(m.Memo, m.UpdatedAt)).FirstOrDefaultAsync(cancellationToken);
+
     /// <summary>Write (or replace) the memo on a user. An empty memo is stored as empty; <see cref="DeleteUserMemoAsync"/> removes it.</summary>
     public async Task<MemoWriteResult> SetUserMemoAsync(string userId, string text, CancellationToken cancellationToken)
     {
